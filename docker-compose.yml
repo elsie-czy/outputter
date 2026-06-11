@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  web:
+    build: .
+    container_name: personal-supertool-web
+    env_file:
+      - .env
+    environment:
+      WEB_HOST: "0.0.0.0"
+      WEB_PORT: "8101"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+    command: >
+      gunicorn -w 2 -b 0.0.0.0:8101 scripts.web_app:app
+    ports:
+      - "8101:8101"
+    volumes:
+      - ./logs:/app/logs
+      - ./outputs:/app/outputs
+      - ./data:/app/data
+    restart: unless-stopped
+
+  image-worker:
+    build: .
+    container_name: personal-supertool-image-worker
+    env_file:
+      - .env
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+    command: >
+      python scripts/jimeng_worker.py jobs
+    volumes:
+      - ./logs:/app/logs
+      - ./outputs:/app/outputs
+      - ./data:/app/data
+    restart: unless-stopped
+    profiles:
+      - worker
+
+  deconstruct-runner:
+    build: .
+    container_name: personal-supertool-runner
+    env_file:
+      - .env
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+    command: >
+      python scripts/deconstruct_daily.py
+    volumes:
+      - ./logs:/app/logs
+      - ./outputs:/app/outputs
+      - ./data:/app/data
+    restart: "no"
+    profiles:
+      - run-once

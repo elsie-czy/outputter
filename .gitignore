@@ -1,0 +1,12 @@
+.venv/
+.env
+.env.bak_*
+__pycache__/
+*.pyc
+.DS_Store
+outputs/
+logs/
+memory/
+temp/
+data/shared_state/
+*.bak_*
