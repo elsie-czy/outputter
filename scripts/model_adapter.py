@@ -134,7 +134,7 @@ def _ensure_analysis_shape(result, work):
     return result
 
 
-def analyze_work(work):
+def analyze_work(work, reference_notes=None):
     provider = os.getenv("MODEL_PROVIDER", "local").strip().lower()
     if provider == "local":
         return _local_analyze(work)
@@ -150,13 +150,13 @@ def analyze_work(work):
         "moonshot",
         "kimi",
     }:
-        return _openai_analyze(work)
+        return _openai_analyze(work, reference_notes)
     if provider == "ernie":
         raise RuntimeError("MODEL_PROVIDER=ernie 尚未接入。")
     raise RuntimeError(f"未知的 MODEL_PROVIDER: {provider}")
 
 
-def _openai_analyze(work):
+def _openai_analyze(work, reference_notes=None):
     provider = os.getenv("MODEL_PROVIDER", "openai").strip().lower()
     is_qwen = provider in {"qwen", "dashscope"}
     api_key = (os.getenv("QWEN_API_KEY", "") if is_qwen else os.getenv("OPENAI_API_KEY", "")).strip()
@@ -236,6 +236,21 @@ def _openai_analyze(work):
             "配图提示词输出4-5条，每条都必须包含：小红书竖版比例3:4、动漫风优先、具体人物/场景/光影细节",
         ],
     }
+
+    # Few-shot: 注入历史爆款笔记作为风格参考
+    if reference_notes:
+        ref_lines = []
+        for i, ref in enumerate(reference_notes[:3], 1):
+            title = ref.get("标题", "")
+            labels = ref.get("标签", "")
+            body = ref.get("正文", "")
+            likes = ref.get("点赞", 0)
+            collects = ref.get("收藏", 0)
+            ref_lines.append(
+                f"参考笔记{i}（点赞{likes} 收藏{collects}）：\n"
+                f"标题：{title}\n标签：{labels}\n正文：{body}\n"
+            )
+        user_prompt["参考笔记（请模仿其风格和结构，但内容针对当前作品）"] = ref_lines
 
     payload = {
         "model": model,

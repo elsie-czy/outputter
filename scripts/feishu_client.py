@@ -321,3 +321,39 @@ class FeishuClient:
         if data.get("code") != 0:
             raise RuntimeError(f"feishu create field error: {data}")
         return (data.get("data", {}) or {}).get("field", {}).get("field_id")
+
+    def get_top_notes(self, limit=3):
+        """从笔记结果库取历史表现最好的笔记作为 few-shot 参考"""
+        from scripts.feishu_config import get_feishu_config
+        cfg = get_feishu_config()
+        table_id = cfg.get("related_table_ids", {}).get("笔记结果库")
+        if not table_id:
+            return []
+
+        records = self.list_records(table_id, page_size=200)
+        scored = []
+        for r in records:
+            f = r.get("fields", {}) or {}
+            likes = self._to_num(f.get("点赞", 0))
+            collects = self._to_num(f.get("收藏", 0))
+            if likes + collects <= 0:
+                continue
+            scored.append({
+                "标题": str(f.get("笔记标题", "")),
+                "点赞": likes,
+                "收藏": collects,
+                "账号名": str(f.get("账号名", "")),
+            })
+        scored.sort(key=lambda x: x.get("点赞", 0) + x.get("收藏", 0), reverse=True)
+        return scored[:limit]
+
+    @staticmethod
+    def _to_num(v):
+        try:
+            if v is None:
+                return 0.0
+            if isinstance(v, (int, float)):
+                return float(v)
+            return float(str(v).strip().replace(",", ""))
+        except Exception:
+            return 0.0
