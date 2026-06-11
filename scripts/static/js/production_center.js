@@ -1,8 +1,10 @@
 /**
  * 生产中心页面交互模块
- * - 加载任务列表
+ * - Tab 状态筛选
  * - 搜索 / 筛选
  * - 多选任务
+ * - 批量操作（暂停/重试/终止）
+ * - 单任务操作（暂停/重试/终止/查看详情）
  * - 分页
  * - 统计轮询
  */
@@ -12,9 +14,9 @@
   /* ===== 状态 ===== */
   let currentPage = 1;
   let currentStatus = "";
-  let currentSort = "created_at";
   let pollInterval = null;
   let selectedIds = new Set();
+  let pendingAction = null;
   const PAGE_SIZE = 20;
 
   /* ===== DOM 缓存 ===== */
@@ -26,6 +28,9 @@
     loadStats();
     loadList();
     bindToolbar();
+    bindTabs();
+    bindBatchMenu();
+    bindModal();
     pollInterval = setInterval(loadStats, 30000);
   });
 
@@ -42,6 +47,12 @@
       setText("#statFailed", d.today_failed);
       setText("#statDuration", d.avg_duration);
       setText("#statResource", d.resource_usage + "%");
+      setText("#tokenUsed", (d.token_used / 10000).toFixed(0) + "万");
+      setText("#todayOutput", d.today_completed);
+      
+      // 预计剩余时间
+      const estRemain = d.pending > 0 ? Math.ceil(d.pending * d.avg_duration) : 0;
+      setText("#estRemain", estRemain > 0 ? estRemain + "分钟" : "—");
     } catch (_) {}
   }
 
@@ -55,7 +66,6 @@
       const params = new URLSearchParams({
         page: currentPage,
         per_page: PAGE_SIZE,
-        sort: currentSort,
       });
       if (currentStatus) params.set("status", currentStatus);
       if (q) params.set("q", q);
@@ -88,9 +98,9 @@
     for (const item of items) {
       const rid = item.record_id || "";
       const checked = selectedIds.has(rid) ? " checked" : "";
-      const progress = getProgress(item);
-      const stage = getStage(item);
-      const model = getModel(item);
+      const progress = item.progress_percent || 0;
+      const stageLabel = item.stage_label || "未知";
+      const stageStatus = item.status || "waiting";
 
       html +=
         "<tr>" +
@@ -102,21 +112,26 @@
         "<span>" + esc(item.author || "未知") + "</span>" +
         "<span>" + esc(item.platform || "-") + "</span>" +
         "<span>" + esc(item.category || "-") + "</span>" +
-        (item.word_count ? "<span>" + fmtWordCount(item.word_count) + "</span>" : "") +
         "</div>" +
         "</td>" +
         "<td>" +
         '<div class="pc-progress">' +
-        '<div class="pc-progress-bar"><div class="pc-progress-fill" style="width:' + progress.value + '%"></div></div>' +
-        '<span class="pc-progress-text">' + progress.value + "%</span>" +
+        '<div class="pc-progress-bar"><div class="pc-progress-fill" style="width:' + progress + '%"></div></div>' +
+        '<span class="pc-progress-text">' + progress + "%</span>" +
         "</div>" +
         "</td>" +
-        "<td><span class="pc-stage pc-stage--" + stage.cls + ">" + stage.label + "</span></td>" +
-        "<td><span class='pc-model-tag'>" + esc(model) + "</span></td>" +
+        "<td><span class='pc-stage pc-stage--" + stageStatus + "'>" + esc(stageLabel) + "</span></td>" +
+        "<td><span class='pc-model-tag'>GLM-4</span></td>" +
         '<td><span class="pc-time">' + esc(item.created_at || "-") + "</span></td>" +
         "<td>" +
         '<div class="pc-actions">' +
         '<a class="pc-action-link" data-action="view" data-rid="' + esc(rid) + '">查看</a>' +
+        (stageStatus !== "done" && stageStatus !== "cancelled" ? 
+          '<a class="pc-action-link" data-action="pause" data-rid="' + esc(rid) + '">暂停</a>' : "") +
+        (stageStatus === "failed" ? 
+          '<a class="pc-action-link" data-action="retry" data-rid="' + esc(rid) + '">重试</a>' : "") +
+        (stageStatus !== "done" ? 
+          '<a class="pc-action-link" data-action="cancel" data-rid="' + esc(rid) + '">终止</a>' : "") +
         "</div>" +
         "</td>" +
         "</tr>";
@@ -136,26 +151,92 @@
         updateBatchBtn();
       });
     });
+
+    // 绑定操作按钮
+    tbody.querySelectorAll(".pc-action-link").forEach((link) => {
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        const action = link.dataset.action;
+        const rid = link.dataset.rid;
+        handleAction(action, [rid]);
+      });
+    });
   }
 
-  function getProgress(item) {
-    const status = item.status;
-    if (status === "completed") return { value: 100 };
-    if (status === "failed") return { value: 0 };
-    if (status === "processing") return { value: 50 };
-    return { value: 0 };
+  /* ===== 操作处理 ===== */
+  function handleAction(action, recordIds) {
+    const count = recordIds.length;
+    let title = "";
+    let body = "";
+
+    if (action === "pause") {
+      title = "暂停任务";
+      body = "确定暂停 " + count + " 个任务？暂停后任务将停止执行。";
+    } else if (action === "retry") {
+      title = "重试任务";
+      body = "确定重试 " + count + " 个失败任务？任务将重新进入队列。";
+    } else if (action === "cancel") {
+      title = "终止任务";
+      body = "确定终止 " + count + " 个任务？终止后无法恢复。";
+    } else if (action === "view") {
+      // 查看详情跳转
+      if (recordIds.length === 1) {
+        window.open("/notes/" + recordIds[0], "_blank");
+      }
+      return;
+    }
+
+    pendingAction = { action, recordIds };
+    $("#pcModalTitle").textContent = title;
+    $("#pcModalBody").textContent = body;
+    $("#pcModalOverlay").classList.add("visible");
   }
 
-  function getStage(item) {
-    const status = item.status;
-    if (status === "completed") return { cls: "completed", label: "已完成" };
-    if (status === "failed") return { cls: "failed", label: "已失败" };
-    if (status === "processing") return { cls: "processing", label: "生产中" };
-    return { cls: "waiting", label: "等待中" };
-  }
+  async function executeAction() {
+    if (!pendingAction) return;
+    const { action, recordIds } = pendingAction;
+    const confirmBtn = $("#pcModalConfirm");
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "执行中...";
+    }
 
-  function getModel(item) {
-    return "GLM-4";
+    try {
+      let url = "";
+      let body = {};
+      if (action === "pause") {
+        url = recordIds.length === 1 ? "/api/production/pause" : "/api/production/batch-pause";
+        body = recordIds.length === 1 ? { record_id: recordIds[0] } : { record_ids: recordIds };
+      } else if (action === "retry") {
+        url = recordIds.length === 1 ? "/api/production/retry" : "/api/production/batch-retry";
+        body = recordIds.length === 1 ? { record_id: recordIds[0] } : { record_ids: recordIds };
+      } else if (action === "cancel") {
+        url = recordIds.length === 1 ? "/api/production/cancel" : "/api/production/batch-cancel";
+        body = recordIds.length === 1 ? { record_id: recordIds[0] } : { record_ids: recordIds };
+      }
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error);
+
+      closeModal();
+      showToast("success", "操作成功");
+      selectedIds.clear();
+      loadList();
+      loadStats();
+    } catch (e) {
+      showToast("error", "操作失败: " + e.message);
+    } finally {
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = "确认";
+      }
+    }
   }
 
   /* ===== 分页 ===== */
@@ -179,7 +260,6 @@
     }
 
     html += '<button class="pc-page-btn" data-page="next"' + (currentPage === totalPages ? " disabled" : "") + ">»</button>";
-    html += '<span class="pc-page-info">共 ' + totalPages + ' 页</span>';
 
     el.innerHTML = html;
 
@@ -198,6 +278,19 @@
     });
   }
 
+  /* ===== Tab 筛选 ===== */
+  function bindTabs() {
+    $$(".pc-tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        $$(".pc-tab").forEach((t) => t.classList.remove("active"));
+        tab.classList.add("active");
+        currentStatus = tab.dataset.status;
+        currentPage = 1;
+        loadList();
+      });
+    });
+  }
+
   /* ===== 工具栏绑定 ===== */
   function bindToolbar() {
     const search = $("#pcSearch");
@@ -209,34 +302,17 @@
       });
     }
 
-    const statusSelect = $("#pcStatus");
-    if (statusSelect) {
-      statusSelect.addEventListener("change", () => {
-        currentStatus = statusSelect.value;
-        currentPage = 1;
-        loadList();
-      });
-    }
-
-    const sortSelect = $("#pcSort");
-    if (sortSelect) {
-      sortSelect.addEventListener("change", () => {
-        currentSort = sortSelect.value;
-        currentPage = 1;
-        loadList();
-      });
-    }
-
     // 重置按钮
     const resetBtn = $("#pcResetBtn");
     if (resetBtn) {
       resetBtn.addEventListener("click", () => {
         $("#pcSearch").value = "";
-        $("#pcStatus").value = "";
-        $("#pcSort").value = "created_at";
+        $("#pcModel").value = "";
+        $("#pcCategory").value = "";
         currentStatus = "";
-        currentSort = "created_at";
         currentPage = 1;
+        $$(".pc-tab").forEach((t) => t.classList.remove("active"));
+        $$(".pc-tab")[0].classList.add("active");
         loadList();
       });
     }
@@ -260,6 +336,58 @@
     }
   }
 
+  /* ===== 批量操作菜单 ===== */
+  function bindBatchMenu() {
+    const btn = $("#pcBatchBtn");
+    const menu = $("#pcBatchMenu");
+    if (btn && menu) {
+      btn.addEventListener("click", () => {
+        menu.classList.toggle("visible");
+      });
+
+      // 点击外部关闭
+      document.addEventListener("click", (e) => {
+        if (!btn.contains(e.target) && !menu.contains(e.target)) {
+          menu.classList.remove("visible");
+        }
+      });
+
+      // 菜单项点击
+      menu.querySelectorAll(".pc-batch-menu-item").forEach((item) => {
+        item.addEventListener("click", () => {
+          const action = item.dataset.action;
+          const recordIds = Array.from(selectedIds);
+          if (recordIds.length > 0) {
+            handleAction(action, recordIds);
+          }
+          menu.classList.remove("visible");
+        });
+      });
+    }
+  }
+
+  /* ===== 弹窗 ===== */
+  function bindModal() {
+    const overlay = $("#pcModalOverlay");
+    if (!overlay) return;
+
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) closeModal();
+    });
+
+    const cancelBtn = $("#pcModalCancel");
+    if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+
+    const confirmBtn = $("#pcModalConfirm");
+    if (confirmBtn) confirmBtn.addEventListener("click", executeAction);
+  }
+
+  function closeModal() {
+    const overlay = $("#pcModalOverlay");
+    if (overlay) overlay.classList.remove("visible");
+    pendingAction = null;
+  }
+
   function updateBatchBtn() {
     const btn = $("#pcBatchBtn");
     if (btn) {
@@ -267,6 +395,20 @@
       btn.innerHTML = '<i data-lucide="more-horizontal"></i> 批量操作 (' + selectedIds.size + ")";
       if (typeof lucide !== "undefined") lucide.createIcons();
     }
+  }
+
+  /* ===== Toast ===== */
+  function showToast(type, message) {
+    let toast = $(".pc-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.className = "pc-toast";
+      document.body.appendChild(toast);
+    }
+    toast.className = "pc-toast pc-toast-" + type;
+    toast.textContent = message;
+    toast.classList.add("visible");
+    setTimeout(() => toast.classList.remove("visible"), 3000);
   }
 
   /* ===== 工具函数 ===== */
@@ -278,11 +420,5 @@
   function esc(str) {
     if (str == null) return "";
     return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  }
-
-  function fmtWordCount(n) {
-    if (n == null) return "";
-    if (n >= 10000) return (n / 10000).toFixed(1) + "万字";
-    return n + "字";
   }
 })();

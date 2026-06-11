@@ -8,6 +8,45 @@ from scripts.utils import append_jsonl, read_jsonl, write_jsonl
 
 QUEUE_FILE = os.path.join(PATHS["queue"], "deconstruct_queue.jsonl")
 
+# 状态枚举
+STATUS_WAITING = "waiting"
+STATUS_DECONSTRUCTING = "deconstructing"
+STATUS_GENERATING_NOTE = "generating_note"
+STATUS_AI_SCORING = "ai_scoring"
+STATUS_HUMAN_REVIEW = "human_review"
+STATUS_GENERATING_IMAGE = "generating_image"
+STATUS_DONE = "done"
+STATUS_FAILED = "failed"
+STATUS_PAUSED = "paused"
+STATUS_CANCELLED = "cancelled"
+
+# 阶段进度映射（共6步）
+STAGE_PROGRESS = {
+    STATUS_WAITING: 0,
+    STATUS_DECONSTRUCTING: 1,
+    STATUS_GENERATING_NOTE: 2,
+    STATUS_AI_SCORING: 3,
+    STATUS_HUMAN_REVIEW: 4,
+    STATUS_GENERATING_IMAGE: 5,
+    STATUS_DONE: 6,
+    STATUS_FAILED: 0,
+    STATUS_PAUSED: 0,
+    STATUS_CANCELLED: 0,
+}
+
+STAGE_LABELS = {
+    STATUS_WAITING: "等待中",
+    STATUS_DECONSTRUCTING: "拆文分析",
+    STATUS_GENERATING_NOTE: "生成笔记",
+    STATUS_AI_SCORING: "AI评分",
+    STATUS_HUMAN_REVIEW: "人工审核",
+    STATUS_GENERATING_IMAGE: "生成图片",
+    STATUS_DONE: "已完成",
+    STATUS_FAILED: "已失败",
+    STATUS_PAUSED: "已暂停",
+    STATUS_CANCELLED: "已终止",
+}
+
 
 def _now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -112,9 +151,10 @@ def update_status(record_id, status, error=None, deconstruct_result=None,
                 i["note_content"] = note_content
             if quality_score is not None:
                 i["quality_score"] = quality_score
-            if status == "processing" and not i.get("processing_start"):
+            if status in (STATUS_DECONSTRUCTING, STATUS_GENERATING_NOTE, STATUS_AI_SCORING, 
+                         STATUS_HUMAN_REVIEW, STATUS_GENERATING_IMAGE) and not i.get("processing_start"):
                 i["processing_start"] = _now()
-            if status in ("done", "failed"):
+            if status in (STATUS_DONE, STATUS_FAILED, STATUS_CANCELLED):
                 i["completed_at"] = _now()
             updated = True
             break
@@ -123,41 +163,83 @@ def update_status(record_id, status, error=None, deconstruct_result=None,
     return updated
 
 
-def batch_update_status(record_ids, status):
-    """批量更新状态"""
+def pause_task(record_id):
+    """暂停任务"""
+    items = read_jsonl(QUEUE_FILE)
+    updated = False
+    for i in items:
+        if i.get("record_id") == record_id and i.get("status") not in (STATUS_DONE, STATUS_FAILED, STATUS_CANCELLED):
+            i["status"] = STATUS_PAUSED
+            updated = True
+            break
+    if updated:
+        write_jsonl(QUEUE_FILE, items)
+    return updated
+
+
+def cancel_task(record_id):
+    """终止任务"""
+    items = read_jsonl(QUEUE_FILE)
+    updated = False
+    for i in items:
+        if i.get("record_id") == record_id and i.get("status") not in (STATUS_DONE, STATUS_CANCELLED):
+            i["status"] = STATUS_CANCELLED
+            i["completed_at"] = _now()
+            updated = True
+            break
+    if updated:
+        write_jsonl(QUEUE_FILE, items)
+    return updated
+
+
+def batch_pause_tasks(record_ids):
+    """批量暂停任务"""
     if not record_ids:
         return 0
     items = read_jsonl(QUEUE_FILE)
     count = 0
     for i in items:
-        if i.get("record_id") in record_ids:
-            i["status"] = status
-            if status == "processing" and not i.get("processing_start"):
-                i["processing_start"] = _now()
-            if status in ("done", "failed"):
-                i["completed_at"] = _now()
+        if i.get("record_id") in record_ids and i.get("status") not in (STATUS_DONE, STATUS_FAILED, STATUS_CANCELLED):
+            i["status"] = STATUS_PAUSED
             count += 1
     if count > 0:
         write_jsonl(QUEUE_FILE, items)
     return count
 
 
-def retry_task(record_id):
-    """重置失败任务为 pending"""
+def batch_retry_tasks(record_ids):
+    """批量重试任务"""
+    if not record_ids:
+        return 0
     items = read_jsonl(QUEUE_FILE)
-    updated = False
+    count = 0
     for i in items:
-        if i.get("record_id") == record_id and i.get("status") == "failed":
-            i["status"] = "retry"
+        if i.get("record_id") in record_ids and i.get("status") == STATUS_FAILED:
+            i["status"] = STATUS_WAITING
             i["error"] = None
             i["processing_start"] = None
             i["completed_at"] = None
             i["retry_count"] = i.get("retry_count", 0) + 1
-            updated = True
-            break
-    if updated:
+            count += 1
+    if count > 0:
         write_jsonl(QUEUE_FILE, items)
-    return updated
+    return count
+
+
+def batch_cancel_tasks(record_ids):
+    """批量终止任务"""
+    if not record_ids:
+        return 0
+    items = read_jsonl(QUEUE_FILE)
+    count = 0
+    for i in items:
+        if i.get("record_id") in record_ids and i.get("status") not in (STATUS_DONE, STATUS_CANCELLED):
+            i["status"] = STATUS_CANCELLED
+            i["completed_at"] = _now()
+            count += 1
+    if count > 0:
+        write_jsonl(QUEUE_FILE, items)
+    return count
 
 
 def get_stats():
