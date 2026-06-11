@@ -11,24 +11,24 @@
 <!-- ===== KPI 统计区 ===== -->
 <div class="tp-kpi-row">
   <div class="tp-kpi-card">
-    <div class="tp-kpi-value">—</div>
+    <div class="tp-kpi-value" id="kpiPending">—</div>
     <div class="tp-kpi-label">待拆作品</div>
-    <div class="tp-kpi-trend">&#x2191; 加载中</div>
   </div>
   <div class="tp-kpi-card">
-    <div class="tp-kpi-value">—</div>
+    <div class="tp-kpi-value" id="kpiToday">—</div>
     <div class="tp-kpi-label">今日新增</div>
-    <div class="tp-kpi-trend">&#x2191; 加载中</div>
   </div>
-  <div class="tp-kpi-card tp-kpi-card--selected">
-    <div class="tp-kpi-value">0</div>
+  <div class="tp-kpi-card tp-kpi-card--highlight">
+    <div class="tp-kpi-value" id="kpiHighPot">—</div>
+    <div class="tp-kpi-label">高潜作品</div>
+  </div>
+  <div class="tp-kpi-card tp-kpi-card--primary">
+    <div class="tp-kpi-value" id="kpiSelected">0</div>
     <div class="tp-kpi-label">已选作品</div>
-    <div class="tp-kpi-trend">&#x2191; 请勾选</div>
   </div>
-  <div class="tp-kpi-card tp-kpi-card--time">
-    <div class="tp-kpi-value">—</div>
+  <div class="tp-kpi-card tp-kpi-card--warning">
+    <div class="tp-kpi-value" id="kpiDuration">—</div>
     <div class="tp-kpi-label">预计耗时</div>
-    <div class="tp-kpi-trend">&#x23F1; 分钟</div>
   </div>
 </div>
 
@@ -37,8 +37,9 @@
 
   <!-- 左侧：选题列表 -->
   <div class="tp-main">
+    <!-- 筛选栏 -->
     <div class="tp-toolbar">
-      <input type="text" id="tpSearch" class="tp-search-input" placeholder="&#x1F50D; 搜索作品/作者..." />
+      <input type="text" id="tpSearch" class="tp-search-input" placeholder="搜索作品/作者..." />
       <select id="tpPlatform" class="tp-select">
         <option value="">全部平台</option>
         <option value="起点">起点</option>
@@ -64,6 +65,7 @@
       </select>
     </div>
 
+    <!-- 排序 + 批量操作 -->
     <div class="tp-toolbar tp-toolbar--secondary">
       <div class="tp-sort-group">
         <button class="tp-sort-btn active" data-sort="score">综合评分</button>
@@ -74,12 +76,13 @@
       </div>
       <div class="tp-batch-group">
         <button class="tp-batch-btn" id="tpSelectAll">全选</button>
-        <button class="tp-batch-btn" id="tpInvertSelect">反选</button>
+        <button class="tp-batch-btn" id="tpDeselectAll">取消全选</button>
         <button class="tp-batch-btn" id="tpSelectHighPot">仅高潜</button>
         <button class="tp-batch-btn" id="tpClearSelect">清空</button>
       </div>
     </div>
 
+    <!-- 卡片网格 -->
     <div class="tp-grid">
       <div class="tp-loading">加载中...</div>
     </div>
@@ -91,8 +94,9 @@
   <!-- 右侧：生产计划面板 -->
   <div class="tp-sidebar">
     <div class="tp-sidebar-card">
-      <div class="tp-sidebar-header">&#x26A1; 生产计划</div>
+      <div class="tp-sidebar-header">生产计划</div>
 
+      <!-- 已选作品 -->
       <div class="tp-sidebar-row">
         <span class="tp-sidebar-row-label">已选作品</span>
         <span class="tp-sidebar-row-value" id="tpSelectedCount">0篇</span>
@@ -100,11 +104,13 @@
 
       <div class="tp-sidebar-divider"></div>
 
+      <!-- 分类分布 -->
       <div class="tp-sidebar-section">
         <div class="tp-sidebar-section-title">分类分布</div>
         <div id="tpCategoryDist" class="tp-distribution-area"><span class="text-muted">—</span></div>
       </div>
 
+      <!-- 平台分布 -->
       <div class="tp-sidebar-section">
         <div class="tp-sidebar-section-title">平台分布</div>
         <div id="tpPlatformDist" class="tp-distribution-area"><span class="text-muted">—</span></div>
@@ -112,6 +118,7 @@
 
       <div class="tp-sidebar-divider"></div>
 
+      <!-- 核心指标均值 -->
       <div class="tp-sidebar-section">
         <div class="tp-sidebar-section-title">核心指标均值</div>
         <div class="tp-metrics-grid">
@@ -131,28 +138,40 @@
             <span class="tp-metric-label">评论</span>
             <span class="tp-metric-value" id="tpAvgComments">—</span>
           </div>
+          <div class="tp-metric-item">
+            <span class="tp-metric-label">排名</span>
+            <span class="tp-metric-value" id="tpAvgRank">—</span>
+          </div>
         </div>
       </div>
 
       <div class="tp-sidebar-divider"></div>
 
-      <div class="tp-sidebar-row">
-        <span class="tp-sidebar-row-label">预计 Token</span>
-        <span class="tp-sidebar-row-value" id="tpEstToken">—</span>
-      </div>
-
-      <div class="tp-sidebar-row">
-        <span class="tp-sidebar-row-label">预计耗时</span>
-        <span class="tp-sidebar-row-value" id="tpEstTime">—</span>
-      </div>
-
-      <div class="tp-sidebar-row">
-        <span class="tp-sidebar-row-label">预计产出</span>
-        <span class="tp-sidebar-row-value" id="tpEstOutput">—</span>
+      <!-- 预计产出 -->
+      <div class="tp-sidebar-section">
+        <div class="tp-sidebar-section-title">预计产出</div>
+        <div class="tp-output-list">
+          <div class="tp-output-item">
+            <span class="tp-output-icon">✓</span>
+            <span>拆文报告</span>
+            <span class="tp-output-count" id="tpOutReport">×0</span>
+          </div>
+          <div class="tp-output-item">
+            <span class="tp-output-icon">✓</span>
+            <span>笔记初稿</span>
+            <span class="tp-output-count" id="tpOutNote">×0</span>
+          </div>
+          <div class="tp-output-item">
+            <span class="tp-output-icon">✓</span>
+            <span>评分报告</span>
+            <span class="tp-output-count" id="tpOutScore">×0</span>
+          </div>
+        </div>
       </div>
 
       <div class="tp-sidebar-divider"></div>
 
+      <!-- 提交按钮 -->
       <button class="tp-sidebar-submit" id="tpSubmitBtn" disabled>提交生产（0篇）</button>
     </div>
   </div>

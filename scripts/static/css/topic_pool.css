@@ -10,19 +10,20 @@
   display: flex;
   gap: var(--gap);
   margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
 }
 
 .tp-kpi-card {
-  width: 220px;
-  height: 100px;
+  flex: 1;
+  min-width: 160px;
+  height: 90px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: var(--space-md);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  flex-shrink: 0;
+  justify-content: center;
 }
 
 .tp-kpi-value {
@@ -34,24 +35,21 @@
 .tp-kpi-label {
   font-size: var(--fs-meta);
   color: var(--text-muted);
+  margin-top: var(--space-xs);
 }
 
-.tp-kpi-trend {
-  font-size: var(--fs-meta);
+/* 高潜作品 - 绿色高亮 */
+.tp-kpi-card--highlight .tp-kpi-value {
   color: var(--color-success);
 }
 
-/* 已选作品 KPI 卡片 - 主题色 */
-.tp-kpi-card--selected .tp-kpi-value {
+/* 已选作品 - 主题色 */
+.tp-kpi-card--primary .tp-kpi-value {
   color: var(--color-primary);
 }
 
-/* 预计耗时 KPI 卡片 - 橙色 */
-.tp-kpi-card--time .tp-kpi-value {
-  color: var(--color-warning);
-}
-
-.tp-kpi-card--time .tp-kpi-trend {
+/* 预计耗时 - 橙色 */
+.tp-kpi-card--warning .tp-kpi-value {
   color: var(--color-warning);
 }
 
@@ -461,6 +459,38 @@
 .tp-metric-value {
   font-weight: 600;
   color: var(--text-primary);
+}
+
+/* 预计产出 */
+.tp-output-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.tp-output-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--fs-body);
+  color: var(--text-secondary);
+}
+
+.tp-output-icon {
+  color: var(--color-success);
+  font-size: var(--fs-meta);
+}
+
+.tp-output-count {
+  margin-left: auto;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* 分页省略号 */
+.tp-page-ellipsis {
+  color: var(--text-muted);
+  padding: 0 var(--space-xs);
 }
 
 /* 提交按钮 */
