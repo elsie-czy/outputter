@@ -1,0 +1,34 @@
+{% set nav_items = [
+    {"label": "工作台",   "url": "/#",         "key": "dashboard",   "available": false},
+    {"label": "拆文中心", "url": "/#",         "key": "deconstruct", "available": false},
+    {"label": "笔记生成", "url": "/#",         "key": "notes",       "available": false},
+    {"label": "知识库",   "url": "/#",         "key": "knowledge",   "available": false},
+    {"label": "视频脚本", "url": "/#",         "key": "video",       "available": false},
+    {"label": "数据中心", "url": "/#",         "key": "data",        "available": false},
+    {"label": "系统设置", "url": "/#",         "key": "settings",    "available": false},
+] %}
+
+{% set active = active_page|default("") %}
+
+<nav class="top-nav">
+  <div class="nav-brand">
+    <span>&#x1F4DD;</span>
+    <a href="/">超级工具</a>
+  </div>
+
+  <ul class="nav-links">
+    {% for item in nav_items %}
+      {% set is_active = (active == item.key) %}
+      {% set css_class = [] %}
+      {% if is_active %}{% set _ = css_class.append("active") %}{% endif %}
+      {% if not item.available %}{% set _ = css_class.append("disabled") %}{% endif %}
+      <li>
+        <a href="{{ item.url }}"
+           class="{{ css_class|join(' ') }}"
+           {% if not item.available %}aria-disabled="true"{% endif %}>
+          {{ item.label }}
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+</nav>
