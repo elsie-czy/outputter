@@ -152,11 +152,12 @@
       const score = item.quality_score;
       const scoreInfo = getScoreInfo(score);
       const catClass = getCategoryClass(item.category);
+      const catIcon = getCategoryIcon(item.category);
 
       html +=
         '<div class="tp-card' + sel + '" data-rid="' + esc(rid) + '">' +
         '<div class="tp-card-checkbox">' + (sel ? "✓" : "") + "</div>" +
-        '<div class="tp-card-cover">📖</div>' +
+        '<div class="tp-card-cover">' + catIcon + '</div>' +
         '<div class="tp-card-content">' +
         '<div class="tp-card-name">' + esc(item.work_name || "未知作品") + "</div>" +
         '<div class="tp-card-author">' + esc(item.author || "未知作者") + "</div>" +
@@ -171,13 +172,13 @@
         '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.monthly_votes) + '</span><span class="tp-card-metric-label">月票</span></div>' +
         '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.recommend_votes) + '</span><span class="tp-card-metric-label">推荐</span></div>' +
         '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.comments) + '</span><span class="tp-card-metric-label">评论</span></div>' +
-        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + (item.rank ? "#" + item.rank : "—") + '</span><span class="tp-card-metric-label">排名</span></div>' +
+        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + (item.rank ? "#" + item.rank : "暂无") + '</span><span class="tp-card-metric-label">排名</span></div>' +
         "</div>" +
         "</div>" +
         '<div class="tp-card-score tp-score-' + scoreInfo.level + '">' +
         '<div class="tp-card-score-label">综合评分</div>' +
-        '<div class="tp-card-score-value">' + (score || "—") + "</div>" +
-        '<div class="tp-card-score-level">' + scoreInfo.label + "</div>" +
+        '<div class="tp-card-score-value">' + (score || "暂无") + "</div>" +
+        '<div class="tp-card-score-level">' + (scoreInfo.label || "待评分") + "</div>" +
         '<div class="tp-card-score-stars">' + scoreInfo.stars + "</div>" +
         "</div>" +
         "</div>";
@@ -218,6 +219,19 @@
   function getCategoryClass(category) {
     const map = { "玄幻": "tp-card-tag--fantasy", "科幻": "tp-card-tag--scifi" };
     return map[category] || "";
+  }
+
+  function getCategoryIcon(category) {
+    const map = {
+      "都市": "🏙️",
+      "玄幻": "⚔️",
+      "科幻": "🚀",
+      "言情": "💕",
+      "幻言": "💕",
+      "古言": "🏯",
+      "悬疑": "🔍"
+    };
+    return map[category] || "📖";
   }
 
   /* ===== 分页 ===== */
@@ -524,7 +538,7 @@
   }
 
   function fmtNum(n) {
-    if (n == null) return "—";
+    if (n == null || n === 0) return "暂无";
     if (n >= 10000) return (n / 10000).toFixed(1) + "万";
     if (n >= 1000) return (n / 1000).toFixed(1) + "k";
     return String(n);
