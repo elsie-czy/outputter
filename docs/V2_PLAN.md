@@ -483,12 +483,12 @@ V2 页面树
 
 | # | 任务 | 优先级 | 状态 | 描述 | 产出物 | 预估 |
 |---|------|--------|------|------|--------|------|
-| 0.1 | 创建 `static/` 目录结构 | P0 | ☐ | `static/css/` `static/js/` `static/img/`，加 `.gitkeep` | 目录就位 | 10min |
-| 0.2 | 确保 `templates/` 模板目录 | P0 | ☐ | 确保 `templates/` 存在，建 `_components/` 子目录 | 目录就位 | 5min |
-| 0.3 | 创建 `static/css/base.css` | P0 | ☐ | 公共样式：reset、字体、颜色变量、布局工具类、导航栏样式、状态标签颜色 | 基础 CSS | 30min |
-| 0.4 | 创建 `templates/base.html` | P0 | ☐ | 页面骨架：`<head>` 含 charset/viewport/title block、`<link>` 引用 base.css；`<body>` 含 `{% include "_nav.html" %}` + `{% block content %}` + `{% block scripts %}` | 基础模板 | 20min |
-| 0.5 | 创建 `templates/_nav.html` | P0 | ☐ | 导航栏组件：左侧 logo + 右侧 tab 链接列表（工作台/拆文中心/知识库/数据中心），当前页高亮 | 导航组件 | 15min |
-| 0.6 | 创建 `templates/landing.html` | P0 | ☐ | 占位首页：`{% extends "base.html" %}`，中间显示 V2 功能模块引导卡片 | 首页 | 15min |
+| 0.1 | 创建 `static/` 目录结构 | P0 | ☑ | `static/css/` `static/js/` `static/img/`，加 `.gitkeep` | 目录就位 | 10min |
+| 0.2 | 确保 `templates/` 模板目录 | P0 | ☑ | 确保 `templates/` 存在，建 `_components/` 子目录 | 目录就位 | 5min |
+| 0.3 | 创建 `static/css/base.css` | P0 | ☑ | 公共样式：reset、字体、颜色变量、布局工具类、导航栏样式、状态标签颜色 | 基础 CSS | 30min |
+| 0.4 | 创建 `templates/base.html` | P0 | ☑ | 页面骨架：`<head>` 含 charset/viewport/title block、`<link>` 引用 base.css；`<body>` 含 `{% include "_nav.html" %}` + `{% block content %}` + `{% block scripts %}` | 基础模板 | 20min |
+| 0.5 | 创建 `templates/_nav.html` | P0 | ☑ | 导航栏组件：左侧 logo + 右侧 tab 链接列表（工作台/拆文中心/知识库/数据中心），当前页高亮 | 导航组件 | 15min |
+| 0.6 | 创建 `templates/landing.html` | P0 | ☑ | 占位首页：`{% extends "base.html" %}`，中间显示 V2 功能模块引导卡片 | 首页 | 15min |
 | 0.7 | 创建 `templates/_components/status_badge.html` | P1 | ☐ | 状态标签宏：传入 status，返回带颜色和图标标签（排队灰/处理中蓝脉冲/完成绿/失败红/重试橙） | 状态组件 | 15min |
 | 0.8 | 创建 `templates/_components/score_bar.html` | P1 | ☐ | 评分进度条宏：传入 label/score/max，返回带颜色判断进度条（绿≥85/黄≥75/红<75） | 评分组件 | 15min |
 | 0.9 | 创建 `templates/_components/queue_card.html` | P1 | ☐ | 队列任务卡片宏：传入 task，渲染一行卡片（作品名/作者/平台/状态/评分/操作按钮） | 队列组件 | 15min |
@@ -605,7 +605,7 @@ V2 页面树
 ### 进度总览
 
 ```
-前端架构:     0/15 ░░░░░░░░░░░░  0%
+前端架构:     6/15 ████░░░░░░░░  40%
 队列系统:     0/6  ░░░░░░░░░░░░  0%
 API 层:       0/14 ░░░░░░░░░░░░  0%
 模型层:       0/5  ░░░░░░░░░░░░  0%
@@ -614,5 +614,5 @@ API 层:       0/14 ░░░░░░░░░░░░  0%
 路由+入口:    0/3  ░░░░░░░░░░░░  0%
 联调+验收:    0/3  ░░░░░░░░░░░░  0%
 ─────────────────────────────────
-总计:         0/60 ░░░░░░░░░░░░  0%
+总计:         6/60 █░░░░░░░░░░░  10%
 ```
