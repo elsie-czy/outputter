@@ -2,11 +2,17 @@
  * AppShell 交互模块
  * - Sidebar 折叠/展开
  * - 移动端抽屉模式
+ * - Lucide icon 初始化
  */
 (function () {
   "use strict";
 
   document.addEventListener("DOMContentLoaded", () => {
+    // 初始化 lucide icon
+    if (typeof lucide !== "undefined") {
+      lucide.createIcons();
+    }
+
     const sidebar = document.getElementById("appSidebar");
     const toggleBtn = document.getElementById("sidebarToggle");
 

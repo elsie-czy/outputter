@@ -5,22 +5,22 @@
   {
     "label": "内容生产",
     "children": [
-      {"key": "topic-pool",      "label": "选题池",   "icon": "&#x1F4D6;", "url": "/topic-pool",       "available": true},
-      {"key": "production",      "label": "生产中心", "icon": "&#x26A1;",  "url": "/production-center", "available": false},
-      {"key": "notes",           "label": "笔记库",   "icon": "&#x1F4D6;", "url": "/note-library",      "available": false},
-      {"key": "reference",       "label": "参考库",   "icon": "&#x1F4BE;", "url": "/reference-library", "available": false},
+      {"key": "topic-pool",      "label": "选题池",   "icon": "library",         "url": "/topic-pool",        "available": true},
+      {"key": "production",      "label": "生产中心", "icon": "workflow",        "url": "/production-center", "available": false},
+      {"key": "notes",           "label": "笔记库",   "icon": "book-open",       "url": "/note-library",      "available": false},
+      {"key": "reference",       "label": "参考库",   "icon": "database",        "url": "/reference-library", "available": false},
     ]
   },
   {
     "label": "运营分析",
     "children": [
-      {"key": "data",            "label": "数据看板", "icon": "&#x1F4CA;", "url": "/data-dashboard",    "available": false},
+      {"key": "data",            "label": "数据看板", "icon": "bar-chart-3",     "url": "/data-dashboard",    "available": false},
     ]
   },
   {
     "label": "系统管理",
     "children": [
-      {"key": "settings",        "label": "系统设置", "icon": "&#x2699;&#xFE0F;", "url": "/settings",  "available": false},
+      {"key": "settings",        "label": "系统设置", "icon": "settings",        "url": "/settings",          "available": false},
     ]
   }
 ] %}
@@ -36,7 +36,7 @@
         {% if is_active %}{% set css_class = css_class ~ " active" %}{% endif %}
         {% if not item.available %}{% set css_class = css_class ~ " disabled" %}{% endif %}
       <a href="{{ item.url }}" class="{{ css_class }}" data-key="{{ item.key }}" {% if not item.available %}aria-disabled="true"{% endif %}>
-        <span class="app-sidebar-item-icon">{{ item.icon|safe }}</span>
+        <i data-lucide="{{ item.icon }}" class="app-sidebar-item-icon"></i>
         <span class="app-sidebar-item-label">{{ item.label }}</span>
         {% if is_active %}<span class="app-sidebar-active-bar"></span>{% endif %}
       </a>

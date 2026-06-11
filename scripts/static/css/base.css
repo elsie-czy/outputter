@@ -396,7 +396,8 @@ a:hover { text-decoration: underline; }
 }
 
 .app-header-logo-icon {
-  font-size: 24px;
+  width: 24px;
+  height: 24px;
 }
 
 .app-header-logo-text {
@@ -432,9 +433,13 @@ a:hover { text-decoration: underline; }
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  font-size: 18px;
   cursor: pointer;
   transition: background 0.15s;
+}
+
+.app-header-icon-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .app-header-icon-btn:hover {
@@ -480,7 +485,11 @@ a:hover { text-decoration: underline; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+}
+
+.app-header-avatar svg {
+  width: 16px;
+  height: 16px;
 }
 
 .app-header-username {
@@ -499,9 +508,13 @@ a:hover { text-decoration: underline; }
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  font-size: 18px;
   cursor: pointer;
   transition: background 0.15s;
+}
+
+.app-sidebar-toggle svg {
+  width: 18px;
+  height: 18px;
 }
 
 .app-sidebar-toggle:hover {
@@ -583,10 +596,14 @@ a:hover { text-decoration: underline; }
 }
 
 .app-sidebar-item-icon {
-  font-size: 18px;
-  width: 24px;
-  text-align: center;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
+}
+
+.app-sidebar-item-icon svg {
+  width: 18px;
+  height: 18px;
 }
 
 .app-sidebar-item-label {
