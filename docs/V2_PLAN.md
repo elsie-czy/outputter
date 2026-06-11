@@ -514,12 +514,12 @@ V2 页面树
 
 | # | 任务 | 优先级 | 状态 | 描述 | 预估 |
 |---|------|--------|------|------|------|
-| 1.1 | 创建 `data/queue/` 目录 | P0 | ☐ | 新增目录，加入 `.gitkeep` | 5min |
-| 1.2 | `config.py` 新增 queue 路径 | P0 | ☐ | PATHS 字典加 `"queue"` 键 | 5min |
-| 1.3 | `deconstruct_queue.jsonl` 读写封装 | P0 | ☐ | `scripts/queue_manager.py`：入队/出队/更新状态/查询，5 状态机 | 1h |
-| 1.4 | `deconstruct_worker.py` 队列消费脚本 | P0 | ☐ | 循环消费队列 → 调 `model_adapter.analyze_work()` → 调 `related_sync` 写知识库 → 调 `image_generator` 入队 → 调 `quality_scorer` 评分 → 更新队列状态。文件锁防并发。可 cron 或常驻模式 | 3h |
-| 1.5 | 选题批量入队 | P0 | ☐ | 飞书选题库多选 → 批量写入队列。修改 `select_work_from_topic_library` 支持 `select_works(limit=N)` | 1h |
-| 1.6 | 队列状态轮询 API | P0 | ☐ | `GET /api/deconstruct/queue` 返回列表，支持筛选/分页 | 30min |
+| 1.1 | 创建 `data/queue/` 目录 | P0 | ☑ | 新增目录，加入 `.gitkeep` | 5min |
+| 1.2 | `config.py` 新增 queue 路径 | P0 | ☑ | PATHS 字典加 `"queue"` 键 | 5min |
+| 1.3 | `deconstruct_queue.jsonl` 读写封装 | P0 | ☑ | `scripts/queue_manager.py`：入队/出队/更新状态/查询，5 状态机 | 1h |
+| 1.4 | `deconstruct_worker.py` 队列消费脚本 | P0 | ☑ | 循环消费队列 → 调 `model_adapter.analyze_work()` → 调 `related_sync` 写知识库 → 调 `image_generator` 入队 → 更新队列状态。文件锁防并发。可 cron 或常驻模式 | 3h |
+| 1.5 | 选题批量入队 | P0 | ☑ | 飞书选题库多选 → 批量写入队列。修改 `select_work_from_topic_library` 支持 `select_works(limit=N)` | 1h |
+| 1.6 | 队列状态轮询 API | P0 | ☑ | `GET /api/deconstruct/queue` 返回列表，支持筛选/分页 + 5 个操作端点 | 30min |
 
 ### 8.2 API 层 — 队列管理
 
@@ -606,7 +606,7 @@ V2 页面树
 
 ```
 前端架构:     15/15 ████████████ 100%
-队列系统:     0/6  ░░░░░░░░░░░░  0%
+队列系统:     6/6  ████████████ 100%
 API 层:       0/14 ░░░░░░░░░░░░  0%
 模型层:       0/5  ░░░░░░░░░░░░  0%
 飞书层:       0/4  ░░░░░░░░░░░░  0%
@@ -614,5 +614,5 @@ API 层:       0/14 ░░░░░░░░░░░░  0%
 路由+入口:    0/3  ░░░░░░░░░░░░  0%
 联调+验收:    0/3  ░░░░░░░░░░░░  0%
 ─────────────────────────────────
-总计:         15/60 ███░░░░░░░░░  25%
+总计:         21/60 ████░░░░░░░░  35%
 ```

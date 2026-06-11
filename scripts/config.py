@@ -11,6 +11,7 @@ PATHS = {
     "logs": os.path.join(BASE_DIR, "logs"),
     "state_db": os.path.join(BASE_DIR, "data", "shared_state", "state.db"),
     "topic_library": os.path.join(BASE_DIR, "data", "topic_library.jsonl"),
+    "queue": os.path.join(BASE_DIR, "data", "queue"),
 }
 
 

@@ -35,6 +35,29 @@ def select_work():
     return selected
 
 
+def select_works(limit=None):
+    """批量选取未拆解作品。limit=None 选取全部"""
+    ensure_dirs()
+    items = read_jsonl(PATHS["topic_library"])
+    if not items:
+        raise RuntimeError("topic_library 为空，请在 data/topic_library.jsonl 添加记录")
+
+    selected = []
+    for item in items:
+        if not item.get("是否拆解"):
+            item["是否拆解"] = True
+            item["拆解时间"] = now_ts()
+            selected.append(item)
+            if limit and len(selected) >= limit:
+                break
+
+    if not selected:
+        raise RuntimeError("没有可拆解作品（是否拆解=否）")
+
+    write_jsonl(PATHS["topic_library"], items)
+    return selected
+
+
 if __name__ == "__main__":
     work = select_work()
     print("选中作品:", work.get("作品名称"), work.get("作者"))

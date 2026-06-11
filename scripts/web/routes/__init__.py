@@ -2,6 +2,7 @@ from scripts.web.routes.health import bp as health_bp
 from scripts.web.routes.system_api import bp as system_api_bp
 from scripts.web.routes.xhs_api import bp as xhs_api_bp
 from scripts.web.routes.landing_page import bp as landing_bp
+from scripts.web.routes.deconstruct_api import bp as deconstruct_api_bp
 
 
 def register_routes(app):
@@ -14,3 +15,5 @@ def register_routes(app):
         app.register_blueprint(xhs_api_bp)
     if "web_landing" not in app.blueprints:
         app.register_blueprint(landing_bp)
+    if "web_deconstruct_api" not in app.blueprints:
+        app.register_blueprint(deconstruct_api_bp)
