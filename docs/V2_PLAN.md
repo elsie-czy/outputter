@@ -489,11 +489,11 @@ V2 页面树
 | 0.4 | 创建 `templates/base.html` | P0 | ☑ | 页面骨架：`<head>` 含 charset/viewport/title block、`<link>` 引用 base.css；`<body>` 含 `{% include "_nav.html" %}` + `{% block content %}` + `{% block scripts %}` | 基础模板 | 20min |
 | 0.5 | 创建 `templates/_nav.html` | P0 | ☑ | 导航栏组件：左侧 logo + 右侧 tab 链接列表（工作台/拆文中心/知识库/数据中心），当前页高亮 | 导航组件 | 15min |
 | 0.6 | 创建 `templates/landing.html` | P0 | ☑ | 占位首页：`{% extends "base.html" %}`，中间显示 V2 功能模块引导卡片 | 首页 | 15min |
-| 0.7 | 创建 `templates/_components/status_badge.html` | P1 | ☐ | 状态标签宏：传入 status，返回带颜色和图标标签（排队灰/处理中蓝脉冲/完成绿/失败红/重试橙） | 状态组件 | 15min |
-| 0.8 | 创建 `templates/_components/score_bar.html` | P1 | ☐ | 评分进度条宏：传入 label/score/max，返回带颜色判断进度条（绿≥85/黄≥75/红<75） | 评分组件 | 15min |
-| 0.9 | 创建 `templates/_components/queue_card.html` | P1 | ☐ | 队列任务卡片宏：传入 task，渲染一行卡片（作品名/作者/平台/状态/评分/操作按钮） | 队列组件 | 15min |
-| 0.10 | 创建 `templates/_components/empty_state.html` | P1 | ☐ | 空状态占位：传入 icon/title/description，渲染居中引导提示 | 空状态组件 | 10min |
-| 0.11 | 创建 `templates/_components/toast.html` | P1 | ☐ | Toast 通知宏：传入 message/type(success/error/warning)，渲染右上角浮动提示 | Toast 组件 | 10min |
+| 0.7 | 创建 `templates/_components/status_badge.html` | P1 | ☑ | 状态标签宏：传入 status，返回带颜色和图标标签（排队灰/处理中蓝脉冲/完成绿/失败红/重试橙） | 状态组件 | 15min |
+| 0.8 | 创建 `templates/_components/score_bar.html` | P1 | ☑ | 评分进度条宏：传入 label/score/max，返回带颜色判断进度条（绿≥85/黄≥75/红<75） | 评分组件 | 15min |
+| 0.9 | 创建 `templates/_components/queue_card.html` | P1 | ☑ | 队列任务卡片宏：传入 task，渲染一行卡片（作品名/作者/平台/状态/评分/操作按钮） | 队列组件 | 15min |
+| 0.10 | 创建 `templates/_components/empty_state.html` | P1 | ☑ | 空状态占位：传入 icon/title/description，渲染居中引导提示 | 空状态组件 | 10min |
+| 0.11 | 创建 `templates/_components/toast.html` | P1 | ☑ | Toast 通知宏：传入 message/type(success/error/warning)，渲染右上角浮动提示 | Toast 组件 | 10min |
 | 0.12 | 新页面路由规范约定 | P0 | ☐ | 文档约定：每个新页面一个 Blueprint，放在 `web/routes/<name>_page.py`，模板放 `templates/<name>.html`，API 放 `web/routes/<name>_api.py` | 规范文档 | 10min |
 | 0.13 | 创建示例页面路由 `landing_page.py` | P0 | ☐ | `Blueprint("web_landing", __name__)` + `@bp.get("/")` 返回 `render_template("landing.html")`，注册到 `__init__.py` | 示例路由 | 10min |
 | 0.14 | 旧版导航栏加"新版入口"链接 | P0 | ☐ | `web_app_legacy.py` 侧边栏 ul 中追加 `<li>`，链接文字"新版工具"，href 指向新版首页，最小侵入 | 入口链接 | 5min |
@@ -605,7 +605,7 @@ V2 页面树
 ### 进度总览
 
 ```
-前端架构:     6/15 ████░░░░░░░░  40%
+前端架构:     11/15 ███████░░░░░  73%
 队列系统:     0/6  ░░░░░░░░░░░░  0%
 API 层:       0/14 ░░░░░░░░░░░░  0%
 模型层:       0/5  ░░░░░░░░░░░░  0%
@@ -614,5 +614,5 @@ API 层:       0/14 ░░░░░░░░░░░░  0%
 路由+入口:    0/3  ░░░░░░░░░░░░  0%
 联调+验收:    0/3  ░░░░░░░░░░░░  0%
 ─────────────────────────────────
-总计:         6/60 █░░░░░░░░░░░  10%
+总计:         11/60 ██░░░░░░░░░░  18%
 ```

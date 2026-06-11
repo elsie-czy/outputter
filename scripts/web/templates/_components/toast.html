@@ -1,0 +1,12 @@
+{% macro toast(message, type="success", id=None) %}
+  <div class="toast toast-{{ type }}"{% if id %} id="{{ id }}"{% endif %}>
+    {% if type == "success" %}
+      <span style="font-size: 14px;">✓</span>
+    {% elif type == "error" %}
+      <span style="font-size: 14px;">✗</span>
+    {% else %}
+      <span style="font-size: 14px;">⚠</span>
+    {% endif %}
+    <span>{{ message }}</span>
+  </div>
+{% endmacro %}

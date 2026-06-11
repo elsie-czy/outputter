@@ -1,0 +1,9 @@
+{% macro empty_state(icon=None, title="暂无数据", description="") %}
+  <div class="empty-state">
+    <div class="empty-icon">{{ icon|default("📭") }}</div>
+    <h3>{{ title }}</h3>
+    {% if description %}
+      <p>{{ description }}</p>
+    {% endif %}
+  </div>
+{% endmacro %}

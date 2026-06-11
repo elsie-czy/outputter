@@ -1,0 +1,20 @@
+{% from "_components/status_badge.html" import status_badge %}
+
+{% macro queue_card(task, selected=False) %}
+  <div class="queue-card{% if selected %} selected{% endif %}" data-rid="{{ task.record_id }}">
+    <span class="check" style="font-size: 14px; color: var(--text-muted);">{% if selected %}☑{% else %}☐{% endif %}</span>
+    {{ status_badge(task.status) }}
+    <span class="work-name">{{ task.work_name }}</span>
+    <span class="author">{{ task.author }}</span>
+    <span class="platform">{{ task.platform }}·{{ task.category }}</span>
+    {% if task.score is not none %}
+      <span style="font-size: 12px; font-weight: 600; color: var(--color-blue); margin-left: auto;">
+        {{ task.score }}分
+      </span>
+    {% endif %}
+    {% if task.status == "failed" %}
+      <a href="#" class="retry-link" style="font-size: 12px; color: var(--color-red);" data-action="retry">重试</a>
+    {% endif %}
+    <a href="#" class="view-link" style="font-size: 12px; color: var(--color-blue); margin-left: auto;" data-action="view">查看</a>
+  </div>
+{% endmacro %}

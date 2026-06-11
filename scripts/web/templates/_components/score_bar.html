@@ -1,0 +1,17 @@
+{% macro score_bar(label, score, max=20) %}
+  {% set pct = (score / max * 100)|round|int if max > 0 else 0 %}
+  {% if pct >= 85 %}
+    {% set grade = "high" %}
+  {% elif pct >= 75 %}
+    {% set grade = "medium" %}
+  {% else %}
+    {% set grade = "low" %}
+  {% endif %}
+  <div class="score-row">
+    <span class="score-label">{{ label }}</span>
+    <div class="score-track">
+      <div class="score-fill {{ grade }}" style="width: {{ pct }}%;"></div>
+    </div>
+    <span class="score-value">{{ score }}/{{ max }}</span>
+  </div>
+{% endmacro %}
