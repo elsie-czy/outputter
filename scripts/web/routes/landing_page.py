@@ -1,0 +1,27 @@
+from flask import Blueprint, render_template
+
+bp = Blueprint("web_landing", __name__)
+
+
+@bp.get("/")
+def landing():
+    """V2 首页 — 功能模块引导卡片"""
+    return render_template("landing.html", active_page="")
+
+
+@bp.get("/deconstruct")
+def deconstruct_page():
+    """拆文中心 — V2.0 核心功能页面（占位，后续实现）"""
+    return render_template("landing.html", active_page="deconstruct")
+
+
+@bp.get("/dashboard")
+def dashboard_page():
+    """工作台 — V2.0（占位）"""
+    return render_template("landing.html", active_page="dashboard")
+
+
+@bp.get("/notes")
+def notes_page():
+    """笔记生成 — V2.0（占位）"""
+    return render_template("landing.html", active_page="notes")

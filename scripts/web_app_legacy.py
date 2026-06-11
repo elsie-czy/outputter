@@ -182,11 +182,12 @@ TEMPLATE = """
     <aside class="sideNav">
       <h2>内容中台</h2>
       <div class="meta">小红书内容生成工具🔧</div>
-      <a class="{% if tab == 'overview' %}active{% endif %}" href="/?tab=overview"><span>◻</span><span>概览</span></a>
-      <a class="{% if tab == 'local' %}active{% endif %}" href="/?tab=local&q={{ q }}&published={{ published }}"><span>◻</span><span>本地执行记录</span></a>
-      <a class="{% if tab == 'xhs' %}active{% endif %}" href="/?tab=xhs&q={{ q }}&xhs_published={{ xhs_published }}&xhs_missing={{ xhs_missing }}"><span>◻</span><span>小红书笔记库</span></a>
-      <a class="{% if tab == 'prescreen' %}active{% endif %}" href="/?tab=prescreen"><span>◻</span><span>选题库初筛</span></a>
-      <a class="{% if tab == 'analysis' %}active{% endif %}" href="/?tab=analysis"><span>◻</span><span>爆款分析</span></a>
+      <a class="{% if tab == 'overview' %}active{% endif %}" href="/legacy?tab=overview"><span>◻</span><span>概览</span></a>
+      <a class="{% if tab == 'local' %}active{% endif %}" href="/legacy?tab=local&q={{ q }}&published={{ published }}"><span>◻</span><span>本地执行记录</span></a>
+      <a class="{% if tab == 'xhs' %}active{% endif %}" href="/legacy?tab=xhs&q={{ q }}&xhs_published={{ xhs_published }}&xhs_missing={{ xhs_missing }}"><span>◻</span><span>小红书笔记库</span></a>
+      <a class="{% if tab == 'prescreen' %}active{% endif %}" href="/legacy?tab=prescreen"><span>◻</span><span>选题库初筛</span></a>
+      <a class="{% if tab == 'analysis' %}active{% endif %}" href="/legacy?tab=analysis"><span>◻</span><span>爆款分析</span></a>
+      <a href="/" style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px;color:var(--color-blue);font-weight:600"><span>🆕</span><span>新版工具</span></a>
     </aside>
     <div class="contentCol">
       <header>
@@ -204,11 +205,11 @@ TEMPLATE = """
           </div>
         </div>
         {% if tab == 'overview' %}
-          <div class="primaryAction"><a class="btn" href="/?tab=xhs&xhs_missing=any&xhs_published=no">先处理缺项内容</a><span class="meta">优先补齐缺项并完成发布闭环。</span></div>
+          <div class="primaryAction"><a class="btn" href="/legacy?tab=xhs&xhs_missing=any&xhs_published=no">先处理缺项内容</a><span class="meta">优先补齐缺项并完成发布闭环。</span></div>
         {% elif tab == 'local' %}
-          <div class="primaryAction"><a class="btn" href="/?tab=local&published=no">查看未发布任务</a><span class="meta">先完成未发布内容处理。</span></div>
+          <div class="primaryAction"><a class="btn" href="/legacy?tab=local&published=no">查看未发布任务</a><span class="meta">先完成未发布内容处理。</span></div>
         {% elif tab == 'xhs' %}
-          <div class="primaryAction"><a class="btn" href="/?tab=xhs&xhs_missing=any">处理缺项记录</a><span class="meta">从缺项记录进入重生与采纳流程。</span></div>
+          <div class="primaryAction"><a class="btn" href="/legacy?tab=xhs&xhs_missing=any">处理缺项记录</a><span class="meta">从缺项记录进入重生与采纳流程。</span></div>
         {% elif tab == 'prescreen' %}
           <div class="primaryAction"><a class="btn" href="#prescreen-main">开始抓取</a><span class="meta">先配置参数，再提交抓取任务。</span></div>
         {% elif tab == 'analysis' %}
@@ -1771,7 +1772,7 @@ def _build_note_fields_for_xhs(meta, xhs_table_id, client, analysis):
     return fields
 
 
-@app.route("/")
+@app.route("/legacy")
 def index():
     tab = request.args.get("tab", "local").strip() or "local"
     q = request.args.get("q", "").strip()
@@ -2864,7 +2865,7 @@ def xhs_publish():
             """,
             back=(request.referrer or "/?tab=xhs"),
         )
-    return redirect(request.referrer or "/?tab=xhs")
+    return redirect(request.referrer or "/legacy?tab=xhs")
 
 
 if __name__ == "__main__":

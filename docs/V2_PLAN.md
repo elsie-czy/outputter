@@ -494,10 +494,10 @@ V2 页面树
 | 0.9 | 创建 `templates/_components/queue_card.html` | P1 | ☑ | 队列任务卡片宏：传入 task，渲染一行卡片（作品名/作者/平台/状态/评分/操作按钮） | 队列组件 | 15min |
 | 0.10 | 创建 `templates/_components/empty_state.html` | P1 | ☑ | 空状态占位：传入 icon/title/description，渲染居中引导提示 | 空状态组件 | 10min |
 | 0.11 | 创建 `templates/_components/toast.html` | P1 | ☑ | Toast 通知宏：传入 message/type(success/error/warning)，渲染右上角浮动提示 | Toast 组件 | 10min |
-| 0.12 | 新页面路由规范约定 | P0 | ☐ | 文档约定：每个新页面一个 Blueprint，放在 `web/routes/<name>_page.py`，模板放 `templates/<name>.html`，API 放 `web/routes/<name>_api.py` | 规范文档 | 10min |
-| 0.13 | 创建示例页面路由 `landing_page.py` | P0 | ☐ | `Blueprint("web_landing", __name__)` + `@bp.get("/")` 返回 `render_template("landing.html")`，注册到 `__init__.py` | 示例路由 | 10min |
-| 0.14 | 旧版导航栏加"新版入口"链接 | P0 | ☐ | `web_app_legacy.py` 侧边栏 ul 中追加 `<li>`，链接文字"新版工具"，href 指向新版首页，最小侵入 | 入口链接 | 5min |
-| 0.15 | 启动验证新旧页面共存 | P0 | ☐ | 启动 Flask → 新版首页正常 → 旧版 URL 不受影响 → 导航链接正确 → 组件渲染正常 | 验收通过 | 15min |
+| 0.12 | 新页面路由规范约定 | P0 | ☑ | 文档约定：每个新页面一个 Blueprint，放在 `web/routes/<name>_page.py`，模板放 `templates/<name>.html`，API 放 `web/routes/<name>_api.py` | 规范文档 | 10min |
+| 0.13 | 创建示例页面路由 `landing_page.py` | P0 | ☑ | `Blueprint("web_landing", __name__)` + `@bp.get("/")` 返回 `render_template("landing.html")`，注册到 `__init__.py` | 示例路由 | 10min |
+| 0.14 | 旧版导航栏加"新版入口"链接 | P0 | ☑ | `web_app_legacy.py` 侧边栏 ul 中追加 `<li>`，链接文字"新版工具"，href 指向新版首页，最小侵入 | 入口链接 | 5min |
+| 0.15 | 启动验证新旧页面共存 | P0 | ☑ | 启动 Flask → 新版首页正常 → 旧版 URL 不受影响 → 导航链接正确 → 组件渲染正常 | 验收通过 | 15min |
 
 **执行顺序**：
 ```
@@ -605,7 +605,7 @@ V2 页面树
 ### 进度总览
 
 ```
-前端架构:     11/15 ███████░░░░░  73%
+前端架构:     15/15 ████████████ 100%
 队列系统:     0/6  ░░░░░░░░░░░░  0%
 API 层:       0/14 ░░░░░░░░░░░░  0%
 模型层:       0/5  ░░░░░░░░░░░░  0%
@@ -614,5 +614,5 @@ API 层:       0/14 ░░░░░░░░░░░░  0%
 路由+入口:    0/3  ░░░░░░░░░░░░  0%
 联调+验收:    0/3  ░░░░░░░░░░░░  0%
 ─────────────────────────────────
-总计:         11/60 ██░░░░░░░░░░  18%
+总计:         15/60 ███░░░░░░░░░  25%
 ```
