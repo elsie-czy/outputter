@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}选题池{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/topic_pool.css') }}" />
+{% endblock %}
+
+{% block content %}
+
+<!-- ===== KPI 统计区 ===== -->
+<div class="tp-kpi-row">
+  <div class="tp-kpi-card">
+    <div class="tp-kpi-value">—</div>
+    <div class="tp-kpi-label">待拆作品</div>
+    <div class="tp-kpi-trend">&#x2191; 加载中</div>
+  </div>
+  <div class="tp-kpi-card">
+    <div class="tp-kpi-value">—</div>
+    <div class="tp-kpi-label">今日新增</div>
+    <div class="tp-kpi-trend">&#x2191; 加载中</div>
+  </div>
+  <div class="tp-kpi-card">
+    <div class="tp-kpi-value">—</div>
+    <div class="tp-kpi-label">高潜作品</div>
+    <div class="tp-kpi-trend">&#x2191; 加载中</div>
+  </div>
+  <div class="tp-kpi-card">
+    <div class="tp-kpi-value">0</div>
+    <div class="tp-kpi-label">已选作品</div>
+    <div class="tp-kpi-trend">&#x2191; 请勾选</div>
+  </div>
+</div>
+
+<!-- ===== 主布局：左列表 + 右面板 ===== -->
+<div class="tp-layout">
+
+  <!-- 左侧：选题列表 -->
+  <div class="tp-main">
+    <div class="tp-toolbar">
+      <input type="text" id="tpSearch" class="tp-search-input" placeholder="&#x1F50D; 搜索作品/作者..." />
+      <select id="tpPlatform" class="tp-select">
+        <option value="">全部平台</option>
+        <option value="起点">起点</option>
+        <option value="晋江">晋江</option>
+        <option value="番茄">番茄</option>
+        <option value="七猫">七猫</option>
+      </select>
+      <select id="tpCategory" class="tp-select">
+        <option value="">全部分类</option>
+        <option value="都市">都市</option>
+        <option value="幻言">幻言</option>
+        <option value="古言">古言</option>
+        <option value="悬疑">悬疑</option>
+      </select>
+      <button class="tp-sort-btn active" data-sort="created_at">最新</button>
+      <button class="tp-sort-btn" data-sort="score">评分</button>
+      <button class="tp-select-all-btn" id="tpSelectAll">全选</button>
+    </div>
+
+    <div class="tp-grid">
+      <div class="tp-loading">加载中...</div>
+    </div>
+  </div>
+
+  <!-- 右侧：生产计划面板 -->
+  <div class="tp-sidebar">
+    <div class="tp-sidebar-card">
+      <div class="tp-sidebar-header">&#x26A1; 生产计划</div>
+
+      <div class="tp-sidebar-row">
+        <span class="tp-sidebar-row-label">已选作品</span>
+        <span class="tp-sidebar-row-value" id="tpSelectedCount">0篇</span>
+      </div>
+
+      <div class="tp-sidebar-divider"></div>
+
+      <div class="tp-sidebar-row">
+        <span class="tp-sidebar-row-label">分类分布</span>
+        <span id="tpCategoryDist"><span class="text-muted">—</span></span>
+      </div>
+
+      <div class="tp-sidebar-row">
+        <span class="tp-sidebar-row-label">平台分布</span>
+        <span id="tpPlatformDist"><span class="text-muted">—</span></span>
+      </div>
+
+      <div class="tp-sidebar-row">
+        <span class="tp-sidebar-row-label">平均评分</span>
+        <span class="tp-sidebar-row-value" id="tpAvgScore">—</span>
+      </div>
+
+      <div class="tp-sidebar-divider"></div>
+
+      <div class="tp-sidebar-row">
+        <span class="tp-sidebar-row-label">预计 Token</span>
+        <span class="tp-sidebar-row-value" id="tpEstToken">—</span>
+      </div>
+
+      <div class="tp-sidebar-row">
+        <span class="tp-sidebar-row-label">预计耗时</span>
+        <span class="tp-sidebar-row-value" id="tpEstTime">—</span>
+      </div>
+
+      <div class="tp-sidebar-row">
+        <span class="tp-sidebar-row-label">预计产出</span>
+        <span class="tp-sidebar-row-value" id="tpEstOutput">—</span>
+      </div>
+
+      <div class="tp-sidebar-divider"></div>
+
+      <button class="tp-sidebar-submit" id="tpSubmitBtn" disabled>提交生产（0篇）</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== 提交确认弹窗 ===== -->
+<div class="tp-modal-overlay" id="tpModalOverlay">
+  <div class="tp-modal">
+    <div class="tp-modal-title">确认提交生产</div>
+    <p style="font-size: var(--fs-body); color: var(--text-secondary); margin-bottom: var(--space-sm);">本次共选择：</p>
+    <ul class="tp-modal-list" id="tpModalList"></ul>
+    <div class="tp-modal-info" id="tpModalInfo"></div>
+    <div class="tp-modal-actions">
+      <button class="tp-modal-cancel" id="tpModalCancel">取消</button>
+      <button class="tp-modal-confirm" id="tpModalConfirm">确认提交</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/topic_pool.js') }}"></script>
+{% endblock %}
