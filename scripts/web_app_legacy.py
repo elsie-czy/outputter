@@ -187,7 +187,8 @@ TEMPLATE = """
       <a class="{% if tab == 'xhs' %}active{% endif %}" href="/legacy?tab=xhs&q={{ q }}&xhs_published={{ xhs_published }}&xhs_missing={{ xhs_missing }}"><span>◻</span><span>小红书笔记库</span></a>
       <a class="{% if tab == 'prescreen' %}active{% endif %}" href="/legacy?tab=prescreen"><span>◻</span><span>选题库初筛</span></a>
       <a class="{% if tab == 'analysis' %}active{% endif %}" href="/legacy?tab=analysis"><span>◻</span><span>爆款分析</span></a>
-      <a href="/" style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px;color:var(--color-blue);font-weight:600"><span>🆕</span><span>新版工具</span></a>
+      <a href="/deconstruct" style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px;color:var(--color-blue);font-weight:600"><span>🆕</span><span>拆文中心</span></a>
+      <a href="/" style="color:var(--color-blue);font-weight:600"><span>🆕</span><span>新版工具</span></a>
     </aside>
     <div class="contentCol">
       <header>

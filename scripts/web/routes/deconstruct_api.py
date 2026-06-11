@@ -95,3 +95,42 @@ def queue_stats():
         return jsonify({"ok": True, "data": stats})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@bp.get("/<rid>/assets")
+def task_assets(rid):
+    """获取任务的图片和视频脚本生成状态"""
+    try:
+        import os
+        from scripts.config import PATHS
+        from scripts.utils import read_jsonl
+
+        # 图片队列状态
+        image_jobs = read_jsonl(os.path.join(PATHS["logs"], "image_jobs.jsonl"))
+        image_results = read_jsonl(os.path.join(PATHS["logs"], "image_job_results.jsonl"))
+
+        pending = 0
+        done = 0
+        failed = 0
+        for j in image_jobs:
+            if j.get("xhs_record_id") == rid:
+                pending += 1
+        for r in image_results:
+            if str(r.get("xhs_record_id", "")) == rid:
+                if r.get("status") == "updated":
+                    done += 1
+                elif r.get("status") == "failed":
+                    failed += 1
+
+        return jsonify({"ok": True, "data": {
+            "record_id": rid,
+            "image_status": {
+                "pending": pending,
+                "done": done,
+                "failed": failed,
+                "total": pending + done + failed,
+            },
+            "video_status": "not_generated",
+        }})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
