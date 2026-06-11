@@ -365,12 +365,103 @@ V3+ 实现：
   系统设置（P2）
 ```
 
+### 页面层级结构
+
+```
+V2 页面树
+│
+├── 🏠 工作台            /dashboard         # V2.0 首页，登录后默认跳转
+│   ├── 📋 任务中心       /tasks             # V2.0，全部任务列表
+│   │   └── 任务详情       /tasks/<id>        # V2.1
+│   └── 📤 发布管理       /publish           # V2.2，待发布列表
+│
+├── 🔧 拆文中心            /deconstruct       # V2.0，核心功能页面
+│   └── 拆文结果详情       内嵌面板，不独立路由   # 选中任务后中间区域展示
+│
+├── 📝 笔记生成            /notes             # V2.0，笔记列表+编辑
+│   └── 笔记预览           /notes/<rid>       # 单篇笔记详情（已部分实现）
+│
+├── 📚 知识库              /knowledge         # V2.1，子库总览
+│   ├── 开篇套路            /knowledge/openings
+│   ├── 人物设定            /knowledge/characters
+│   ├── 冲突设计            /knowledge/conflicts
+│   ├── 情绪触发            /knowledge/emotions
+│   └── 金句                /knowledge/quotes
+│
+├── 🎬 视频脚本            /video             # V2.2，脚本文本生成
+│
+├── 📊 数据中心            /data              # V2.1，统计分析入口
+│   ├── 笔记统计            /data/notes        # 笔记效果统计
+│   ├── 爆款因子            /data/factors      # 爆款因子分析
+│   ├── AI评分             /data/scores       # 评分分布
+│   └── 📈 案例分析         /data/cases        # V3+
+│       ├── 成长案例         /data/cases/growth
+│       ├── 爆文案例         /data/cases/hot
+│       └── 失败案例         /data/cases/failed
+│
+├── 🧪 实验管理            /experiments       # V3+
+│
+└── ⚙️ 系统设置            /settings          # V3+
+    ├── 模型配置
+    ├── API 配置
+    └── Feature Flag
+```
+
+### 导航结构
+
+顶部导航栏（`_nav.html`）显示一级入口，页面内带二级子菜单：
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ 🔧 超级工具   工作台  拆文中心  笔记生成  知识库  视频  数据  设置 │
+└──────────────────────────────────────────────────────────┘
+
+工作台（当前激活时展开左侧子菜单）：
+  ├── 📋 任务中心
+  └── 📤 发布管理
+
+知识库（当前激活时展开左侧子菜单）：
+  ├── 开篇套路
+  ├── 人物设定
+  ├── 冲突设计
+  ├── 情绪触发
+  └── 金句
+
+数据中心（当前激活时展开左侧子菜单）：
+  ├── 笔记统计
+  ├── 爆款因子
+  ├── AI评分
+  └── 案例分析
+
+其余一级页面无子菜单，直接显示页面内容。
+```
+
+### 页面与模板文件映射
+
+| 页面 | URL | 模板文件 | Sprint |
+|------|-----|----------|--------|
+| 工作台 | `/dashboard` | `dashboard.html` | V2.0 |
+| 任务中心 | `/tasks` | `tasks.html` | V2.0 |
+| 拆文中心 | `/deconstruct` | `deconstruct_center.html` | V2.0 |
+| 笔记生成 | `/notes` | `notes.html` | V2.0 |
+| 笔记预览 | `/notes/<rid>` | `notes_detail.html` | V2.0 |
+| 知识库 | `/knowledge` | `knowledge.html` | V2.1 |
+| 知识库-子库 | `/knowledge/<type>` | `knowledge_detail.html` | V2.1 |
+| 视频脚本 | `/video` | `video.html` | V2.2 |
+| 数据中心 | `/data` | `data.html` | V2.1 |
+| 数据中心-子页 | `/data/<type>` | `data_<type>.html` | V2.1 |
+| 发布管理 | `/publish` | `publish.html` | V2.2 |
+| 案例分析 | `/data/cases` | `cases.html` | V3+ |
+| 实验管理 | `/experiments` | `experiments.html` | V3+ |
+| 系统设置 | `/settings` | `settings.html` | V3+ |
+
 ### 技术方案
 
 - 复用 Flask + Jinja2 模板，不引入前端框架
-- 每个页面独立模板文件（`scripts/web/templates/` 目录，当前为空）
+- 每个页面独立模板文件（`scripts/web/templates/` 目录）
 - 公共组件（导航栏、状态标签、队列卡片）抽取为 `templates/_components/`
-- 页面间通过 Tab 导航切换，保持 SPA 体验（当前旧版已有 tab 模式）
+- 页面间通过顶部导航 Tab 切换，各页面独立 URL（非 SPA）
+- 二级菜单为当前页内的侧边栏，非全局组件
 
 ---
 

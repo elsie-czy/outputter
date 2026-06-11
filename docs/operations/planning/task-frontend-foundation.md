@@ -17,14 +17,20 @@
 | `static/img/` | **新建目录** | 静态图片资源，建目录 + `.gitkeep` |
 | `templates/base.html` | **新建** | 页面骨架：`<head>` 含 charset/viewport、`<link rel="stylesheet">` 引用 base.css、`{% block title %}`、`{% include "_nav.html" %}`、`{% block content %}`、`{% block scripts %}` |
 | `templates/_nav.html` | **新建** | 导航栏组件：`<nav>` 含左侧 logo 链接 + 右侧 tab 列表（工作台/拆文中心/知识库/数据中心），`request.path` 判断当前页高亮 |
-| `templates/landing.html` | **新建** | V2 首页占位：`{% extends "base.html" %}`，中间 `<main>` 区域渲染功能模块引导卡片（拆文中心、知识库、数据中心、视频脚本），每张卡片含标题+描述+点击跳转链接 |
+| `templates/landing.html` | **新建** | V2 首页占位：`{% extends "base.html" %}`，中间 `<main>` 区域渲染功能模块引导卡片（工作台、拆文中心、笔记生成、知识库、视频脚本、数据中心），每张卡片含标题+描述+点击跳转链接，未实现页面卡片置灰 |
 | `templates/_components/` | **新建目录** | 可复用 Jinja2 宏组件目录，本线程只需建目录 + `.gitkeep` |
 
 === **技术要点** ===
 
 1. **不引入前端框架**：纯 Flask + Jinja2 模板，CSS 手写，JS 后续用 Vanilla JS
 2. **模板继承**：`base.html` 是骨架，所有页面 `{% extends "base.html" %}` 并填充 `title`/`content`/`scripts` block
-3. **导航高亮**：用 `{% if request.path == '/deconstruct' %}active{% endif %}` 或通过传参 `active_page` 变量控制
+3. **导航栏链接**：顶部 tab 包含所有一级页面入口，按 `docs/V2_PLAN.md` §6 页面层级结构：
+   ```
+   工作台(/dashboard) | 拆文中心(/deconstruct) | 笔记生成(/notes) | 知识库(/knowledge) | 视频(/video) | 数据(/data) | 设置(/settings)
+   ```
+   V2.0 已有页面的链接正常跳转，未实现的页面（V2.1+）链接加 `class="disabled"` 置灰
+4. **导航高亮**：通过传参 `active_page` 变量控制当前页高亮，可取值 `dashboard|deconstruct|notes|knowledge|video|data|settings`
+5. **未实现页面置灰**：V2.0 未实现的页面链接（知识库/视频/数据/设置）添加 `disabled` 样式，cursor: not-allowed
 4. **颜色变量**：CSS 变量 定义在 `:root`，后续组件直接用 `var(--color-success)` 等
    ```
    状态色：--color-gray #9CA3AF | --color-blue #3B82F6 | --color-green #10B981 | --color-red #EF4444 | --color-orange #F59E0B
