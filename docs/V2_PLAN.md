@@ -535,10 +535,10 @@ V2 页面树
 
 | # | 任务 | 优先级 | 状态 | 描述 | 预估 |
 |---|------|--------|------|------|------|
-| 3.1 | `GET /api/note/{rid}` | P0 | ☐ | 获取笔记内容 + AI 评分 | 20min |
+| 3.1 | `GET /api/note/{rid}` | P0 | ☑ | 获取笔记内容 + AI 评分 | 20min |
 | 3.2 | `POST /api/note/{rid}/regenerate` | P1 | ☐ | 重新生成笔记，body 含 `fields` 和 `reference_ids`，注入 few-shot | 1h |
 | 3.3 | `POST /api/note/{rid}/save` | P1 | ☐ | 保存人工修改，记录 diff 到飞书修改日志 | 1h |
-| 3.4 | `POST /api/note/batch-generate` | P0 | ☐ | 批量生成笔记 | 30min |
+| 3.4 | `POST /api/note/batch-generate` | P0 | ☑ | 批量生成笔记 | 30min |
 | 3.5 | `POST /api/note/{rid}/score` | P1 | ☐ | 重新评分 | 20min |
 
 ### 8.4 API 层 — 资产状态 + 参考
@@ -556,9 +556,9 @@ V2 页面树
 |---|------|--------|------|------|------|
 | 5.1 | `analyze_work()` 增加 `reference_notes` 参数 | P0 | ☐ | prompt 末尾追加 few-shot 样本，降级处理空参考 | 1h |
 | 5.2 | `analyze_work()` 增加 `recent_feedback` 参数 | P1 | ☐ | prompt 追加历史修改偏好 | 30min |
-| 5.3 | `quality_scorer.py` 评分模块 | P1 | ☐ | 独立 LLM 调用，六维评分（标题/情绪/收藏/互动/风格/AI痕迹），输出 0-100 | 2h |
+| 5.3 | `quality_scorer.py` 评分模块 | P1 | ☑ | 独立 LLM 调用，六维评分（标题/情绪/收藏/互动/风格/AI痕迹），输出 0-100 | 2h |
 | 5.4 | `generate_video_script()` 视频脚本生成 | P2 | ☐ | 输入拆文结果 + 笔记，输出口播稿 + 分镜脚本 | 2h |
-| 5.5 | 拆文结果缓存 | P1 | ☐ | `deconstruct_worker.py` 调 LLM 前查飞书主表，作品+作者已存在则复用 | 30min |
+| 5.5 | 拆文结果缓存 | P1 | ☑ | `deconstruct_worker.py` 调 LLM 前查飞书主表，作品+作者已存在则复用 | 30min |
 
 ### 8.6 飞书层
 
@@ -566,8 +566,8 @@ V2 页面树
 |---|------|--------|------|------|------|
 | 6.1 | 笔记库新增字段 schema | P1 | ☐ | 发布状态/发布时间/发布链接/修改日志/修改后评分/笔记正文全文 | 30min |
 | 6.2 | `feishu_client.get_top_notes(limit=3)` | P0 | ☑ | 读笔记结果库，按点赞+收藏排序取 top，返回标题+正文 | 30min |
-| 6.3 | `feishu_client.get_recent_modifications(n=5)` | P1 | ☐ | 读笔记库修改日志字段，取最近 N 条 | 20min |
-| 6.4 | `feishu_client.save_modification_log(rid, diff)` | P1 | ☐ | 追加写入修改日志字段 | 20min |
+| 6.3 | `feishu_client.get_recent_modifications(n=5)` | P1 | ☑ | 读笔记库修改日志字段，取最近 N 条 | 20min |
+| 6.4 | `feishu_client.save_modification_log(rid, diff)` | P1 | ☑ | 追加写入修改日志字段 | 20min |
 
 ### 8.7 前端 — 拆文中心页面
 
@@ -607,12 +607,12 @@ V2 页面树
 ```
 前端架构:     15/15 ████████████ 100%
 队列系统:     6/6  ████████████ 100%
-API 层:       6/14 █████░░░░░░░  43%
-模型层:       1/5  ██░░░░░░░░░░  20%
-飞书层:       1/4  ███░░░░░░░░░  25%
+API 层:       8/14 ███████░░░░░  57%
+模型层:       4/5  █████████░░░  80%
+飞书层:       3/4  ██████████░░  75%
 前端页面:     0/10 ░░░░░░░░░░░░  0%
 路由+入口:    2/3  ████████░░░░  67%
 联调+验收:    0/3  ░░░░░░░░░░░░  0%
 ─────────────────────────────────
-总计:         31/60 ██████░░░░░░  52%
+总计:         38/60 ███████░░░░░  63%
 ```
