@@ -8,6 +8,7 @@ from scripts.web.routes.note_api import bp as note_api_bp
 from scripts.web.routes.image_api import bp as image_api_bp
 from scripts.web.routes.topic_pool_page import bp as topic_pool_bp
 from scripts.web.routes.production_center_page import bp as production_center_bp
+from scripts.web.routes.task_detail_page import bp as task_detail_bp
 
 
 def register_routes(app):
@@ -32,3 +33,5 @@ def register_routes(app):
         app.register_blueprint(topic_pool_bp)
     if "web_production_center" not in app.blueprints:
         app.register_blueprint(production_center_bp)
+    if "web_task_detail" not in app.blueprints:
+        app.register_blueprint(task_detail_bp)
