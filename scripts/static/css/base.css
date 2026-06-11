@@ -16,6 +16,12 @@
   --color-warning: #F59E0B;
   --color-error:   #EF4444;
   --color-info:    #3B82F6;
+  --color-success-light: #ECFDF5;
+  --color-success-dark: #065F46;
+  --color-success-border: #A7F3D0;
+  --color-error-light: #FEF2F2;
+  --color-error-dark: #991B1B;
+  --color-error-border: #FECACA;
 
   /* 状态色 */
   --color-gray: #94A3B8;
@@ -30,11 +36,13 @@
   --bg-card: #FFFFFF;
   --bg-nav: #FFFFFF;
   --bg-hover: #F3F4F6;
+  --bg-primary-light: #EFF6FF;
 
   /* 文字 */
   --text-primary: #111827;
   --text-secondary: #6B7280;
   --text-muted: #94A3B8;
+  --icon-default: #64748B;
 
   /* 边框 */
   --border: #E5E7EB;

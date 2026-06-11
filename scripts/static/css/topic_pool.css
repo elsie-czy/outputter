@@ -123,7 +123,7 @@
 .tp-sort-btn.active {
   border-color: var(--color-primary);
   color: var(--color-primary);
-  background: #EFF6FF;
+  background: var(--bg-primary-light);
 }
 
 .tp-select-all-btn {
@@ -170,7 +170,7 @@
 
 .tp-card.selected {
   border-color: var(--color-primary);
-  background: #EFF6FF;
+  background: var(--bg-primary-light);
 }
 
 .tp-card-checkbox {
@@ -235,7 +235,7 @@
 
 .tp-score-s { color: var(--color-error); }
 .tp-score-a { color: var(--color-warning); }
-.tp-score-b { color: var(--color-primary); }
+.tp-score-b { color: var(--color-success); }
 .tp-score-c { color: var(--text-muted); }
 
 /* ===== 右侧生产计划面板 ===== */
@@ -491,15 +491,15 @@
 }
 
 .tp-toast-success {
-  background: #ECFDF5;
-  color: #065F46;
-  border: 1px solid #A7F3D0;
+  background: var(--color-success-light);
+  color: var(--color-success-dark);
+  border: 1px solid var(--color-success-border);
 }
 
 .tp-toast-error {
-  background: #FEF2F2;
-  color: #991B1B;
-  border: 1px solid #FECACA;
+  background: var(--color-error-light);
+  color: var(--color-error-dark);
+  border: 1px solid var(--color-error-border);
 }
 
 /* ===== 加载状态 ===== */
