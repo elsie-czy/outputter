@@ -79,7 +79,8 @@ box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 ### Rule 05 — 品牌主色
 
 ```css
---color-primary: #16A34A;     /* 主按钮、选中、激活、成功 */
+--color-primary: #3B82F6;     /* 主按钮、选中、激活 */
+--color-success: #22C55E;     /* 成功状态（保持绿色，区分操作激活和结果成功） */
 ```
 
 ### Rule 06 — 辅助色
@@ -181,7 +182,7 @@ font-family: Inter, PingFang SC, sans-serif;
 
 | 级别 | 样式 | 用途 |
 |------|------|------|
-| Primary | 绿底白字 `bg:#16A34A` | 提交生产、开始拆文、生成图片 |
+| Primary | 蓝紫底白字 `bg:#3B82F6` | 提交生产、开始拆文、生成图片 |
 | Secondary | 白底灰边 `bg:#fff border:#e5e7eb` | 取消、返回、查看详情 |
 | Danger | 红底白字 `bg:#EF4444` | 删除、终止任务 |
 
@@ -335,7 +336,7 @@ font-family: Inter, PingFang SC, sans-serif;
 
 ```css
 :root {
-  --color-primary: #16A34A;
+  --color-primary: #3B82F6;
   --color-success: #22C55E;
   --color-warning: #F59E0B;
   --color-error: #EF4444;

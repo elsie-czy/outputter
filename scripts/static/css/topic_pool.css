@@ -123,7 +123,7 @@
 .tp-sort-btn.active {
   border-color: var(--color-primary);
   color: var(--color-primary);
-  background: #F0FDF4;
+  background: #EFF6FF;
 }
 
 .tp-select-all-btn {
@@ -170,7 +170,7 @@
 
 .tp-card.selected {
   border-color: var(--color-primary);
-  background: #F0FDF4;
+  background: #EFF6FF;
 }
 
 .tp-card-checkbox {
