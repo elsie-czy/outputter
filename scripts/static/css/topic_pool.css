@@ -138,6 +138,49 @@
   background: var(--bg-hover);
 }
 
+/* ===== 快捷筛选栏 ===== */
+.tp-quick-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  margin-bottom: var(--gap);
+  box-shadow: var(--shadow-sm);
+}
+
+.tp-quick-filter-label {
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.tp-quick-btn {
+  height: 32px;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: var(--fs-meta);
+  font-family: var(--font-family);
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tp-quick-btn:hover {
+  border-color: #6C4EFF;
+  color: #6C4EFF;
+  background: #EEF2FF;
+}
+
+.tp-quick-btn.active {
+  border-color: #6C4EFF;
+  color: #fff;
+  background: #6C4EFF;
+}
+
 /* ===== 批量操作栏 ===== */
 .tp-batch-bar {
   display: flex;
@@ -618,6 +661,30 @@
 .tp-submit-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* 推荐理由 */
+.tp-sidebar-card--recommend {
+  border-left: 3px solid #6C4EFF;
+}
+
+.tp-recommend-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.tp-recommend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--fs-body);
+  color: var(--text-secondary);
+}
+
+.tp-recommend-icon {
+  color: #6C4EFF;
+  font-weight: 600;
 }
 
 /* ===== 弹窗 ===== */

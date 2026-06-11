@@ -96,6 +96,15 @@
     <button class="tp-filter-btn tp-filter-btn--reset" id="tpResetBtn">重置</button>
   </div>
 
+  <!-- ===== 快捷筛选栏 ===== -->
+  <div class="tp-quick-filter">
+    <span class="tp-quick-filter-label">快捷筛选：</span>
+    <button class="tp-quick-btn" data-filter="high-favorites">高收藏</button>
+    <button class="tp-quick-btn" data-filter="high-score">高评分</button>
+    <button class="tp-quick-btn" data-filter="high-interaction">高互动</button>
+    <button class="tp-quick-btn" data-filter="potential">潜力作品</button>
+  </div>
+
   <!-- ===== 批量操作栏 ===== -->
   <div class="tp-batch-bar">
     <div class="tp-batch-left">
@@ -183,6 +192,18 @@
             <span class="tp-resource-label">预计耗时</span>
             <span class="tp-resource-value" id="tpEstTime">—</span>
           </div>
+          <div class="tp-resource-item">
+            <span class="tp-resource-label">预计成本</span>
+            <span class="tp-resource-value" id="tpEstCost">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 模块5.5: 推荐理由 -->
+      <div class="tp-sidebar-card tp-sidebar-card--recommend">
+        <div class="tp-sidebar-card-title">推荐理由</div>
+        <div id="tpRecommendReasons" class="tp-recommend-list">
+          <span class="text-muted">请先选择作品</span>
         </div>
       </div>
 

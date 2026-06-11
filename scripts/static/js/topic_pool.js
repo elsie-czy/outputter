@@ -11,13 +11,14 @@
 (function () {
   "use strict";
 
-  /* ===== 状态 ===== */
-  let allItems = [];
-  let selectedIds = new Set();
-  let currentSort = "score";
-  let pollInterval = null;
-  let currentPage = 1;
-  const PAGE_SIZE = 10;
+/* ===== 状态 ===== */
+let allItems = [];
+let selectedIds = new Set();
+let currentSort = "score";
+let currentQuickFilter = null;
+let pollInterval = null;
+let currentPage = 1;
+const PAGE_SIZE = 10;
 
   /* ===== DOM 缓存 ===== */
   const $ = (sel) => document.querySelector(sel);
@@ -108,6 +109,19 @@
         if (wordCount === "200+") return wc >= 2000000;
         return true;
       });
+    }
+
+    // 快捷筛选
+    if (currentQuickFilter) {
+      if (currentQuickFilter === "high-favorites") {
+        list = list.filter((i) => (i.favorites || 0) >= 50000);
+      } else if (currentQuickFilter === "high-score") {
+        list = list.filter((i) => (i.quality_score || 0) >= 80);
+      } else if (currentQuickFilter === "high-interaction") {
+        list = list.filter((i) => (i.comments || 0) >= 5000);
+      } else if (currentQuickFilter === "potential") {
+        list = list.filter((i) => (i.quality_score || 0) >= 70 && (i.quality_score || 0) < 85);
+      }
     }
 
     const sortFns = {
@@ -335,6 +349,23 @@
       selectedIds.clear();
       renderGrid();
     });
+
+    // 快捷筛选
+    $$(".tp-quick-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const filter = btn.dataset.filter;
+        if (currentQuickFilter === filter) {
+          currentQuickFilter = null;
+          btn.classList.remove("active");
+        } else {
+          $$(".tp-quick-btn").forEach((b) => b.classList.remove("active"));
+          currentQuickFilter = filter;
+          btn.classList.add("active");
+        }
+        currentPage = 1;
+        renderGrid();
+      });
+    });
   }
 
   function bindBtn(sel, fn) {
@@ -409,6 +440,28 @@
     // 预计资源消耗
     setText("#tpEstToken", count > 0 ? "≈ " + (count * 3000).toLocaleString() + " Token" : "—");
     setText("#tpEstTime", count > 0 ? "≈ " + Math.ceil(count * 0.5) + "分钟" : "—");
+    setText("#tpEstCost", count > 0 ? "≈ " + (count * 0.04).toFixed(2) + "元" : "—");
+
+    // 推荐理由
+    const reasonsEl = $("#tpRecommendReasons");
+    if (reasonsEl) {
+      if (count === 0) {
+        reasonsEl.innerHTML = '<span class="text-muted">请先选择作品</span>';
+      } else {
+        const avgScore = avgMetric("quality_score");
+        const avgFav = avgMetric("favorites");
+        const catPercent = Math.round((Object.values(catMap).reduce((a, b) => a + b, 0) / count) * 100);
+        const platPercent = Math.round((Object.values(platMap).reduce((a, b) => a + b, 0) / count) * 100);
+        
+        let reasonsHtml = "";
+        if (avgScore) reasonsHtml += '<div class="tp-recommend-item"><span class="tp-recommend-icon">✓</span><span>平均评分 ' + avgScore + '</span></div>';
+        if (avgFav) reasonsHtml += '<div class="tp-recommend-item"><span class="tp-recommend-icon">✓</span><span>收藏均值 ' + fmtNum(avgFav) + '</span></div>';
+        if (catMap[Object.keys(catMap)[0]]) reasonsHtml += '<div class="tp-recommend-item"><span class="tp-recommend-icon">✓</span><span>' + Object.keys(catMap)[0] + '占比 ' + Math.round((catMap[Object.keys(catMap)[0]] / count) * 100) + '%</span></div>';
+        if (platMap[Object.keys(platMap)[0]]) reasonsHtml += '<div class="tp-recommend-item"><span class="tp-recommend-icon">✓</span><span>' + Object.keys(platMap)[0] + '占比 ' + Math.round((platMap[Object.keys(platMap)[0]] / count) * 100) + '%</span></div>';
+        
+        reasonsEl.innerHTML = reasonsHtml || '<span class="text-muted">选择作品后显示推荐理由</span>';
+      }
+    }
 
     // 预计产出
     setText("#tpOutReport", "×" + count);
