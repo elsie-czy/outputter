@@ -20,15 +20,15 @@
     <div class="tp-kpi-label">今日新增</div>
     <div class="tp-kpi-trend">&#x2191; 加载中</div>
   </div>
-  <div class="tp-kpi-card">
-    <div class="tp-kpi-value">—</div>
-    <div class="tp-kpi-label">高潜作品</div>
-    <div class="tp-kpi-trend">&#x2191; 加载中</div>
-  </div>
-  <div class="tp-kpi-card">
+  <div class="tp-kpi-card tp-kpi-card--selected">
     <div class="tp-kpi-value">0</div>
     <div class="tp-kpi-label">已选作品</div>
     <div class="tp-kpi-trend">&#x2191; 请勾选</div>
+  </div>
+  <div class="tp-kpi-card tp-kpi-card--time">
+    <div class="tp-kpi-value">—</div>
+    <div class="tp-kpi-label">预计耗时</div>
+    <div class="tp-kpi-trend">&#x23F1; 分钟</div>
   </div>
 </div>
 
@@ -52,15 +52,40 @@
         <option value="幻言">幻言</option>
         <option value="古言">古言</option>
         <option value="悬疑">悬疑</option>
+        <option value="玄幻">玄幻</option>
+        <option value="科幻">科幻</option>
       </select>
-      <button class="tp-sort-btn active" data-sort="created_at">最新</button>
-      <button class="tp-sort-btn" data-sort="score">评分</button>
-      <button class="tp-select-all-btn" id="tpSelectAll">全选</button>
+      <select id="tpScoreLevel" class="tp-select">
+        <option value="">全部评分</option>
+        <option value="s">S级 (90+)</option>
+        <option value="a">A级 (80-89)</option>
+        <option value="b">B级 (70-79)</option>
+        <option value="c">C级 (&lt;70)</option>
+      </select>
+    </div>
+
+    <div class="tp-toolbar tp-toolbar--secondary">
+      <div class="tp-sort-group">
+        <button class="tp-sort-btn active" data-sort="score">综合评分</button>
+        <button class="tp-sort-btn" data-sort="favorites">收藏数</button>
+        <button class="tp-sort-btn" data-sort="likes">点赞数</button>
+        <button class="tp-sort-btn" data-sort="comments">评论数</button>
+        <button class="tp-sort-btn" data-sort="created_at">最新</button>
+      </div>
+      <div class="tp-batch-group">
+        <button class="tp-batch-btn" id="tpSelectAll">全选</button>
+        <button class="tp-batch-btn" id="tpInvertSelect">反选</button>
+        <button class="tp-batch-btn" id="tpSelectHighPot">仅高潜</button>
+        <button class="tp-batch-btn" id="tpClearSelect">清空</button>
+      </div>
     </div>
 
     <div class="tp-grid">
       <div class="tp-loading">加载中...</div>
     </div>
+
+    <!-- 分页 -->
+    <div class="tp-pagination" id="tpPagination"></div>
   </div>
 
   <!-- 右侧：生产计划面板 -->
@@ -75,19 +100,38 @@
 
       <div class="tp-sidebar-divider"></div>
 
-      <div class="tp-sidebar-row">
-        <span class="tp-sidebar-row-label">分类分布</span>
-        <span id="tpCategoryDist"><span class="text-muted">—</span></span>
+      <div class="tp-sidebar-section">
+        <div class="tp-sidebar-section-title">分类分布</div>
+        <div id="tpCategoryDist" class="tp-distribution-area"><span class="text-muted">—</span></div>
       </div>
 
-      <div class="tp-sidebar-row">
-        <span class="tp-sidebar-row-label">平台分布</span>
-        <span id="tpPlatformDist"><span class="text-muted">—</span></span>
+      <div class="tp-sidebar-section">
+        <div class="tp-sidebar-section-title">平台分布</div>
+        <div id="tpPlatformDist" class="tp-distribution-area"><span class="text-muted">—</span></div>
       </div>
 
-      <div class="tp-sidebar-row">
-        <span class="tp-sidebar-row-label">平均评分</span>
-        <span class="tp-sidebar-row-value" id="tpAvgScore">—</span>
+      <div class="tp-sidebar-divider"></div>
+
+      <div class="tp-sidebar-section">
+        <div class="tp-sidebar-section-title">核心指标均值</div>
+        <div class="tp-metrics-grid">
+          <div class="tp-metric-item">
+            <span class="tp-metric-label">收藏</span>
+            <span class="tp-metric-value" id="tpAvgFav">—</span>
+          </div>
+          <div class="tp-metric-item">
+            <span class="tp-metric-label">点赞</span>
+            <span class="tp-metric-value" id="tpAvgLikes">—</span>
+          </div>
+          <div class="tp-metric-item">
+            <span class="tp-metric-label">月票</span>
+            <span class="tp-metric-value" id="tpAvgMonthly">—</span>
+          </div>
+          <div class="tp-metric-item">
+            <span class="tp-metric-label">评论</span>
+            <span class="tp-metric-value" id="tpAvgComments">—</span>
+          </div>
+        </div>
       </div>
 
       <div class="tp-sidebar-divider"></div>
@@ -119,7 +163,7 @@
 <div class="tp-modal-overlay" id="tpModalOverlay">
   <div class="tp-modal">
     <div class="tp-modal-title">确认提交生产</div>
-    <p style="font-size: var(--fs-body); color: var(--text-secondary); margin-bottom: var(--space-sm);">本次共选择：</p>
+    <p class="tp-modal-subtitle">本次共选择：</p>
     <ul class="tp-modal-list" id="tpModalList"></ul>
     <div class="tp-modal-info" id="tpModalInfo"></div>
     <div class="tp-modal-actions">

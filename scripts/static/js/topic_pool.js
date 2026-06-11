@@ -6,6 +6,7 @@
  * - 右侧面板统计
  * - KPI 轮询
  * - 弹窗确认提交
+ * - 分页
  */
 (function () {
   "use strict";
@@ -13,8 +14,10 @@
   /* ===== 状态 ===== */
   let allItems = [];
   let selectedIds = new Set();
-  let currentSort = "created_at";
+  let currentSort = "score";
   let pollInterval = null;
+  let currentPage = 1;
+  const PAGE_SIZE = 12;
 
   /* ===== DOM 缓存 ===== */
   const $ = (sel) => document.querySelector(sel);
@@ -37,10 +40,11 @@
     grid.innerHTML = '<div class="tp-loading">加载中...</div>';
 
     try {
-      const res = await fetch("/api/deconstruct/queue?per_page=200&status=pending");
+      const res = await fetch("/api/deconstruct/queue?per_page=500&status=pending");
       const json = await res.json();
       if (!json.ok) throw new Error(json.error);
       allItems = json.data.items || [];
+      currentPage = 1;
       renderGrid();
     } catch (e) {
       grid.innerHTML =
@@ -59,8 +63,8 @@
       const kpiValues = $$(".tp-kpi-value");
       if (kpiValues[0]) kpiValues[0].textContent = d.pending_topics;
       if (kpiValues[1]) kpiValues[1].textContent = d.today_added;
-      if (kpiValues[2]) kpiValues[2].textContent = d.high_potential;
-      if (kpiValues[3]) kpiValues[3].textContent = selectedIds.size;
+      // kpiValues[2] = 已选作品，由 updateKpiSelected 更新
+      // kpiValues[3] = 预计耗时，由 updateSidebar 更新
     } catch (_) {}
   }
 
@@ -69,6 +73,7 @@
     const q = ($("#tpSearch")?.value || "").trim().toLowerCase();
     const platform = $("#tpPlatform")?.value || "";
     const category = $("#tpCategory")?.value || "";
+    const scoreLevel = $("#tpScoreLevel")?.value || "";
 
     let list = allItems.slice();
 
@@ -85,17 +90,26 @@
     if (category) {
       list = list.filter((i) => i.category === category);
     }
-
-    if (currentSort === "score") {
-      list.sort(
-        (a, b) => (b.quality_score || 0) - (a.quality_score || 0)
-      );
-    } else {
-      list.sort(
-        (a, b) =>
-          (b.created_at || "").localeCompare(a.created_at || "")
-      );
+    if (scoreLevel) {
+      list = list.filter((i) => {
+        const s = i.quality_score || 0;
+        if (scoreLevel === "s") return s >= 90;
+        if (scoreLevel === "a") return s >= 80 && s < 90;
+        if (scoreLevel === "b") return s >= 70 && s < 80;
+        if (scoreLevel === "c") return s < 70;
+        return true;
+      });
     }
+
+    // 排序
+    const sortFns = {
+      score: (a, b) => (b.quality_score || 0) - (a.quality_score || 0),
+      favorites: (a, b) => (b.favorites || 0) - (a.favorites || 0),
+      likes: (a, b) => (b.likes || 0) - (a.likes || 0),
+      comments: (a, b) => (b.comments || 0) - (a.comments || 0),
+      created_at: (a, b) => (b.created_at || "").localeCompare(a.created_at || ""),
+    };
+    list.sort(sortFns[currentSort] || sortFns.score);
 
     return list;
   }
@@ -103,9 +117,9 @@
   function renderGrid() {
     const grid = $(".tp-grid");
     if (!grid) return;
-    const list = getFiltered();
+    const filtered = getFiltered();
 
-    if (list.length === 0) {
+    if (filtered.length === 0) {
       grid.innerHTML =
         '<div class="tp-empty">' +
         '<div class="tp-empty-icon">&#x1F4D6;</div>' +
@@ -113,56 +127,55 @@
         '<div class="tp-empty-desc">请先同步飞书选题库或调整筛选条件</div>' +
         '<button class="tp-empty-btn" onclick="location.reload()">&#x1F504; 刷新</button>' +
         "</div>";
+      renderPagination(0);
       updateSidebar();
       return;
     }
 
+    // 分页
+    const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageItems = filtered.slice(start, start + PAGE_SIZE);
+
     let html = "";
-    for (const item of list) {
+    for (const item of pageItems) {
       const rid = item.record_id || "";
       const sel = selectedIds.has(rid) ? " selected" : "";
       const score = item.quality_score;
-      const scoreClass = score
-        ? score >= 90
-          ? "tp-score-s"
-          : score >= 80
-            ? "tp-score-a"
-            : score >= 70
-              ? "tp-score-b"
-              : "tp-score-c"
-        : "";
-      const scoreLabel = score
-        ? score >= 90
-          ? " S级"
-          : score >= 80
-            ? " A级"
-            : score >= 70
-              ? " B级"
-              : " C级"
-        : "";
+      const scoreInfo = getScoreInfo(score);
 
       html +=
         '<div class="tp-card' + sel + '" data-rid="' + esc(rid) + '">' +
         '<div class="tp-card-checkbox">' + (sel ? "&#x2713;" : "") + "</div>" +
+        '<div class="tp-card-cover">&#x1F4D6;</div>' +
+        '<div class="tp-card-body">' +
         '<div class="tp-card-name">' + esc(item.work_name || "未知作品") + "</div>" +
         '<div class="tp-card-author">' + esc(item.author || "未知作者") + "</div>" +
-        '<div class="tp-card-platform">' +
-        esc(item.platform || "-") + " · " + esc(item.category || "-") +
+        '<div class="tp-card-meta">' +
+        '<span class="tp-card-meta-tag">' + esc(item.platform || "-") + "</span>" +
+        '<span class="tp-card-meta-tag">' + esc(item.category || "-") + "</span>" +
+        (item.word_count ? '<span class="tp-card-meta-tag">' + fmtWordCount(item.word_count) + "</span>" : "") +
         "</div>" +
         '<div class="tp-card-metrics">' +
         "<span>收藏 " + fmtNum(item.favorites) + "</span>" +
         "<span>点赞 " + fmtNum(item.likes) + "</span>" +
+        (item.monthly_votes ? "<span>月票 " + fmtNum(item.monthly_votes) + "</span>" : "") +
         "<span>评论 " + fmtNum(item.comments) + "</span>" +
+        (item.rank ? "<span>排名 #" + item.rank + "</span>" : "") +
         "</div>" +
+        '<div class="tp-card-score-row">' +
         (score
-          ? '<div class="tp-card-score ' + scoreClass + '">' +
-            "综合评分 " + score + scoreLabel +
-            "</div>"
-          : "") +
+          ? '<span class="tp-card-score ' + scoreInfo.cls + '">综合评分 ' + score + scoreInfo.label + "</span>" +
+            '<span class="tp-ai-tag tp-ai-tag--' + scoreInfo.level + '">AI ' + scoreInfo.level.toUpperCase() + "</span>"
+          : '<span class="tp-card-score tp-score-c">暂无评分</span>') +
+        "</div>" +
+        "</div>" +
         "</div>";
     }
 
     grid.innerHTML = html;
+    renderPagination(totalPages);
 
     grid.querySelectorAll(".tp-card").forEach((card) => {
       card.addEventListener("click", () => {
@@ -185,6 +198,53 @@
     updateSidebar();
   }
 
+  function getScoreInfo(score) {
+    if (!score) return { cls: "tp-score-c", label: "", level: "c" };
+    if (score >= 90) return { cls: "tp-score-s", label: " S级", level: "s" };
+    if (score >= 80) return { cls: "tp-score-a", label: " A级", level: "a" };
+    if (score >= 70) return { cls: "tp-score-b", label: " B级", level: "b" };
+    return { cls: "tp-score-c", label: " C级", level: "c" };
+  }
+
+  /* ===== 分页 ===== */
+  function renderPagination(totalPages) {
+    const el = $("#tpPagination");
+    if (!el) return;
+    if (totalPages <= 1) {
+      el.innerHTML = "";
+      return;
+    }
+
+    let html = "";
+    html += '<button class="tp-page-btn" data-page="prev"' + (currentPage === 1 ? " disabled" : "") + ">&laquo;</button>";
+
+    for (let p = 1; p <= totalPages; p++) {
+      if (p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)) {
+        html += '<button class="tp-page-btn' + (p === currentPage ? " active" : "") + '" data-page="' + p + '">' + p + "</button>";
+      } else if (p === currentPage - 3 || p === currentPage + 3) {
+        html += '<span style="color: var(--text-muted);">...</span>';
+      }
+    }
+
+    html += '<button class="tp-page-btn" data-page="next"' + (currentPage === totalPages ? " disabled" : "") + ">&raquo;</button>";
+
+    el.innerHTML = html;
+
+    el.querySelectorAll(".tp-page-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const page = btn.dataset.page;
+        if (page === "prev") {
+          if (currentPage > 1) currentPage--;
+        } else if (page === "next") {
+          if (currentPage < totalPages) currentPage++;
+        } else {
+          currentPage = parseInt(page, 10);
+        }
+        renderGrid();
+      });
+    });
+  }
+
   /* ===== 工具栏绑定 ===== */
   function bindToolbar() {
     const search = $("#tpSearch");
@@ -192,32 +252,39 @@
       let timer;
       search.addEventListener("input", () => {
         clearTimeout(timer);
-        timer = setTimeout(renderGrid, 300);
+        timer = setTimeout(() => {
+          currentPage = 1;
+          renderGrid();
+        }, 300);
       });
     }
 
     const platform = $("#tpPlatform");
-    if (platform) platform.addEventListener("change", renderGrid);
+    if (platform) platform.addEventListener("change", () => { currentPage = 1; renderGrid(); });
 
     const category = $("#tpCategory");
-    if (category) category.addEventListener("change", renderGrid);
+    if (category) category.addEventListener("change", () => { currentPage = 1; renderGrid(); });
 
+    const scoreLevel = $("#tpScoreLevel");
+    if (scoreLevel) scoreLevel.addEventListener("change", () => { currentPage = 1; renderGrid(); });
+
+    // 排序按钮
     $$(".tp-sort-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         $$(".tp-sort-btn").forEach((b) => b.classList.remove("active"));
         btn.classList.add("active");
-        currentSort = btn.dataset.sort || "created_at";
+        currentSort = btn.dataset.sort || "score";
+        currentPage = 1;
         renderGrid();
       });
     });
 
+    // 全选
     const selectAll = $("#tpSelectAll");
     if (selectAll) {
       selectAll.addEventListener("click", () => {
         const filtered = getFiltered();
-        const allSelected = filtered.every((i) =>
-          selectedIds.has(i.record_id)
-        );
+        const allSelected = filtered.every((i) => selectedIds.has(i.record_id));
         if (allSelected) {
           filtered.forEach((i) => selectedIds.delete(i.record_id));
         } else {
@@ -226,13 +293,51 @@
         renderGrid();
       });
     }
+
+    // 反选
+    const invertSelect = $("#tpInvertSelect");
+    if (invertSelect) {
+      invertSelect.addEventListener("click", () => {
+        const filtered = getFiltered();
+        filtered.forEach((i) => {
+          if (selectedIds.has(i.record_id)) {
+            selectedIds.delete(i.record_id);
+          } else {
+            selectedIds.add(i.record_id);
+          }
+        });
+        renderGrid();
+      });
+    }
+
+    // 仅高潜（评分 >= 80）
+    const selectHighPot = $("#tpSelectHighPot");
+    if (selectHighPot) {
+      selectHighPot.addEventListener("click", () => {
+        selectedIds.clear();
+        allItems.forEach((i) => {
+          if ((i.quality_score || 0) >= 80) {
+            selectedIds.add(i.record_id);
+          }
+        });
+        currentPage = 1;
+        renderGrid();
+      });
+    }
+
+    // 清空
+    const clearSelect = $("#tpClearSelect");
+    if (clearSelect) {
+      clearSelect.addEventListener("click", () => {
+        selectedIds.clear();
+        renderGrid();
+      });
+    }
   }
 
   /* ===== 右侧面板 ===== */
   function updateSidebar() {
-    const selected = allItems.filter((i) =>
-      selectedIds.has(i.record_id)
-    );
+    const selected = allItems.filter((i) => selectedIds.has(i.record_id));
     const count = selected.length;
 
     const countEl = $("#tpSelectedCount");
@@ -247,10 +352,7 @@
     const catEl = $("#tpCategoryDist");
     if (catEl) {
       catEl.innerHTML = Object.entries(catMap)
-        .map(
-          ([k, v]) =>
-            '<span class="tp-distribution-tag">' + esc(k) + " " + v + "</span>"
-        )
+        .map(([k, v]) => '<span class="tp-distribution-tag">' + esc(k) + " " + v + "</span>")
         .join("") || '<span class="text-muted">—</span>';
     }
 
@@ -263,46 +365,50 @@
     const platEl = $("#tpPlatformDist");
     if (platEl) {
       platEl.innerHTML = Object.entries(platMap)
-        .map(
-          ([k, v]) =>
-            '<span class="tp-distribution-tag">' + esc(k) + " " + v + "</span>"
-        )
+        .map(([k, v]) => '<span class="tp-distribution-tag">' + esc(k) + " " + v + "</span>")
         .join("") || '<span class="text-muted">—</span>';
     }
 
-    /* 平均评分 */
-    const scores = selected
-      .map((i) => i.quality_score)
-      .filter((s) => s != null);
-    const avgScore =
-      scores.length > 0
-        ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
-        : null;
-    const scoreEl = $("#tpAvgScore");
-    if (scoreEl) scoreEl.textContent = avgScore != null ? avgScore + "分" : "—";
+    /* 核心指标均值 */
+    const avgMetric = (key) => {
+      const vals = selected.map((i) => i[key]).filter((v) => v != null && v > 0);
+      return vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+    };
+    const setMetric = (id, key) => {
+      const el = $(id);
+      if (el) {
+        const v = avgMetric(key);
+        el.textContent = v != null ? fmtNum(v) : "—";
+      }
+    };
+    setMetric("#tpAvgFav", "favorites");
+    setMetric("#tpAvgLikes", "likes");
+    setMetric("#tpAvgMonthly", "monthly_votes");
+    setMetric("#tpAvgComments", "comments");
 
     /* 预估 */
     const tokenEl = $("#tpEstToken");
-    if (tokenEl)
-      tokenEl.textContent = count > 0 ? "~" + count * 3000 + " tokens" : "—";
+    if (tokenEl) tokenEl.textContent = count > 0 ? "~" + (count * 3000).toLocaleString() + " tokens" : "—";
     const timeEl = $("#tpEstTime");
-    if (timeEl)
-      timeEl.textContent = count > 0 ? "~" + Math.ceil(count * 0.5) + "分钟" : "—";
+    if (timeEl) timeEl.textContent = count > 0 ? "~" + Math.ceil(count * 0.5) + "分钟" : "—";
     const outputEl = $("#tpEstOutput");
-    if (outputEl)
-      outputEl.textContent =
-        count > 0
-          ? "拆文报告" + count + "份 / 笔记初稿" + count + "份 / 评分报告" + count + "份"
-          : "—";
+    if (outputEl) outputEl.textContent = count > 0 ? "拆文报告×" + count + " / 笔记×" + count + " / 评分×" + count : "—";
+
+    /* KPI 预计耗时 */
+    const kpiValues = $$(".tp-kpi-value");
+    if (kpiValues[3]) kpiValues[3].textContent = count > 0 ? Math.ceil(count * 0.5) : "—";
 
     /* 提交按钮 */
     const submitBtn = $("#tpSubmitBtn");
-    if (submitBtn) submitBtn.disabled = count === 0;
+    if (submitBtn) {
+      submitBtn.disabled = count === 0;
+      submitBtn.textContent = "提交生产（" + count + "篇）";
+    }
   }
 
   function updateKpiSelected() {
     const kpiValues = $$(".tp-kpi-value");
-    if (kpiValues[3]) kpiValues[3].textContent = selectedIds.size;
+    if (kpiValues[2]) kpiValues[2].textContent = selectedIds.size;
   }
 
   /* ===== 提交生产 ===== */
@@ -319,14 +425,12 @@
     const overlay = $("#tpModalOverlay");
     if (!overlay) return;
 
-    const selected = allItems.filter((i) =>
-      selectedIds.has(i.record_id)
-    );
+    const selected = allItems.filter((i) => selectedIds.has(i.record_id));
 
     const listEl = $("#tpModalList");
     if (listEl) {
       listEl.innerHTML = selected
-        .map((i) => "<li>" + esc(i.work_name || "未知") + "</li>")
+        .map((i) => "<li>" + esc(i.work_name || "未知") + " — " + esc(i.author || "未知") + "</li>")
         .join("");
     }
 
@@ -361,9 +465,7 @@
   }
 
   async function submitProduction() {
-    const selected = allItems.filter((i) =>
-      selectedIds.has(i.record_id)
-    );
+    const selected = allItems.filter((i) => selectedIds.has(i.record_id));
 
     if (selected.length === 0) return;
 
@@ -432,8 +534,14 @@
 
   function fmtNum(n) {
     if (n == null) return "—";
-    if (n >= 10000) return (n / 10000).toFixed(1) + "w";
+    if (n >= 10000) return (n / 10000).toFixed(1) + "万";
     if (n >= 1000) return (n / 1000).toFixed(1) + "k";
     return String(n);
+  }
+
+  function fmtWordCount(n) {
+    if (n == null) return "—";
+    if (n >= 10000) return (n / 10000).toFixed(1) + "万字";
+    return n + "字";
   }
 })();
