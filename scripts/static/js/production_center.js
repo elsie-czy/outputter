@@ -78,7 +78,15 @@
       const total = json.data.total || 0;
 
       if (items.length === 0) {
-        tbody.innerHTML = '<tr class="pc-empty"><td colspan="8">暂无任务</td></tr>';
+        tbody.innerHTML = 
+          '<tr class="pc-empty-row"><td colspan="8">' +
+          '<div class="pc-empty">' +
+          '<div class="pc-empty-icon">📭</div>' +
+          '<div class="pc-empty-title">暂无任务</div>' +
+          '<div class="pc-empty-desc">请从选题池提交作品开始生产</div>' +
+          '<a href="/topic-pool" class="pc-empty-btn">前往选题池</a>' +
+          '</div>' +
+          '</td></tr>';
         renderPagination(0);
         return;
       }
@@ -99,8 +107,9 @@
       const rid = item.record_id || "";
       const checked = selectedIds.has(rid) ? " checked" : "";
       const progress = item.progress_percent || 0;
-      const stageLabel = item.stage_label || "未知";
-      const stageStatus = item.status || "waiting";
+      const stageLabel = item.stage_label || "等待中";
+      const stageStatus = item.display_status || item.status || "waiting";
+      const error = item.error || "";
 
       html +=
         "<tr>" +
@@ -113,6 +122,7 @@
         "<span>" + esc(item.platform || "-") + "</span>" +
         "<span>" + esc(item.category || "-") + "</span>" +
         "</div>" +
+        (error ? '<div class="pc-error">' + esc(error) + '</div>' : "") +
         "</td>" +
         "<td>" +
         '<div class="pc-progress">' +
@@ -121,17 +131,22 @@
         "</div>" +
         "</td>" +
         "<td><span class='pc-stage pc-stage--" + stageStatus + "'>" + esc(stageLabel) + "</span></td>" +
-        "<td><span class='pc-model-tag'>GLM-4</span></td>" +
+        "<td>" +
+        '<div class="pc-model-list">' +
+        '<span class="pc-model-tag">拆文:GLM4</span>' +
+        '<span class="pc-model-tag">笔记:Qwen</span>' +
+        "</div>" +
+        "</td>" +
         '<td><span class="pc-time">' + esc(item.created_at || "-") + "</span></td>" +
         "<td>" +
         '<div class="pc-actions">' +
         '<a class="pc-action-link" data-action="view" data-rid="' + esc(rid) + '">查看</a>' +
-        (stageStatus !== "done" && stageStatus !== "cancelled" ? 
+        (stageStatus !== "done" && stageStatus !== "cancelled" && stageStatus !== "failed" ? 
           '<a class="pc-action-link" data-action="pause" data-rid="' + esc(rid) + '">暂停</a>' : "") +
         (stageStatus === "failed" ? 
           '<a class="pc-action-link" data-action="retry" data-rid="' + esc(rid) + '">重试</a>' : "") +
         (stageStatus !== "done" ? 
-          '<a class="pc-action-link" data-action="cancel" data-rid="' + esc(rid) + '">终止</a>' : "") +
+          '<a class="pc-action-link pc-action-link--danger" data-action="cancel" data-rid="' + esc(rid) + '">终止</a>' : "") +
         "</div>" +
         "</td>" +
         "</tr>";

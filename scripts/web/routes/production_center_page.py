@@ -25,22 +25,22 @@ def production_stats():
         items = get_queue(per_page=9999).get("items", [])
         today_prefix = __import__("datetime").datetime.now().strftime("%Y-%m-%d")
         
-        # 按状态统计
+        # 按状态统计（兼容旧的 pending 状态）
         running = [i for i in items if i.get("status") in (
             STATUS_DECONSTRUCTING, STATUS_GENERATING_NOTE, STATUS_AI_SCORING,
-            STATUS_HUMAN_REVIEW, STATUS_GENERATING_IMAGE
+            STATUS_HUMAN_REVIEW, STATUS_GENERATING_IMAGE, "processing"
         )]
-        waiting = [i for i in items if i.get("status") in (STATUS_WAITING, STATUS_PAUSED)]
+        waiting = [i for i in items if i.get("status") in (STATUS_WAITING, STATUS_PAUSED, "pending", "retry")]
         today_completed = [i for i in items 
-                          if i.get("status") == STATUS_DONE 
+                          if i.get("status") in (STATUS_DONE, "done")
                           and str(i.get("completed_at", "")).startswith(today_prefix)]
         today_failed = [i for i in items 
-                       if i.get("status") == STATUS_FAILED 
+                       if i.get("status") in (STATUS_FAILED, "failed")
                        and str(i.get("created_at", "")).startswith(today_prefix)]
         
         # 平均处理时长（分钟）
         completed_with_time = [i for i in items 
-                              if i.get("status") == STATUS_DONE 
+                              if i.get("status") in (STATUS_DONE, "done")
                               and i.get("processing_start") 
                               and i.get("completed_at")]
         avg_duration = 0
@@ -92,9 +92,15 @@ def production_list():
         
         # 添加阶段信息
         for item in result.get("items", []):
-            item["stage_label"] = STAGE_LABELS.get(item.get("status"), "未知")
-            item["stage_progress"] = STAGE_PROGRESS.get(item.get("status"), 0)
-            item["progress_percent"] = round(STAGE_PROGRESS.get(item.get("status"), 0) / 6 * 100)
+            # 兼容旧的 pending 状态
+            item_status = item.get("status", "")
+            if item_status == "pending":
+                item_status = "waiting"
+            
+            item["stage_label"] = STAGE_LABELS.get(item_status, item_status or "未知")
+            item["stage_progress"] = STAGE_PROGRESS.get(item_status, 0)
+            item["progress_percent"] = round(STAGE_PROGRESS.get(item_status, 0) / 6 * 100)
+            item["display_status"] = item_status
         
         return jsonify({"ok": True, "data": result})
     except Exception as e:

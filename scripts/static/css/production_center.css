@@ -359,7 +359,7 @@
 .pc-info-name {
   font-size: 16px;
   font-weight: 600;
-  color: #333333;
+  color: #222222;
   margin-bottom: 4px;
 }
 
@@ -371,6 +371,22 @@
 
 .pc-info-meta span {
   margin-right: 8px;
+}
+
+.pc-error {
+  font-size: 12px;
+  color: #FF4D4F;
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: #FFF3F3;
+  border-radius: 4px;
+}
+
+/* 模型列表 */
+.pc-model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 /* 进度条 */
@@ -457,13 +473,63 @@
   color: #333333;
 }
 
+.pc-action-link--danger {
+  color: #FF4D4F;
+}
+
+.pc-action-link--danger:hover {
+  color: #CC0000;
+}
+
 /* 加载/空状态 */
 .pc-loading td,
-.pc-empty td {
+.pc-empty-row td {
   text-align: center;
   padding: 48px 16px;
-  color: #999999;
+}
+
+.pc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+}
+
+.pc-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.pc-empty-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333333;
+  margin-bottom: 8px;
+}
+
+.pc-empty-desc {
   font-size: 14px;
+  color: #999999;
+  margin-bottom: 24px;
+}
+
+.pc-empty-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 24px;
+  background: #5C5FFF;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.pc-empty-btn:hover {
+  background: #4A4AFF;
+  color: #fff;
 }
 
 /* ===== 分页 + 资源监控 ===== */

@@ -242,6 +242,44 @@ def batch_cancel_tasks(record_ids):
     return count
 
 
+def batch_update_status(record_ids, status):
+    """批量更新状态（兼容旧接口）"""
+    if not record_ids:
+        return 0
+    items = read_jsonl(QUEUE_FILE)
+    count = 0
+    for i in items:
+        if i.get("record_id") in record_ids:
+            i["status"] = status
+            if status in (STATUS_DECONSTRUCTING, STATUS_GENERATING_NOTE, STATUS_AI_SCORING,
+                         STATUS_HUMAN_REVIEW, STATUS_GENERATING_IMAGE) and not i.get("processing_start"):
+                i["processing_start"] = _now()
+            if status in (STATUS_DONE, STATUS_FAILED, STATUS_CANCELLED):
+                i["completed_at"] = _now()
+            count += 1
+    if count > 0:
+        write_jsonl(QUEUE_FILE, items)
+    return count
+
+
+def retry_task(record_id):
+    """重试失败任务"""
+    items = read_jsonl(QUEUE_FILE)
+    updated = False
+    for i in items:
+        if i.get("record_id") == record_id and i.get("status") == STATUS_FAILED:
+            i["status"] = STATUS_WAITING
+            i["error"] = None
+            i["processing_start"] = None
+            i["completed_at"] = None
+            i["retry_count"] = i.get("retry_count", 0) + 1
+            updated = True
+            break
+    if updated:
+        write_jsonl(QUEUE_FILE, items)
+    return updated
+
+
 def get_stats():
     """队列统计：今日产出/完成率/均耗时"""
     items = read_jsonl(QUEUE_FILE)
