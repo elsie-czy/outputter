@@ -525,11 +525,11 @@ V2 页面树
 
 | # | 任务 | 优先级 | 状态 | 描述 | 预估 |
 |---|------|--------|------|------|------|
-| 2.1 | `POST /api/deconstruct/batch-start` | P0 | ☐ | 接收 `record_ids` 列表，更新队列状态为 processing | 30min |
-| 2.2 | `POST /api/deconstruct/batch-complete` | P0 | ☐ | 批量标记完成，状态 → done | 20min |
-| 2.3 | `POST /api/deconstruct/{rid}/retry` | P0 | ☐ | 重试失败任务，重置状态 + retry_count++ | 20min |
-| 2.4 | `GET /api/deconstruct/{rid}/result` | P0 | ☐ | 返回单个拆文结果 JSON | 30min |
-| 2.5 | `GET /api/deconstruct/{rid}/stats` | P0 | ☐ | 统计条数据：今日产出/完成率/均分/均耗时 | 30min |
+| 2.1 | `POST /api/deconstruct/batch-start` | P0 | ☑ | 接收 `record_ids` 列表，更新队列状态为 processing | 30min |
+| 2.2 | `POST /api/deconstruct/batch-complete` | P0 | ☑ | 批量标记完成，状态 → done | 20min |
+| 2.3 | `POST /api/deconstruct/{rid}/retry` | P0 | ☑ | 重试失败任务，重置状态 + retry_count++ | 20min |
+| 2.4 | `GET /api/deconstruct/{rid}/result` | P0 | ☑ | 返回单个拆文结果 JSON | 30min |
+| 2.5 | `GET /api/deconstruct/{rid}/stats` | P0 | ☑ | 统计条数据：今日产出/完成率/均分/均耗时 | 30min |
 
 ### 8.3 API 层 — 笔记操作
 
@@ -548,7 +548,7 @@ V2 页面树
 | 4.1 | `GET /api/deconstruct/{rid}/assets` | P1 | ☐ | 封面图 + 视频脚本生成状态（复用 `local_runs.load_image_queue_status` 逻辑） | 30min |
 | 4.2 | `POST /api/image/batch-generate` | P1 | ☐ | 批量生成图片 | 30min |
 | 4.3 | `GET /api/image/{rid}/preview` | P1 | ☐ | 预览封面图 | 20min |
-| 4.4 | `GET /api/reference/top-notes` | P0 | ☐ | 历史爆款 top 3，按点赞+收藏排序，同账号 | 30min |
+| 4.4 | `GET /api/reference/top-notes` | P0 | ☑ | 历史爆款 top 3，按点赞+收藏排序，同账号 | 30min |
 
 ### 8.5 模型层
 
@@ -565,7 +565,7 @@ V2 页面树
 | # | 任务 | 优先级 | 状态 | 描述 | 预估 |
 |---|------|--------|------|------|------|
 | 6.1 | 笔记库新增字段 schema | P1 | ☐ | 发布状态/发布时间/发布链接/修改日志/修改后评分/笔记正文全文 | 30min |
-| 6.2 | `feishu_client.get_top_notes(limit=3)` | P0 | ☐ | 读笔记结果库，按点赞+收藏排序取 top，返回标题+正文 | 30min |
+| 6.2 | `feishu_client.get_top_notes(limit=3)` | P0 | ☑ | 读笔记结果库，按点赞+收藏排序取 top，返回标题+正文 | 30min |
 | 6.3 | `feishu_client.get_recent_modifications(n=5)` | P1 | ☐ | 读笔记库修改日志字段，取最近 N 条 | 20min |
 | 6.4 | `feishu_client.save_modification_log(rid, diff)` | P1 | ☐ | 追加写入修改日志字段 | 20min |
 
@@ -588,7 +588,7 @@ V2 页面树
 
 | # | 任务 | 优先级 | 状态 | 描述 | 预估 |
 |---|------|--------|------|------|------|
-| 8.1 | 注册新路由模块 `web/routes/deconstruct_api.py` | P0 | ☐ | 将 8.2/8.3/8.4 的所有 API 挂载到 Blueprint | 1h |
+| 8.1 | 注册新路由模块 `web/routes/deconstruct_api.py` | P0 | ☑ | 将 8.2/8.3/8.4 的所有 API 挂载到 Blueprint | 1h |
 | 8.2 | 注册页面路由 `/deconstruct` | P0 | ☐ | 返回 `deconstruct_center.html` 渲染 | 15min |
 | 8.3 | 旧版 tab 栏新增入口 | P1 | ☐ | `web_app_legacy.py` 侧边栏加"拆文中心"链接 | 15min |
 
@@ -607,12 +607,12 @@ V2 页面树
 ```
 前端架构:     15/15 ████████████ 100%
 队列系统:     6/6  ████████████ 100%
-API 层:       0/14 ░░░░░░░░░░░░  0%
-模型层:       0/5  ░░░░░░░░░░░░  0%
-飞书层:       0/4  ░░░░░░░░░░░░  0%
+API 层:       6/14 █████░░░░░░░  43%
+模型层:       1/5  ██░░░░░░░░░░  20%
+飞书层:       1/4  ███░░░░░░░░░  25%
 前端页面:     0/10 ░░░░░░░░░░░░  0%
-路由+入口:    0/3  ░░░░░░░░░░░░  0%
+路由+入口:    2/3  ████████░░░░  67%
 联调+验收:    0/3  ░░░░░░░░░░░░  0%
 ─────────────────────────────────
-总计:         21/60 ████░░░░░░░░  35%
+总计:         31/60 ██████░░░░░░  52%
 ```
