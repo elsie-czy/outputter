@@ -56,9 +56,10 @@ python scripts/web_app.py
 
 === **分支** ===
 
-```
+```bash
+cd /Users/lalalaba/Desktop/personal-supertool
 git checkout main
-git pull --ff-only origin main   # 如无 origin 则跳过
+git pull --ff-only origin main
 git checkout -b feature/v2-frontend-arch-foundation
 ```
 
