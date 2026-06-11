@@ -561,8 +561,11 @@ const PAGE_SIZE = 10;
       closeModal();
       showToast("success", "✓ 成功提交 " + json.data.enqueued + " 篇作品");
       selectedIds.clear();
-      loadTopics();
-      loadKPI();
+      
+      // 2秒后跳转到生产中心
+      setTimeout(() => {
+        window.location.href = "/production-center";
+      }, 1500);
     } catch (e) {
       showToast("error", "✕ 提交失败：" + e.message);
     } finally {
