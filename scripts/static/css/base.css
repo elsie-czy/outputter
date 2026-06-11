@@ -8,8 +8,8 @@
 /* ===== CSS 变量 ===== */
 :root {
   /* 品牌色 */
-  --color-primary: #3B82F6;
-  --color-primary-hover: #2563EB;
+  --color-primary: #6C4EFF;
+  --color-primary-hover: #5B3FD9;
 
   /* 辅助色 */
   --color-success: #22C55E;
@@ -36,7 +36,7 @@
   --bg-card: #FFFFFF;
   --bg-nav: #FFFFFF;
   --bg-hover: #F3F4F6;
-  --bg-primary-light: #EFF6FF;
+  --bg-primary-light: #EEF2FF;
 
   /* 文字 */
   --text-primary: #111827;
@@ -585,7 +585,7 @@ a:hover { text-decoration: underline; }
 
 .app-sidebar-item.active {
   background: #EEF2FF;
-  color: #4F46E5;
+  color: #6C4EFF;
 }
 
 .app-sidebar-item.disabled {
@@ -623,7 +623,7 @@ a:hover { text-decoration: underline; }
   transform: translateY(-50%);
   width: 3px;
   height: 24px;
-  background: #4F46E5;
+  background: #6C4EFF;
   border-radius: 999px;
 }
 

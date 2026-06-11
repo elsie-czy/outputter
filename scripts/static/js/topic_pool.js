@@ -17,7 +17,7 @@
   let currentSort = "score";
   let pollInterval = null;
   let currentPage = 1;
-  const PAGE_SIZE = 12;
+  const PAGE_SIZE = 10;
 
   /* ===== DOM 缓存 ===== */
   const $ = (sel) => document.querySelector(sel);
@@ -35,7 +35,7 @@
 
   /* ===== 数据加载 ===== */
   async function loadTopics() {
-    const grid = $(".tp-grid");
+    const grid = $("#tpGrid");
     if (!grid) return;
     grid.innerHTML = '<div class="tp-loading">加载中...</div>';
 
@@ -62,7 +62,6 @@
       const d = json.data;
       setText("#kpiPending", d.pending_topics);
       setText("#kpiToday", d.today_added);
-      setText("#kpiHighPot", d.high_potential);
     } catch (_) {}
   }
 
@@ -76,6 +75,7 @@
     const q = ($("#tpSearch")?.value || "").trim().toLowerCase();
     const platform = $("#tpPlatform")?.value || "";
     const category = $("#tpCategory")?.value || "";
+    const wordCount = $("#tpWordCount")?.value || "";
     const scoreLevel = $("#tpScoreLevel")?.value || "";
 
     let list = allItems.slice();
@@ -99,6 +99,16 @@
         return true;
       });
     }
+    if (wordCount) {
+      list = list.filter((i) => {
+        const wc = i.word_count || 0;
+        if (wordCount === "0-50") return wc < 500000;
+        if (wordCount === "50-100") return wc >= 500000 && wc < 1000000;
+        if (wordCount === "100-200") return wc >= 1000000 && wc < 2000000;
+        if (wordCount === "200+") return wc >= 2000000;
+        return true;
+      });
+    }
 
     const sortFns = {
       score: (a, b) => (b.quality_score || 0) - (a.quality_score || 0),
@@ -113,7 +123,7 @@
   }
 
   function renderGrid() {
-    const grid = $(".tp-grid");
+    const grid = $("#tpGrid");
     if (!grid) return;
     const filtered = getFiltered();
 
@@ -141,33 +151,34 @@
       const sel = selectedIds.has(rid) ? " selected" : "";
       const score = item.quality_score;
       const scoreInfo = getScoreInfo(score);
+      const catClass = getCategoryClass(item.category);
 
       html +=
         '<div class="tp-card' + sel + '" data-rid="' + esc(rid) + '">' +
         '<div class="tp-card-checkbox">' + (sel ? "✓" : "") + "</div>" +
         '<div class="tp-card-cover">📖</div>' +
-        '<div class="tp-card-body">' +
+        '<div class="tp-card-content">' +
         '<div class="tp-card-name">' + esc(item.work_name || "未知作品") + "</div>" +
         '<div class="tp-card-author">' + esc(item.author || "未知作者") + "</div>" +
         '<div class="tp-card-meta">' +
-        '<span class="tp-card-meta-tag">' + esc(item.platform || "-") + "</span>" +
-        '<span class="tp-card-meta-tag">' + esc(item.category || "-") + "</span>" +
-        (item.word_count ? '<span class="tp-card-meta-tag">' + fmtWordCount(item.word_count) + "</span>" : "") +
+        '<span class="tp-card-tag">' + esc(item.platform || "-") + "</span>" +
+        '<span class="tp-card-tag ' + catClass + '">' + esc(item.category || "-") + "</span>" +
+        (item.word_count ? '<span class="tp-card-tag">' + fmtWordCount(item.word_count) + "</span>" : "") +
         "</div>" +
         '<div class="tp-card-metrics">' +
-        "<span>收藏 " + fmtNum(item.favorites) + "</span>" +
-        "<span>点赞 " + fmtNum(item.likes) + "</span>" +
-        (item.monthly_votes ? "<span>月票 " + fmtNum(item.monthly_votes) + "</span>" : "") +
-        (item.recommend_votes ? "<span>推荐 " + fmtNum(item.recommend_votes) + "</span>" : "") +
-        "<span>评论 " + fmtNum(item.comments) + "</span>" +
-        (item.rank ? "<span>排名 #" + item.rank + "</span>" : "") +
+        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.favorites) + '</span><span class="tp-card-metric-label">收藏</span></div>' +
+        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.likes) + '</span><span class="tp-card-metric-label">点赞</span></div>' +
+        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.monthly_votes) + '</span><span class="tp-card-metric-label">月票</span></div>' +
+        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.recommend_votes) + '</span><span class="tp-card-metric-label">推荐</span></div>' +
+        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.comments) + '</span><span class="tp-card-metric-label">评论</span></div>' +
+        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + (item.rank ? "#" + item.rank : "—") + '</span><span class="tp-card-metric-label">排名</span></div>' +
         "</div>" +
-        '<div class="tp-card-score-row">' +
-        (score
-          ? '<span class="tp-card-score ' + scoreInfo.cls + '">综合评分 ' + score + scoreInfo.label + "</span>" +
-            '<span class="tp-ai-tag tp-ai-tag--' + scoreInfo.level + '">AI ' + scoreInfo.level.toUpperCase() + "</span>"
-          : '<span class="tp-card-score tp-score-c">暂无评分</span>') +
         "</div>" +
+        '<div class="tp-card-score tp-score-' + scoreInfo.level + '">' +
+        '<div class="tp-card-score-label">综合评分</div>' +
+        '<div class="tp-card-score-value">' + (score || "—") + "</div>" +
+        '<div class="tp-card-score-level">' + scoreInfo.label + "</div>" +
+        '<div class="tp-card-score-stars">' + scoreInfo.stars + "</div>" +
         "</div>" +
         "</div>";
     }
@@ -189,7 +200,6 @@
           card.querySelector(".tp-card-checkbox").innerHTML = "✓";
         }
         updateSidebar();
-        updateKpiSelected();
       });
     });
 
@@ -197,11 +207,17 @@
   }
 
   function getScoreInfo(score) {
-    if (!score) return { cls: "tp-score-c", label: "", level: "c" };
-    if (score >= 90) return { cls: "tp-score-s", label: " S级", level: "s" };
-    if (score >= 80) return { cls: "tp-score-a", label: " A级", level: "a" };
-    if (score >= 70) return { cls: "tp-score-b", label: " B级", level: "b" };
-    return { cls: "tp-score-c", label: " C级", level: "c" };
+    if (!score) return { cls: "tp-score-c", label: "", level: "c", stars: "" };
+    if (score >= 90) return { cls: "tp-score-s", label: "极高", level: "s", stars: "★★★★★" };
+    if (score >= 80) return { cls: "tp-score-a", label: "很高", level: "a", stars: "★★★★☆" };
+    if (score >= 70) return { cls: "tp-score-b", label: "较高", level: "b", stars: "★★★☆☆" };
+    if (score >= 60) return { cls: "tp-score-c", label: "一般", level: "c", stars: "★★☆☆☆" };
+    return { cls: "tp-score-d", label: "较低", level: "d", stars: "★☆☆☆☆" };
+  }
+
+  function getCategoryClass(category) {
+    const map = { "玄幻": "tp-card-tag--fantasy", "科幻": "tp-card-tag--scifi" };
+    return map[category] || "";
   }
 
   /* ===== 分页 ===== */
@@ -254,51 +270,53 @@
       });
     }
 
-    const platform = $("#tpPlatform");
-    if (platform) platform.addEventListener("change", () => { currentPage = 1; renderGrid(); });
+    ["#tpPlatform", "#tpCategory", "#tpWordCount", "#tpScoreLevel"].forEach((sel) => {
+      const el = $(sel);
+      if (el) el.addEventListener("change", () => { currentPage = 1; renderGrid(); });
+    });
 
-    const category = $("#tpCategory");
-    if (category) category.addEventListener("change", () => { currentPage = 1; renderGrid(); });
-
-    const scoreLevel = $("#tpScoreLevel");
-    if (scoreLevel) scoreLevel.addEventListener("change", () => { currentPage = 1; renderGrid(); });
-
-    // 排序按钮
-    $$(".tp-sort-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        $$(".tp-sort-btn").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        currentSort = btn.dataset.sort || "score";
+    const sortSelect = $("#tpSort");
+    if (sortSelect) {
+      sortSelect.addEventListener("change", () => {
+        currentSort = sortSelect.value;
         currentPage = 1;
         renderGrid();
       });
+    }
+
+    // 重置按钮
+    bindBtn("#tpResetBtn", () => {
+      $("#tpSearch").value = "";
+      $("#tpPlatform").value = "";
+      $("#tpCategory").value = "";
+      $("#tpWordCount").value = "";
+      $("#tpScoreLevel").value = "";
+      $("#tpSort").value = "score";
+      currentSort = "score";
+      currentPage = 1;
+      renderGrid();
     });
 
-    // 全选
+    // 批量操作
     bindBtn("#tpSelectAll", () => {
       const filtered = getFiltered();
       filtered.forEach((i) => selectedIds.add(i.record_id));
       renderGrid();
     });
 
-    // 取消全选
     bindBtn("#tpDeselectAll", () => {
       const filtered = getFiltered();
       filtered.forEach((i) => selectedIds.delete(i.record_id));
       renderGrid();
     });
 
-    // 仅高潜
     bindBtn("#tpSelectHighPot", () => {
       selectedIds.clear();
-      allItems.forEach((i) => {
-        if ((i.quality_score || 0) >= 80) selectedIds.add(i.record_id);
-      });
+      allItems.forEach((i) => { if ((i.quality_score || 0) >= 80) selectedIds.add(i.record_id); });
       currentPage = 1;
       renderGrid();
     });
 
-    // 清空
     bindBtn("#tpClearSelect", () => {
       selectedIds.clear();
       renderGrid();
@@ -316,15 +334,26 @@
     const count = selected.length;
 
     setText("#tpSelectedCount", count + "篇");
+    setText("#tpBatchCount", count);
 
     // 分类分布
     const catMap = {};
     selected.forEach((i) => { const c = i.category || "未知"; catMap[c] = (catMap[c] || 0) + 1; });
     const catEl = $("#tpCategoryDist");
     if (catEl) {
-      catEl.innerHTML = Object.entries(catMap)
-        .map(([k, v]) => '<span class="tp-distribution-tag">' + esc(k) + " " + v + "</span>")
-        .join("") || '<span class="text-muted">—</span>';
+      if (count === 0) {
+        catEl.innerHTML = '<span class="text-muted">—</span>';
+      } else {
+        const maxCat = Math.max(...Object.values(catMap));
+        catEl.innerHTML = Object.entries(catMap)
+          .map(([k, v]) =>
+            '<div class="tp-distribution-item">' +
+            '<span class="tp-distribution-label">' + esc(k) + "</span>" +
+            '<div class="tp-distribution-bar"><div class="tp-distribution-fill" style="width:' + (v / maxCat * 100) + '%"></div></div>' +
+            '<span class="tp-distribution-count">' + v + "篇</span>" +
+            "</div>"
+          ).join("");
+      }
     }
 
     // 平台分布
@@ -332,9 +361,19 @@
     selected.forEach((i) => { const p = i.platform || "未知"; platMap[p] = (platMap[p] || 0) + 1; });
     const platEl = $("#tpPlatformDist");
     if (platEl) {
-      platEl.innerHTML = Object.entries(platMap)
-        .map(([k, v]) => '<span class="tp-distribution-tag">' + esc(k) + " " + v + "</span>")
-        .join("") || '<span class="text-muted">—</span>';
+      if (count === 0) {
+        platEl.innerHTML = '<span class="text-muted">—</span>';
+      } else {
+        const maxPlat = Math.max(...Object.values(platMap));
+        platEl.innerHTML = Object.entries(platMap)
+          .map(([k, v]) =>
+            '<div class="tp-distribution-item">' +
+            '<span class="tp-distribution-label">' + esc(k) + "</span>" +
+            '<div class="tp-distribution-bar"><div class="tp-distribution-fill" style="width:' + (v / maxPlat * 100) + '%"></div></div>' +
+            '<span class="tp-distribution-count">' + v + "篇</span>" +
+            "</div>"
+          ).join("");
+      }
     }
 
     // 核心指标均值
@@ -349,8 +388,13 @@
     setMetric("#tpAvgFav", "favorites");
     setMetric("#tpAvgLikes", "likes");
     setMetric("#tpAvgMonthly", "monthly_votes");
+    setMetric("#tpAvgRecommend", "recommend_votes");
     setMetric("#tpAvgComments", "comments");
     setMetric("#tpAvgRank", "rank");
+
+    // 预计资源消耗
+    setText("#tpEstToken", count > 0 ? "≈ " + (count * 3000).toLocaleString() + " Token" : "—");
+    setText("#tpEstTime", count > 0 ? "≈ " + Math.ceil(count * 0.5) + "分钟" : "—");
 
     // 预计产出
     setText("#tpOutReport", "×" + count);
@@ -359,7 +403,7 @@
 
     // KPI 已选作品 & 预计耗时
     setText("#kpiSelected", count);
-    setText("#kpiDuration", count > 0 ? Math.ceil(count * 0.5) + "分钟" : "—");
+    setText("#kpiDuration", count > 0 ? Math.ceil(count * 0.5) : "—");
 
     // 提交按钮
     const submitBtn = $("#tpSubmitBtn");
@@ -367,10 +411,6 @@
       submitBtn.disabled = count === 0;
       submitBtn.textContent = "提交生产（" + count + "篇）";
     }
-  }
-
-  function updateKpiSelected() {
-    setText("#kpiSelected", selectedIds.size);
   }
 
   /* ===== 提交生产 ===== */
