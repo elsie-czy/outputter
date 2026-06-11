@@ -8,8 +8,8 @@
 /* ===== CSS 变量 ===== */
 :root {
   /* 品牌色 */
-  --color-primary: #16A34A;
-  --color-primary-hover: #15803D;
+  --color-primary: #3B82F6;
+  --color-primary-hover: #2563EB;
 
   /* 辅助色 */
   --color-success: #22C55E;
