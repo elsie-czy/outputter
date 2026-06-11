@@ -8,7 +8,7 @@ bp = Blueprint("web_topic_pool", __name__)
 @bp.get("/topic-pool")
 def topic_pool_page():
     """选题池页面"""
-    return render_template("topic_pool.html", active_page="topic_pool")
+    return render_template("topic_pool.html", active_page="topic-pool", page_title="选题池")
 
 
 @bp.get("/api/topic-pool/stats")

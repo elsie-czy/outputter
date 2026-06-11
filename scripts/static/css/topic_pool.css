@@ -3,9 +3,6 @@
 .tp-layout {
   display: flex;
   gap: var(--gap);
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: var(--space-lg);
 }
 
 /* ===== KPI 统计区 ===== */
@@ -13,10 +10,6 @@
   display: flex;
   gap: var(--gap);
   margin-bottom: var(--space-lg);
-  max-width: 1600px;
-  margin-left: auto;
-  margin-right: auto;
-  padding: 0 var(--space-lg);
 }
 
 .tp-kpi-card {

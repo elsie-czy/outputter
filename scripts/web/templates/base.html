@@ -8,14 +8,16 @@
   {% block head %}{% endblock %}
 </head>
 <body>
-  <div class="app-container">
-    {% include "_nav.html" %}
-
-    <main class="main-content">
-      {% block content %}{% endblock %}
-    </main>
+  <div class="app-shell">
+    {% include "_header.html" %}
+    <div class="app-shell-body">
+      {% include "_sidebar.html" %}
+      <main class="app-shell-content">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
   </div>
-
+  <script src="{{ url_for('static', filename='js/app-shell.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
