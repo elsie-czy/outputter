@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}生产中心 - 超级工具{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/production_center.css') }}" />
+{% endblock %}
+
+{% block content %}
+<div class="pc-container">
+
+  <!-- ===== 顶部任务统计栏 ===== -->
+  <div class="pc-stats-row">
+    <div class="pc-stat-card pc-stat-card--processing">
+      <div class="pc-stat-icon">
+        <i data-lucide="loader"></i>
+      </div>
+      <div class="pc-stat-info">
+        <div class="pc-stat-value" id="statProcessing">0</div>
+        <div class="pc-stat-label">生产中</div>
+      </div>
+    </div>
+    <div class="pc-stat-card pc-stat-card--pending">
+      <div class="pc-stat-icon">
+        <i data-lucide="clock"></i>
+      </div>
+      <div class="pc-stat-info">
+        <div class="pc-stat-value" id="statPending">0</div>
+        <div class="pc-stat-label">等待中</div>
+      </div>
+    </div>
+    <div class="pc-stat-card pc-stat-card--completed">
+      <div class="pc-stat-icon">
+        <i data-lucide="check-circle"></i>
+      </div>
+      <div class="pc-stat-info">
+        <div class="pc-stat-value" id="statCompleted">0</div>
+        <div class="pc-stat-label">今日完成</div>
+      </div>
+    </div>
+    <div class="pc-stat-card pc-stat-card--failed">
+      <div class="pc-stat-icon">
+        <i data-lucide="x-circle"></i>
+      </div>
+      <div class="pc-stat-info">
+        <div class="pc-stat-value" id="statFailed">0</div>
+        <div class="pc-stat-label">今日失败</div>
+      </div>
+    </div>
+    <div class="pc-stat-card pc-stat-card--duration">
+      <div class="pc-stat-icon">
+        <i data-lucide="timer"></i>
+      </div>
+      <div class="pc-stat-info">
+        <div class="pc-stat-value" id="statDuration">0</div>
+        <div class="pc-stat-label">平均处理时长(分)</div>
+      </div>
+    </div>
+    <div class="pc-stat-card pc-stat-card--resource">
+      <div class="pc-stat-icon">
+        <i data-lucide="cpu"></i>
+      </div>
+      <div class="pc-stat-info">
+        <div class="pc-stat-value" id="statResource">0%</div>
+        <div class="pc-stat-label">资源使用率</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 筛选器区域 ===== -->
+  <div class="pc-filter-bar">
+    <input type="text" id="pcSearch" class="pc-search-input" placeholder="搜索作品名 / 作者" />
+    <select id="pcStatus" class="pc-select">
+      <option value="">全部状态</option>
+      <option value="processing">生产中</option>
+      <option value="pending">等待中</option>
+      <option value="completed">已完成</option>
+      <option value="failed">已失败</option>
+    </select>
+    <select id="pcSort" class="pc-select">
+      <option value="created_at">创建时间</option>
+      <option value="started_at">开始时间</option>
+    </select>
+    <button class="pc-filter-btn pc-filter-btn--reset" id="pcResetBtn">重置</button>
+    <div class="pc-filter-right">
+      <button class="pc-batch-btn" id="pcBatchBtn" disabled>
+        <i data-lucide="more-horizontal"></i>
+        批量操作
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== 任务列表 ===== -->
+  <div class="pc-table-wrapper">
+    <table class="pc-table" id="pcTable">
+      <thead>
+        <tr>
+          <th class="pc-th-check"><input type="checkbox" id="pcSelectAll" /></th>
+          <th class="pc-th-cover">封面</th>
+          <th class="pc-th-info">作品信息</th>
+          <th class="pc-th-progress">进度</th>
+          <th class="pc-th-stage">当前阶段</th>
+          <th class="pc-th-model">模型与配置</th>
+          <th class="pc-th-time">创建时间</th>
+          <th class="pc-th-actions">操作</th>
+        </tr>
+      </thead>
+      <tbody id="pcTableBody">
+        <tr class="pc-loading">
+          <td colspan="8">加载中...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ===== 分页 ===== -->
+  <div class="pc-pagination" id="pcPagination"></div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/production_center.js') }}"></script>
+{% endblock %}
