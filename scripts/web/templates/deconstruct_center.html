@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}拆文中心{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/deconstruct.css') }}" />
+{% endblock %}
+
+{% block content %}
+<div class="dc-layout">
+
+  <!-- ====== 左侧：队列 ====== -->
+  <div class="dc-panel" id="queuePanel">
+    <div class="dc-panel-header">
+      任务队列 <span id="queueBadge" class="text-muted">—</span>
+    </div>
+    <div class="dc-filter">
+      <input type="text" id="filterSearch" placeholder="搜索作品/作者..." />
+      <div class="dc-filter-chips" id="filterChips"></div>
+    </div>
+    <div class="dc-batch" id="batchBar">
+      <button class="dc-btn primary" data-action="start">开始拆文</button>
+      <button class="dc-btn" data-action="generate">生成笔记</button>
+      <button class="dc-btn" data-action="image">生成图片</button>
+      <button class="dc-btn" data-action="complete">标记完成</button>
+      <span class="dc-meta" id="batchCount" style="display:none"></span>
+    </div>
+    <div class="dc-panel-body">
+      <div class="dc-queue-list" id="queueList">
+        <div class="dc-empty">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== 中间：拆文结果 + 笔记 ====== -->
+  <div class="dc-panel" id="mainPanel" style="flex:1">
+    <div class="dc-stats" id="statsBar">请从左侧选择任务</div>
+    <div class="dc-panel-body" id="mainBody">
+      <div class="dc-empty">
+        <div style="font-size:48px;margin-bottom:12px;">📋</div>
+        <div>从左侧队列选择一个任务查看拆文结果</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== 右侧：评分 + 操作 ====== -->
+  <div class="dc-panel" id="rightPanel">
+    <div class="dc-panel-header">详情面板</div>
+    <div class="dc-panel-body">
+      <div class="dc-empty">选择任务后显示评分和操作</div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/status-badge.js') }}"></script>
+<script src="{{ url_for('static', filename='js/queue.js') }}"></script>
+<script src="{{ url_for('static', filename='js/batch.js') }}"></script>
+<script src="{{ url_for('static', filename='js/deconstruct.js') }}"></script>
+<script src="{{ url_for('static', filename='js/note.js') }}"></script>
+<script>
+  Queue.init();
+  Batch.init();
+  window.Stats = {
+    async poll() {
+      try {
+        const res = await fetch('/api/deconstruct/stats');
+        const j = await res.json();
+        if (!j.ok) return;
+        const s = j.data;
+        document.getElementById('statsBar').innerHTML =
+          `今日产出 <strong>${s.today_done}</strong> 篇 | 完成率 <strong>${s.completion_rate}%</strong> | 均耗时 <strong>${s.avg_duration_sec || '—'}秒</strong>${s.avg_score ? ` | 均分 <strong>${s.avg_score}</strong>` : ''}`;
+      } catch (e) {}
+    }
+  };
+  Stats.poll();
+  setInterval(() => Stats.poll(), 30000);
+</script>
+{% endblock %}

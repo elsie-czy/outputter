@@ -11,8 +11,8 @@ def landing():
 
 @bp.get("/deconstruct")
 def deconstruct_page():
-    """拆文中心 — V2.0 核心功能页面（占位，后续实现）"""
-    return render_template("landing.html", active_page="deconstruct")
+    """拆文中心 — 三栏交互页面"""
+    return render_template("deconstruct_center.html", active_page="deconstruct")
 
 
 @bp.get("/dashboard")
