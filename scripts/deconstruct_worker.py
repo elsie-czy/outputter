@@ -31,6 +31,26 @@ def _now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _check_cache(work):
+    """检查飞书主表是否已有拆解记录"""
+    try:
+        client = FeishuClient()
+        if not client.is_configured():
+            return False
+        records = client.list_records(client.table_id, page_size=500)
+        name = work.get("作品名称", "")
+        author = work.get("作者", "")
+        for r in records:
+            f = r.get("fields", {}) or {}
+            if (str(f.get("作品名称", "")) == name
+                    and str(f.get("作者", "")) == author
+                    and f.get("拆解时间")):
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def _log(rid, msg):
     ts = datetime.now().strftime("%H:%M:%S")
     print(f"[{ts}] [{rid}] {msg}")
@@ -72,6 +92,16 @@ def process_one(task, dry=False):
         if dry:
             _log(rid, "dry=True，跳过模型调用")
             return {"ok": True, "record_id": rid}
+
+        # 1.5 缓存检查：作品已拆解则跳过
+        force = os.getenv("FORCE_REDECONSTRUCT", "").strip().lower() in ("1", "true", "yes")
+        if not force and _check_cache(work):
+            _log(rid, "缓存命中，跳过 LLM 调用")
+            update_status(rid, "done",
+                          deconstruct_result={"缓存": True, "跳过模型": True},
+                          note_content="（缓存命中，从飞书主表复用）")
+            result["ok"] = True
+            return result
 
         # 2. 调用模型拆解
         analysis = analyze_work(work)

@@ -134,7 +134,7 @@ def _ensure_analysis_shape(result, work):
     return result
 
 
-def analyze_work(work, reference_notes=None):
+def analyze_work(work, reference_notes=None, recent_feedback=None):
     provider = os.getenv("MODEL_PROVIDER", "local").strip().lower()
     if provider == "local":
         return _local_analyze(work)
@@ -150,13 +150,13 @@ def analyze_work(work, reference_notes=None):
         "moonshot",
         "kimi",
     }:
-        return _openai_analyze(work, reference_notes)
+        return _openai_analyze(work, reference_notes, recent_feedback)
     if provider == "ernie":
         raise RuntimeError("MODEL_PROVIDER=ernie 尚未接入。")
     raise RuntimeError(f"未知的 MODEL_PROVIDER: {provider}")
 
 
-def _openai_analyze(work, reference_notes=None):
+def _openai_analyze(work, reference_notes=None, recent_feedback=None):
     provider = os.getenv("MODEL_PROVIDER", "openai").strip().lower()
     is_qwen = provider in {"qwen", "dashscope"}
     api_key = (os.getenv("QWEN_API_KEY", "") if is_qwen else os.getenv("OPENAI_API_KEY", "")).strip()
@@ -251,6 +251,13 @@ def _openai_analyze(work, reference_notes=None):
                 f"标题：{title}\n标签：{labels}\n正文：{body}\n"
             )
         user_prompt["参考笔记（请模仿其风格和结构，但内容针对当前作品）"] = ref_lines
+
+    # 反馈闭环：注入运营历史修改偏好
+    if recent_feedback:
+        user_prompt["运营修改偏好（请避免类似问题，遵循以下风格）"] = [
+            f"[{f.get('time','')}] {f.get('field','')}: {f.get('reason','')}"
+            for f in recent_feedback[:5]
+        ]
 
     payload = {
         "model": model,

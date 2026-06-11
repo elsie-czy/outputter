@@ -357,3 +357,56 @@ class FeishuClient:
             return float(str(v).strip().replace(",", ""))
         except Exception:
             return 0.0
+
+    def get_recent_modifications(self, limit=5):
+        """读取笔记库最近的修改日志"""
+        from scripts.feishu_config import get_feishu_config
+        cfg = get_feishu_config()
+        table_id = cfg.get("related_table_ids", {}).get("小红书笔记库")
+        if not table_id:
+            return []
+        records = self.list_records(table_id, page_size=200)
+        mods = []
+        for r in records:
+            f = r.get("fields", {}) or {}
+            log = str(f.get("修改日志", "")).strip()
+            if not log:
+                continue
+            # 解析修改日志（格式：YYYYMMDD HH:MM | 字段: 原因 | 评分:N）
+            for line in log.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split("|")
+                if len(parts) >= 2:
+                    mods.append({
+                        "time": parts[0].strip(),
+                        "field": parts[1].strip(),
+                        "reason": parts[2].strip() if len(parts) > 2 else "",
+                    })
+        mods.sort(key=lambda x: x.get("time", ""), reverse=True)
+        return mods[:limit]
+
+    def save_modification_log(self, table_id, record_id, diff_log, quality_score=0):
+        """追加修改日志到笔记库记录"""
+        try:
+            # 先读现有记录
+            records = self.list_records(table_id, page_size=10)
+            current_log = ""
+            for r in records:
+                if r.get("record_id") == record_id:
+                    current_log = str(r.get("fields", {}).get("修改日志", ""))
+                    break
+
+            from datetime import datetime
+            ts = datetime.now().strftime("%Y%m%d %H:%M")
+            new_line = f"{ts} | {diff_log} | 评分:{quality_score}"
+            updated_log = new_line if not current_log else f"{current_log}\n{new_line}"
+
+            self.update_record_in_table(table_id, record_id, {
+                "修改日志": updated_log,
+            })
+            return True
+        except Exception as e:
+            print(f"保存修改日志失败: {e}")
+            return False

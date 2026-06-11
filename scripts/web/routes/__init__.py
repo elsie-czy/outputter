@@ -4,6 +4,7 @@ from scripts.web.routes.xhs_api import bp as xhs_api_bp
 from scripts.web.routes.landing_page import bp as landing_bp
 from scripts.web.routes.deconstruct_api import bp as deconstruct_api_bp
 from scripts.web.routes.reference_api import bp as reference_api_bp
+from scripts.web.routes.note_api import bp as note_api_bp
 
 
 def register_routes(app):
@@ -20,3 +21,5 @@ def register_routes(app):
         app.register_blueprint(deconstruct_api_bp)
     if "web_reference_api" not in app.blueprints:
         app.register_blueprint(reference_api_bp)
+    if "web_note_api" not in app.blueprints:
+        app.register_blueprint(note_api_bp)
