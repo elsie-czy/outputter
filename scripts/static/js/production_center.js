@@ -196,7 +196,7 @@
     } else if (action === "view") {
       // 查看详情跳转
       if (recordIds.length === 1) {
-        window.open("/notes/" + recordIds[0], "_blank");
+        window.open("/task/" + recordIds[0], "_blank");
       }
       return;
     }
