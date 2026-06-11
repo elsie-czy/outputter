@@ -4,7 +4,7 @@
 {% set nav_groups = [
   {
     "label": "内容生产",
-    "items": [
+    "children": [
       {"key": "topic-pool",      "label": "选题池",   "icon": "&#x1F4D6;", "url": "/topic-pool",       "available": true},
       {"key": "production",      "label": "生产中心", "icon": "&#x26A1;",  "url": "/production-center", "available": false},
       {"key": "notes",           "label": "笔记库",   "icon": "&#x1F4D6;", "url": "/note-library",      "available": false},
@@ -13,13 +13,13 @@
   },
   {
     "label": "运营分析",
-    "items": [
+    "children": [
       {"key": "data",            "label": "数据看板", "icon": "&#x1F4CA;", "url": "/data-dashboard",    "available": false},
     ]
   },
   {
     "label": "系统管理",
-    "items": [
+    "children": [
       {"key": "settings",        "label": "系统设置", "icon": "&#x2699;&#xFE0F;", "url": "/settings",  "available": false},
     ]
   }
@@ -30,7 +30,7 @@
     {% for group in nav_groups %}
     <div class="app-sidebar-group">
       <div class="app-sidebar-group-label">{{ group.label }}</div>
-      {% for item in group.items %}
+      {% for item in group.children %}
         {% set is_active = (active == item.key) %}
         {% set css_class = "app-sidebar-item" %}
         {% if is_active %}{% set css_class = css_class ~ " active" %}{% endif %}
