@@ -6,6 +6,7 @@
   min-width: 1280px;
   margin: 0 auto;
   padding: var(--space-lg);
+  width: 100%;
 }
 
 /* ===== 顶部统计区 ===== */
@@ -489,6 +490,10 @@
   border-radius: var(--radius);
   padding: var(--space-md);
   box-shadow: var(--shadow-sm);
+}
+
+.tp-sidebar-card--hidden {
+  display: none;
 }
 
 .tp-sidebar-card--selected {
