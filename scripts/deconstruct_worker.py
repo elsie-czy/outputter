@@ -88,6 +88,10 @@ def process_one(task, dry=False):
         for k in ["作品名称", "作者", "平台", "分类", "评分", "字数（万）", "完结状态", "简介", "取向"]:
             if not work.get(k) and search_info.get(k):
                 work[k] = search_info.get(k)
+        
+        # 确保必填字段有默认值
+        if not work.get("简介"):
+            work["简介"] = f"{work.get('作品名称', '')} - {work.get('分类', '')}类小说"
 
         if dry:
             _log(rid, "dry=True，跳过模型调用")
