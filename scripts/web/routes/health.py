@@ -81,8 +81,8 @@ def worker_restart():
         
         with open(log_file, "a") as f:
             subprocess.Popen(
-                ["python", "scripts/deconstruct_worker.py"],
-                cwd=base_dir,
+                ["python", "deconstruct_worker.py"],
+                cwd=os.path.join(base_dir, "scripts"),
                 stdout=f,
                 stderr=f,
                 start_new_session=True
