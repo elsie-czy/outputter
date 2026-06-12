@@ -206,10 +206,11 @@ def process_one(task, dry=False):
     return result
 
 
-def run_loop(limit=0, sleep_sec=5.0, dry=False):
+def run_loop(limit=0, sleep_sec=5.0, dry=False, stay_alive=True):
     """
     循环消费队列。
-    limit=0 表示不设上限，跑完所有 pending+retry 后退出。
+    limit=0 表示不设上限。
+    stay_alive=True 时，队列为空也会继续等待（常驻模式）。
     """
     ensure_dirs()
     if not _acquire_lock():
@@ -218,12 +219,21 @@ def run_loop(limit=0, sleep_sec=5.0, dry=False):
 
     try:
         processed = 0
+        idle_count = 0
         while True:
             task = get_next_pending()
             if not task:
-                print("队列为空，退出")
-                break
-
+                if not stay_alive:
+                    print("队列为空，退出")
+                    break
+                # 常驻模式：等待新任务
+                idle_count += 1
+                if idle_count % 12 == 0:  # 每60秒打印一次
+                    print(f"等待新任务中... (已空闲 {idle_count * sleep_sec}s)")
+                time.sleep(sleep_sec)
+                continue
+            
+            idle_count = 0  # 重置空闲计数
             result = process_one(task, dry=dry)
             if result["ok"]:
                 processed += 1
