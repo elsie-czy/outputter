@@ -8,145 +8,147 @@
   padding-bottom: 96px;
 }
 
-/* ===== 顶部任务信息（五列布局） ===== */
+/* ===== 顶部任务信息（三层结构） ===== */
 .td-header {
-  display: flex;
-  align-items: stretch;
-  min-height: 160px;
-  padding: 24px 32px;
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   margin-bottom: 24px;
+  padding: 32px;
+}
+
+.td-header-main {
+  display: flex;
   gap: 32px;
 }
 
 .td-header-cover {
-  width: 96px;
+  width: 180px;
   flex-shrink: 0;
 }
 
 .td-cover-img {
-  width: 96px;
-  height: 128px;
+  width: 180px;
+  height: 240px;
   border-radius: 12px;
   background: #F3F4F6;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 48px;
+  font-size: 64px;
+  margin-bottom: 12px;
+}
+
+.td-cover-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.td-cover-btn {
+  flex: 1;
+  height: 32px;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #666;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.td-cover-btn:hover {
+  border-color: #5B6CFF;
+  color: #5B6CFF;
 }
 
 .td-header-info {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
 }
 
+/* 第一层：标题 */
 .td-info-title {
-  font-size: 24px;
+  font-size: 32px;
   font-weight: 700;
   color: #111827;
-  margin-bottom: 8px;
+  margin-bottom: 16px;
   line-height: 1.3;
 }
 
+/* 第二层：标签 */
+.td-info-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.td-tag {
+  height: 28px;
+  padding: 0 12px;
+  background: #F3F4F6;
+  border-radius: 14px;
+  font-size: 13px;
+  color: #5B6CFF;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 第三层：辅助信息 */
 .td-info-meta {
-  font-size: 14px;
-  color: #64748B;
-  margin-bottom: 8px;
-}
-
-.td-info-meta span {
-  margin-right: 16px;
-}
-
-.td-info-extra {
-  font-size: 12px;
+  font-size: 13px;
   color: #94A3B8;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
-.td-info-extra span {
-  margin-right: 16px;
-}
-
-.td-info-extra code {
+.td-info-meta code {
   background: #F3F4F6;
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 11px;
-}
-
-.td-header-status {
-  width: 140px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-}
-
-.td-status-badge {
-  padding: 8px 20px;
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: 600;
-  background: #F3F4F6;
-  color: #666;
-}
-
-.td-status-badge--running { background: #EEF2FF; color: #4F46E5; }
-.td-status-badge--success { background: #ECFDF5; color: #16A34A; }
-.td-status-badge--failed { background: #FEF2F2; color: #DC2626; }
-.td-status-badge--waiting { background: #FFF8EF; color: #FF9F43; }
-
-.td-status-time {
   font-size: 12px;
-  color: #94A3B8;
 }
 
+/* 进度统计区 */
 .td-header-stats {
-  width: 260px;
+  width: 280px;
   flex-shrink: 0;
+  background: #F8F9FA;
+  border-radius: 16px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 16px;
-  background: #F8F9FA;
-  border-radius: 12px;
+  gap: 16px;
 }
 
-.td-stats-progress {
+.td-stats-main {
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
 .td-stats-percent {
-  font-size: 36px;
+  font-size: 48px;
   font-weight: 700;
   color: #5B6CFF;
   line-height: 1;
 }
 
 .td-stats-label {
-  font-size: 12px;
+  font-size: 13px;
   color: #94A3B8;
   margin-top: 4px;
 }
 
-.td-stats-remain {
-  font-size: 13px;
-  color: #64748B;
+.td-stats-status {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
 }
 
 .td-stats-bar {
-  width: 100%;
   height: 8px;
   background: #E5E7EB;
   border-radius: 4px;
@@ -160,16 +162,30 @@
   transition: width 0.3s ease;
 }
 
-.td-header-actions {
-  width: 160px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
+.td-stats-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
-/* ===== 流程进度轴（四层结构） ===== */
+.td-stats-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.td-stats-item-label {
+  font-size: 11px;
+  color: #94A3B8;
+}
+
+.td-stats-item-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* ===== 流程进度轴 ===== */
 .td-progress-bar {
   padding: 32px;
   background: #fff;
@@ -234,9 +250,16 @@
 }
 
 .td-step-time {
-  font-size: 11px;
+  font-size: 12px;
   color: #94A3B8;
   text-align: center;
+}
+
+.td-step-duration {
+  font-size: 11px;
+  color: #5B6CFF;
+  text-align: center;
+  margin-top: 2px;
 }
 
 .td-step-line {
@@ -255,20 +278,20 @@
 /* ===== Tab导航 ===== */
 .td-tabs {
   display: flex;
-  gap: 4px;
+  gap: 0;
   margin-bottom: 24px;
   background: #fff;
   border-radius: 12px;
-  padding: 4px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  overflow: hidden;
 }
 
 .td-tab {
-  height: 48px;
-  padding: 0 24px;
+  height: 56px;
+  padding: 0 32px;
   border: none;
-  border-radius: 8px;
-  font-size: 14px;
+  border-bottom: 3px solid transparent;
+  font-size: 15px;
   font-weight: 500;
   color: #666;
   background: transparent;
@@ -278,12 +301,13 @@
 
 .td-tab:hover {
   color: #333;
-  background: #F3F4F6;
+  background: #F8F9FA;
 }
 
 .td-tab.active {
-  color: #fff;
-  background: #5B6CFF;
+  color: #5B6CFF;
+  border-bottom-color: #5B6CFF;
+  background: #fff;
 }
 
 /* ===== Tab内容 ===== */
@@ -322,36 +346,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 16px;
 }
 
 .td-cover-placeholder {
   font-size: 80px;
-}
-
-.td-cover-actions {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.td-cover-prompt {
-  padding: 16px;
-  background: #F8F9FA;
-  border-radius: 12px;
-}
-
-.td-cover-prompt-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #666;
-  margin-bottom: 8px;
-}
-
-.td-cover-prompt-text {
-  font-size: 12px;
-  color: #999;
-  cursor: pointer;
 }
 
 .td-note-editor {
@@ -436,34 +434,11 @@
   gap: 8px;
 }
 
-.td-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 32px;
-  padding: 0 14px;
-  background: #F3F4F6;
-  border-radius: 16px;
-  font-size: 13px;
-  color: #5B6CFF;
-}
-
-.td-tag-remove {
-  cursor: pointer;
-  color: #999;
-  font-size: 16px;
-  margin-left: 4px;
-}
-
-.td-tag-remove:hover {
-  color: #DC2626;
-}
-
 .td-tag-add {
-  height: 32px;
-  padding: 0 14px;
+  height: 28px;
+  padding: 0 12px;
   border: 1px dashed #D1D5DB;
-  border-radius: 16px;
+  border-radius: 14px;
   font-size: 13px;
   color: #666;
   background: transparent;
@@ -774,6 +749,52 @@
   min-height: 200px;
 }
 
+.td-history-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.td-history-item {
+  display: flex;
+  gap: 16px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.td-history-time {
+  width: 140px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #94A3B8;
+}
+
+.td-history-content {
+  flex: 1;
+}
+
+.td-history-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.td-history-detail {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.6;
+}
+
+.td-history-detail .old {
+  color: #EF4444;
+  text-decoration: line-through;
+}
+
+.td-history-detail .new {
+  color: #22C55E;
+}
+
 .td-history-empty {
   display: flex;
   align-items: center;
@@ -809,20 +830,15 @@
   color: #999;
 }
 
-.td-footer-center {
-  display: flex;
-  gap: 8px;
-}
-
 .td-footer-right {
   display: flex;
-  gap: 8px;
+  gap: 12px;
 }
 
 /* ===== 按钮 ===== */
 .td-btn {
   height: 40px;
-  padding: 0 20px;
+  padding: 0 24px;
   border: none;
   border-radius: 10px;
   font-size: 14px;
@@ -850,17 +866,6 @@
 
 .td-btn--secondary:hover {
   background: #E5E7EB;
-}
-
-.td-btn--outline {
-  background: transparent;
-  color: #666;
-  border: 1px solid #E5E7EB;
-}
-
-.td-btn--outline:hover {
-  border-color: #5B6CFF;
-  color: #5B6CFF;
 }
 
 .td-btn--accent {
