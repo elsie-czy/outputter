@@ -23,16 +23,39 @@ STATUS_CANCELLED = "cancelled"
 # 阶段进度映射（共6步）
 STAGE_PROGRESS = {
     STATUS_WAITING: 0,
-    STATUS_DECONSTRUCTING: 1,
-    STATUS_GENERATING_NOTE: 2,
-    STATUS_AI_SCORING: 3,
-    STATUS_HUMAN_REVIEW: 4,
-    STATUS_GENERATING_IMAGE: 5,
-    STATUS_DONE: 6,
+    STATUS_DECONSTRUCTING: 1,      # 1/6 = 17%
+    STATUS_GENERATING_NOTE: 2,     # 2/6 = 33%
+    STATUS_AI_SCORING: 3,          # 3/6 = 50%
+    STATUS_HUMAN_REVIEW: 4,        # 4/6 = 67%
+    STATUS_GENERATING_IMAGE: 5,    # 5/6 = 83%
+    STATUS_DONE: 6,                # 6/6 = 100%
     STATUS_FAILED: 0,
     STATUS_PAUSED: 0,
     STATUS_CANCELLED: 0,
 }
+
+# 判断任务是否真正完成（需要图片生成）
+def is_task_truly_done(task: dict) -> bool:
+    """判断任务是否真正完成（包括图片生成）"""
+    if task.get("status") != STATUS_DONE:
+        return False
+    # 如果配置了图片生成，需要检查图片是否生成
+    if os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
+        images = task.get("images", {})
+        if not images.get("cover"):
+            return False
+    return True
+
+def get_task_progress(task: dict) -> int:
+    """获取任务真实进度（考虑图片生成）"""
+    status = task.get("status", "")
+    base_progress = STAGE_PROGRESS.get(status, 0)
+    
+    # 如果是 done 状态但图片未生成，进度应该是 83% 而不是 100%
+    if status == STATUS_DONE and not is_task_truly_done(task):
+        return 5  # 5/6 = 83%
+    
+    return base_progress
 
 STAGE_LABELS = {
     STATUS_WAITING: "等待中",
@@ -136,7 +159,7 @@ def get_queue(status=None, platform=None, category=None, q=None, page=1, per_pag
 
 
 def update_status(record_id, status, error=None, deconstruct_result=None,
-                  note_content=None, quality_score=None):
+                  note_content=None, quality_score=None, images=None):
     """更新队列中某条记录的状态"""
     items = read_jsonl(QUEUE_FILE)
     updated = False
@@ -151,6 +174,8 @@ def update_status(record_id, status, error=None, deconstruct_result=None,
                 i["note_content"] = note_content
             if quality_score is not None:
                 i["quality_score"] = quality_score
+            if images is not None:
+                i["images"] = images
             if status in ("processing", STATUS_DECONSTRUCTING, STATUS_GENERATING_NOTE, STATUS_AI_SCORING, 
                          STATUS_HUMAN_REVIEW, STATUS_GENERATING_IMAGE) and not i.get("processing_start"):
                 i["processing_start"] = _now()

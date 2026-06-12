@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, render_template, request
 
-from scripts.queue_manager import get_queue, update_status, retry_task
+from scripts.queue_manager import get_queue, update_status, retry_task, get_task_progress, is_task_truly_done
 
 bp = Blueprint("web_task_detail", __name__)
 
@@ -32,9 +32,11 @@ def task_detail_api(task_id):
             status = "waiting"
         
         task["stage_label"] = STAGE_LABELS.get(status, status or "未知")
-        task["stage_progress"] = STAGE_PROGRESS.get(status, 0)
-        task["progress_percent"] = round(STAGE_PROGRESS.get(status, 0) / 6 * 100)
+        task["stage_progress"] = get_task_progress(task)
+        task["progress_percent"] = round(get_task_progress(task) / 6 * 100)
         task["display_status"] = status
+        task["truly_done"] = is_task_truly_done(task)
+        task["has_images"] = bool(task.get("images", {}).get("cover"))
         
         # 处理拆文结果
         deconstruct_result = task.get("deconstruct_result")

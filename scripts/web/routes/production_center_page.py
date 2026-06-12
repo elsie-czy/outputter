@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, render_template, request
 from scripts.queue_manager import (
     get_queue, get_stats, pause_task, cancel_task, retry_task,
     batch_pause_tasks, batch_retry_tasks, batch_cancel_tasks,
+    get_task_progress, is_task_truly_done,
     STATUS_WAITING, STATUS_DECONSTRUCTING, STATUS_GENERATING_NOTE,
     STATUS_AI_SCORING, STATUS_HUMAN_REVIEW, STATUS_GENERATING_IMAGE,
     STATUS_DONE, STATUS_FAILED, STATUS_PAUSED, STATUS_CANCELLED,
@@ -98,9 +99,11 @@ def production_list():
                 item_status = "waiting"
             
             item["stage_label"] = STAGE_LABELS.get(item_status, item_status or "未知")
-            item["stage_progress"] = STAGE_PROGRESS.get(item_status, 0)
-            item["progress_percent"] = round(STAGE_PROGRESS.get(item_status, 0) / 6 * 100)
+            item["stage_progress"] = get_task_progress(item)
+            item["progress_percent"] = round(get_task_progress(item) / 6 * 100)
             item["display_status"] = item_status
+            item["truly_done"] = is_task_truly_done(item)
+            item["has_images"] = bool(item.get("images", {}).get("cover"))
         
         return jsonify({"ok": True, "data": result})
     except Exception as e:

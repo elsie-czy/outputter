@@ -178,7 +178,28 @@ def process_one(task, dry=False):
                        deconstruct_result=analysis,
                        note_content=xhs_note)
 
-        # 9. owner 模式：保存结果到本地（待归档）
+        # 9. 生成图片（如果启用）
+        images = {}
+        if os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
+            _log(rid, "开始生成图片...")
+            try:
+                from scripts.image_provider import generate_images_for_task
+                update_status(rid, "generating_image")
+                img_result = generate_images_for_task(analysis)
+                if img_result["ok"]:
+                    images = img_result["images"]
+                    _log(rid, f"图片生成成功: {list(images.keys())}")
+                else:
+                    _log(rid, f"图片生成失败: {img_result['error']}")
+                # 恢复完成状态
+                update_status(rid, "done", images=images)
+            except Exception as e:
+                _log(rid, f"图片生成异常: {e}")
+                update_status(rid, "done", images=images)
+        else:
+            _log(rid, "图片生成未启用，跳过")
+
+        # 10. owner 模式：保存结果到本地（待归档）
         from scripts.local_data_manager import get_work_mode, save_result_to_local
         if get_work_mode() == "owner":
             save_result_to_local({
@@ -189,6 +210,7 @@ def process_one(task, dry=False):
                 "category": work.get("分类", ""),
                 "deconstruct_result": analysis,
                 "note_content": xhs_note,
+                "images": images,
                 "archive_status": "pending",
             })
             _log(rid, "结果已保存到本地（待归档）")
