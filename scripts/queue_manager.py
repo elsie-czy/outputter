@@ -151,7 +151,7 @@ def update_status(record_id, status, error=None, deconstruct_result=None,
                 i["note_content"] = note_content
             if quality_score is not None:
                 i["quality_score"] = quality_score
-            if status in (STATUS_DECONSTRUCTING, STATUS_GENERATING_NOTE, STATUS_AI_SCORING, 
+            if status in ("processing", STATUS_DECONSTRUCTING, STATUS_GENERATING_NOTE, STATUS_AI_SCORING, 
                          STATUS_HUMAN_REVIEW, STATUS_GENERATING_IMAGE) and not i.get("processing_start"):
                 i["processing_start"] = _now()
             if status in (STATUS_DONE, STATUS_FAILED, STATUS_CANCELLED):

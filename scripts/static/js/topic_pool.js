@@ -41,7 +41,8 @@ const PAGE_SIZE = 10;
     grid.innerHTML = '<div class="tp-loading">加载中...</div>';
 
     try {
-      const res = await fetch("/api/deconstruct/queue?per_page=500&status=pending");
+      // 优先从飞书选题库读取
+      const res = await fetch("/api/topic-pool/list");
       const json = await res.json();
       if (!json.ok) throw new Error(json.error);
       allItems = json.data.items || [];
