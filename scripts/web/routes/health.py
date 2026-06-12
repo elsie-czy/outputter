@@ -60,7 +60,8 @@ def worker_status():
 def worker_restart():
     """重启 Worker"""
     try:
-        base_dir = os.path.join(os.path.dirname(__file__), "..", "..")
+        # 获取项目根目录
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
         
         # 1. 停止现有 Worker
         try:
@@ -71,18 +72,18 @@ def worker_restart():
             pass
         
         # 2. 删除锁文件
-        lock_file = os.path.join(base_dir, "data", "queue", "deconstruct_queue.lock")
+        lock_file = os.path.join(project_root, "data", "queue", "deconstruct_queue.lock")
         if os.path.exists(lock_file):
             os.remove(lock_file)
         
         # 3. 启动新 Worker
-        log_file = os.path.join(base_dir, "..", "logs", "worker_restart.log")
+        log_file = os.path.join(project_root, "logs", "worker_restart.log")
         os.makedirs(os.path.dirname(log_file), exist_ok=True)
         
         with open(log_file, "a") as f:
             subprocess.Popen(
-                ["python", "deconstruct_worker.py"],
-                cwd=os.path.join(base_dir, "scripts"),
+                ["python", "scripts/deconstruct_worker.py"],
+                cwd=project_root,
                 stdout=f,
                 stderr=f,
                 start_new_session=True
