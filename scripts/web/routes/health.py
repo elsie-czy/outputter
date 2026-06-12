@@ -60,8 +60,8 @@ def worker_status():
 def worker_restart():
     """重启 Worker"""
     try:
-        # 获取项目根目录
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        # 获取项目根目录（绝对路径）
+        project_root = "/Users/lalalaba/Desktop/personal-supertool"
         
         # 1. 停止现有 Worker
         try:
