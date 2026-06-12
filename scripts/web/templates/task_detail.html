@@ -11,9 +11,9 @@
 
   <!-- ===== 顶部任务信息（三层结构） ===== -->
   <div class="td-header">
-    <div class="td-header-main">
-      <!-- 封面 -->
-      <div class="td-header-cover">
+    <!-- 左侧：封面 + 作品信息 -->
+    <div class="td-header-left">
+      <div class="td-cover">
         <div class="td-cover-img">📖</div>
         <div class="td-cover-actions">
           <button class="td-cover-btn">查看原图</button>
@@ -21,20 +21,19 @@
           <button class="td-cover-btn">重新生成</button>
         </div>
       </div>
-
-      <!-- 作品信息 -->
+      
       <div class="td-header-info">
         <!-- 第一层：标题 -->
-        <h1 class="td-info-title" id="taskTitle">加载中...</h1>
+        <div class="td-info-title" id="taskTitle">加载中...</div>
         
         <!-- 第二层：标签 -->
         <div class="td-info-tags">
-          <span class="td-tag" id="taskPlatform">—</span>
-          <span class="td-tag" id="taskCategory">—</span>
-          <span class="td-tag" id="taskWordCount">—</span>
+          <span class="td-info-tag" id="taskPlatform">—</span>
+          <span class="td-info-tag" id="taskCategory">—</span>
+          <span class="td-info-tag" id="taskWordCount">—</span>
         </div>
         
-        <!-- 第三层：辅助信息 -->
+        <!-- 第三层：任务信息 -->
         <div class="td-info-meta">
           <span>任务ID: <code id="taskId">{{ task_id }}</code></span>
           <span>创建: <span id="taskCreated">—</span></span>
@@ -42,33 +41,34 @@
           <span>耗时: <span id="taskDuration">—</span></span>
         </div>
       </div>
-
-      <!-- 进度统计区 -->
-      <div class="td-header-stats">
-        <div class="td-stats-main">
-          <span class="td-stats-percent" id="taskPercent">0%</span>
-          <span class="td-stats-label">完成进度</span>
+    </div>
+    
+    <!-- 右侧：进度统计 -->
+    <div class="td-header-right">
+      <div class="td-progress-card">
+        <div class="td-progress-main">
+          <span class="td-progress-percent" id="taskPercent">0%</span>
+          <span class="td-progress-label" id="taskStatusLabel">进行中</span>
         </div>
-        <div class="td-stats-status" id="taskStatusText">等待中</div>
-        <div class="td-stats-bar">
-          <div class="td-stats-bar-fill" id="taskProgressBar" style="width: 0%"></div>
+        <div class="td-progress-bar">
+          <div class="td-progress-bar-fill" id="taskProgressBar" style="width: 0%"></div>
         </div>
-        <div class="td-stats-details">
-          <div class="td-stats-item">
-            <span class="td-stats-item-label">总耗时</span>
-            <span class="td-stats-item-value" id="taskTotalTime">—</span>
+        <div class="td-progress-stats">
+          <div class="td-progress-stat">
+            <span class="td-stat-label">耗时</span>
+            <span class="td-stat-value" id="statDuration">—</span>
           </div>
-          <div class="td-stats-item">
-            <span class="td-stats-item-label">Token</span>
-            <span class="td-stats-item-value" id="taskToken">—</span>
+          <div class="td-progress-stat">
+            <span class="td-stat-label">Token</span>
+            <span class="td-stat-value" id="statToken">—</span>
           </div>
-          <div class="td-stats-item">
-            <span class="td-stats-item-label">模型</span>
-            <span class="td-stats-item-value" id="taskModel">—</span>
+          <div class="td-progress-stat">
+            <span class="td-stat-label">模型</span>
+            <span class="td-stat-value" id="statModel">—</span>
           </div>
-          <div class="td-stats-item">
-            <span class="td-stats-item-label">生成字数</span>
-            <span class="td-stats-item-value" id="taskWordCount2">—</span>
+          <div class="td-progress-stat">
+            <span class="td-stat-label">生成字数</span>
+            <span class="td-stat-value" id="statWordCount">—</span>
           </div>
         </div>
       </div>
@@ -76,55 +76,62 @@
   </div>
 
   <!-- ===== 流程进度轴 ===== -->
-  <div class="td-progress-bar">
-    <div class="td-progress-steps">
+  <div class="td-steps-bar">
+    <div class="td-steps">
       <div class="td-step" data-step="waiting">
         <div class="td-step-icon"><i data-lucide="inbox"></i></div>
-        <div class="td-step-label">入队</div>
-        <div class="td-step-time" id="stepTimeWaiting">—</div>
-        <div class="td-step-duration" id="stepDurationWaiting"></div>
+        <div class="td-step-info">
+          <div class="td-step-label">入队</div>
+          <div class="td-step-time" id="stepTimeWaiting">等待中</div>
+        </div>
       </div>
       <div class="td-step-line"></div>
       <div class="td-step" data-step="deconstructing">
         <div class="td-step-icon"><i data-lucide="search"></i></div>
-        <div class="td-step-label">拆文分析</div>
-        <div class="td-step-time" id="stepTimeDeconstructing">—</div>
-        <div class="td-step-duration" id="stepDurationDeconstructing"></div>
+        <div class="td-step-info">
+          <div class="td-step-label">拆文分析</div>
+          <div class="td-step-time" id="stepTimeDeconstructing">等待中</div>
+        </div>
       </div>
       <div class="td-step-line"></div>
       <div class="td-step" data-step="generating_note">
         <div class="td-step-icon"><i data-lucide="file-text"></i></div>
-        <div class="td-step-label">生成笔记</div>
-        <div class="td-step-time" id="stepTimeGeneratingNote">—</div>
-        <div class="td-step-duration" id="stepDurationGeneratingNote"></div>
+        <div class="td-step-info">
+          <div class="td-step-label">生成笔记</div>
+          <div class="td-step-time" id="stepTimeGeneratingNote">等待中</div>
+        </div>
       </div>
       <div class="td-step-line"></div>
       <div class="td-step" data-step="ai_scoring">
         <div class="td-step-icon"><i data-lucide="star"></i></div>
-        <div class="td-step-label">AI评分</div>
-        <div class="td-step-time" id="stepTimeAiScoring">—</div>
-        <div class="td-step-duration" id="stepDurationAiScoring"></div>
+        <div class="td-step-info">
+          <div class="td-step-label">AI评分</div>
+          <div class="td-step-time" id="stepTimeAiScoring">等待中</div>
+        </div>
       </div>
       <div class="td-step-line"></div>
       <div class="td-step" data-step="human_review">
         <div class="td-step-icon"><i data-lucide="eye"></i></div>
-        <div class="td-step-label">人工审核</div>
-        <div class="td-step-time" id="stepTimeHumanReview">—</div>
-        <div class="td-step-duration" id="stepDurationHumanReview"></div>
+        <div class="td-step-info">
+          <div class="td-step-label">人工审核</div>
+          <div class="td-step-time" id="stepTimeHumanReview">等待中</div>
+        </div>
       </div>
       <div class="td-step-line"></div>
       <div class="td-step" data-step="generating_image">
         <div class="td-step-icon"><i data-lucide="image"></i></div>
-        <div class="td-step-label">生成图片</div>
-        <div class="td-step-time" id="stepTimeGeneratingImage">—</div>
-        <div class="td-step-duration" id="stepDurationGeneratingImage"></div>
+        <div class="td-step-info">
+          <div class="td-step-label">生成图片</div>
+          <div class="td-step-time" id="stepTimeGeneratingImage">等待中</div>
+        </div>
       </div>
       <div class="td-step-line"></div>
       <div class="td-step" data-step="done">
         <div class="td-step-icon"><i data-lucide="check-circle"></i></div>
-        <div class="td-step-label">完成</div>
-        <div class="td-step-time" id="stepTimeDone">—</div>
-        <div class="td-step-duration" id="stepDurationDone"></div>
+        <div class="td-step-info">
+          <div class="td-step-label">完成</div>
+          <div class="td-step-time" id="stepTimeDone">等待中</div>
+        </div>
       </div>
     </div>
   </div>
@@ -155,7 +162,10 @@
           <!-- 标题 -->
           <div class="td-editor-title">
             <input type="text" id="noteTitle" class="td-title-input" placeholder="输入笔记标题..." maxlength="20" />
-            <div class="td-title-counter"><span id="titleCount">0</span> / 20</div>
+            <div class="td-title-footer">
+              <span class="td-title-counter"><span id="titleCount">0</span> / 20</span>
+              <span class="td-title-score">标题吸引力 <strong id="titleScore">—</strong>/30</span>
+            </div>
           </div>
 
           <!-- 正文 -->
@@ -168,6 +178,7 @@
 
           <!-- 标签 -->
           <div class="td-editor-tags">
+            <div class="td-tags-header">标签</div>
             <div class="td-tags-list" id="tagsList"></div>
             <button class="td-tag-add" id="addTagBtn">+ 添加标签</button>
           </div>
@@ -177,38 +188,40 @@
         <div class="td-note-right">
           <!-- 标题评分 -->
           <div class="td-ai-card">
-            <div class="td-ai-card-title">标题吸引力</div>
-            <div class="td-ai-score">
-              <span class="td-ai-score-value" id="titleScore">24</span>
-              <span class="td-ai-score-max">/30</span>
+            <div class="td-ai-card-header">
+              <span class="td-ai-card-title">标题吸引力</span>
+              <span class="td-ai-card-score" id="aiTitleScore">24/30</span>
             </div>
             <div class="td-ai-suggestions">
-              <div class="td-ai-suggestion">建议增加反差感</div>
-              <div class="td-ai-suggestion">建议增加悬念句</div>
-              <div class="td-ai-suggestion">建议强化情绪表达</div>
+              <div class="td-ai-suggestion">• 开头增加反差感</div>
+              <div class="td-ai-suggestion">• 增加悬念句</div>
+              <div class="td-ai-suggestion">• 强化情绪表达</div>
             </div>
             <button class="td-btn td-btn--small td-btn--primary">应用建议</button>
           </div>
 
           <!-- 关键词建议 -->
           <div class="td-ai-card">
-            <div class="td-ai-card-title">关键词建议</div>
+            <div class="td-ai-card-header">
+              <span class="td-ai-card-title">关键词建议</span>
+            </div>
             <div class="td-keywords">
               <span class="td-keyword">重生</span>
               <span class="td-keyword">逆袭</span>
               <span class="td-keyword">豪门</span>
               <span class="td-keyword">打脸</span>
               <span class="td-keyword">婚约</span>
-              <span class="td-keyword">都市</span>
             </div>
           </div>
 
           <!-- AI优化建议 -->
           <div class="td-ai-card">
-            <div class="td-ai-card-title">AI优化建议</div>
+            <div class="td-ai-card-header">
+              <span class="td-ai-card-title">AI优化建议</span>
+            </div>
             <div class="td-ai-tips">
-              <div class="td-ai-tip">💡 开头增加反差感</div>
-              <div class="td-ai-tip">💡 增加互动引导语</div>
+              <div class="td-ai-tip">💡 标题吸引力较强</div>
+              <div class="td-ai-tip">💡 建议增加互动引导语</div>
               <div class="td-ai-tip">💡 强化收藏价值</div>
             </div>
           </div>
@@ -221,7 +234,7 @@
       <div class="td-deconstruct-list">
         <div class="td-collapse-item">
           <div class="td-collapse-header" data-target="collapseOpenings">
-            <span class="td-collapse-icon">▼</span>
+            <span class="td-collapse-icon"><i data-lucide="chevron-down"></i></span>
             <span>开篇套路</span>
           </div>
           <div class="td-collapse-body" id="collapseOpenings">
@@ -230,7 +243,7 @@
         </div>
         <div class="td-collapse-item">
           <div class="td-collapse-header" data-target="collapseCharacters">
-            <span class="td-collapse-icon">▼</span>
+            <span class="td-collapse-icon"><i data-lucide="chevron-down"></i></span>
             <span>人物设定</span>
           </div>
           <div class="td-collapse-body" id="collapseCharacters">
@@ -239,7 +252,7 @@
         </div>
         <div class="td-collapse-item">
           <div class="td-collapse-header" data-target="collapseConflicts">
-            <span class="td-collapse-icon">▼</span>
+            <span class="td-collapse-icon"><i data-lucide="chevron-down"></i></span>
             <span>冲突设计</span>
           </div>
           <div class="td-collapse-body" id="collapseConflicts">
@@ -248,7 +261,7 @@
         </div>
         <div class="td-collapse-item">
           <div class="td-collapse-header" data-target="collapseEmotions">
-            <span class="td-collapse-icon">▼</span>
+            <span class="td-collapse-icon"><i data-lucide="chevron-down"></i></span>
             <span>情绪触发</span>
           </div>
           <div class="td-collapse-body" id="collapseEmotions">
@@ -257,7 +270,7 @@
         </div>
         <div class="td-collapse-item">
           <div class="td-collapse-header" data-target="collapseQuotes">
-            <span class="td-collapse-icon">▼</span>
+            <span class="td-collapse-icon"><i data-lucide="chevron-down"></i></span>
             <span>金句TOP5</span>
           </div>
           <div class="td-collapse-body" id="collapseQuotes">
@@ -273,11 +286,11 @@
         <!-- 左侧总分 -->
         <div class="td-score-total">
           <div class="td-score-ring">
-            <svg viewBox="0 0 120 120">
-              <circle cx="60" cy="60" r="54" fill="none" stroke="#EAEAEA" stroke-width="12"/>
-              <circle cx="60" cy="60" r="54" fill="none" stroke="#5B6CFF" stroke-width="12" 
-                      stroke-dasharray="339.292" stroke-dashoffset="67.858" 
-                      transform="rotate(-90 60 60)" id="scoreRing"/>
+            <svg viewBox="0 0 140 140">
+              <circle cx="70" cy="70" r="62" fill="none" stroke="#EAEAEA" stroke-width="14"/>
+              <circle cx="70" cy="70" r="62" fill="none" stroke="#5B6CFF" stroke-width="14" 
+                      stroke-dasharray="389.56" stroke-dashoffset="77.91" 
+                      transform="rotate(-90 70 70)" id="scoreRing"/>
             </svg>
             <div class="td-score-ring-value" id="totalScore">—</div>
           </div>
@@ -330,10 +343,8 @@
 
     <!-- Tab4: 修改记录 -->
     <div class="td-tab-pane" id="tabHistory">
-      <div class="td-history-list">
-        <div class="td-history-timeline" id="historyTimeline">
-          <div class="td-history-empty">暂无修改记录</div>
-        </div>
+      <div class="td-history-timeline" id="historyTimeline">
+        <div class="td-history-empty">暂无修改记录</div>
       </div>
     </div>
 
@@ -342,7 +353,7 @@
   <!-- ===== 底部固定操作栏 ===== -->
   <div class="td-footer">
     <div class="td-footer-left">
-      <span class="td-save-status">自动保存: 已保存</span>
+      <span class="td-save-status">自动保存: <span id="saveStatus">已保存</span></span>
     </div>
     <div class="td-footer-right">
       <button class="td-btn td-btn--secondary" id="btnSaveDraft">保存草稿</button>

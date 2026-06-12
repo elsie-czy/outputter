@@ -5,7 +5,6 @@
  * - 笔记编辑
  * - 拆文结果展示
  * - AI 评分展示
- * - 修改记录
  * - 操作按钮
  */
 (function () {
@@ -29,6 +28,7 @@
     bindActions();
     bindCollapses();
     bindEditor();
+    renderHistory();
   });
 
   /* ===== 数据加载 ===== */
@@ -43,59 +43,134 @@
       renderNote();
       renderDeconstruct();
       renderScore();
-      renderHistory();
     } catch (e) {
       showToast("error", "加载失败: " + e.message);
     }
   }
 
+  /* ===== 渲染修改记录 ===== */
+  function renderHistory() {
+    const timeline = $("#historyTimeline");
+    if (!timeline) return;
+    
+    // 模拟修改记录数据
+    const history = [
+      {
+        time: "2026-06-13 10:24",
+        type: "标题修改",
+        detail: "原：重生后我逆袭豪门 → 改：重生后我打脸豪门所有人",
+        user: "运营小明"
+      },
+      {
+        time: "2026-06-13 10:22",
+        type: "正文修改",
+        detail: "新增120字，增加互动引导语",
+        user: "运营小明"
+      },
+      {
+        time: "2026-06-13 10:20",
+        type: "标签修改",
+        detail: "新增标签：#逆袭、#打脸",
+        user: "系统"
+      }
+    ];
+    
+    if (history.length === 0) {
+      timeline.innerHTML = '<div class="td-history-empty">暂无修改记录</div>';
+      return;
+    }
+    
+    timeline.innerHTML = history.map(item =>
+      '<div class="td-history-item">' +
+      '<div class="td-history-time">' + esc(item.time) + '</div>' +
+      '<div class="td-history-content">' +
+      '<div class="td-history-type">' + esc(item.type) + '</div>' +
+      '<div class="td-history-detail">' + esc(item.detail) + '</div>' +
+      '<div class="td-history-user">修改人：' + esc(item.user) + '</div>' +
+      '</div>' +
+      '</div>'
+    ).join("");
+  }
+
   /* ===== 渲染任务信息 ===== */
   function renderTaskInfo() {
     if (!taskData) return;
-    
-    // 第一层：标题
     setText("#taskTitle", taskData.work_name || "未知作品");
-    
-    // 第二层：标签
     setText("#taskPlatform", taskData.platform || "—");
     setText("#taskCategory", taskData.category || "—");
     setText("#taskWordCount", fmtWordCount(taskData.word_count));
-    
-    // 第三层：辅助信息
-    setText("#taskId", taskData.record_id || "—");
     setText("#taskCreated", taskData.created_at || "—");
     setText("#taskStarted", taskData.processing_start || "—");
-    
-    // 计算耗时
-    if (taskData.processing_start && taskData.completed_at) {
-      const start = new Date(taskData.processing_start);
-      const end = new Date(taskData.completed_at);
-      const duration = Math.round((end - start) / 1000);
-      setText("#taskDuration", fmtDuration(duration));
-      setText("#taskTotalTime", fmtDuration(duration));
-    } else if (taskData.processing_start) {
-      const start = new Date(taskData.processing_start);
-      const now = new Date();
-      const elapsed = Math.round((now - start) / 1000);
-      setText("#taskDuration", fmtDuration(elapsed) + " (进行中)");
-      setText("#taskTotalTime", fmtDuration(elapsed));
-    }
+    setText("#taskId", taskData.record_id || "—");
 
-    // 进度统计
+    // 计算进度
     const progress = taskData.progress_percent || 0;
     setText("#taskPercent", progress + "%");
     
     const progressBar = $("#taskProgressBar");
     if (progressBar) progressBar.style.width = progress + "%";
     
-    // 状态文本
-    const statusText = taskData.stage_label || "等待中";
-    setText("#taskStatusText", statusText);
+    // 状态标签
+    const statusLabel = $("#taskStatusLabel");
+    if (statusLabel) {
+      if (progress === 100) {
+        statusLabel.textContent = "已完成";
+      } else if (progress > 0) {
+        statusLabel.textContent = "进行中";
+      } else {
+        statusLabel.textContent = "等待中";
+      }
+    }
     
-    // 统计详情
-    setText("#taskToken", taskData.token_used ? taskData.token_used.toLocaleString() : "—");
-    setText("#taskModel", taskData.model || "GLM-4");
-    setText("#taskWordCount2", taskData.note_content ? (taskData.note_content.length || "—") + "字" : "—");
+    // 计算耗时
+    if (taskData.processing_start && taskData.completed_at) {
+      const start = new Date(taskData.processing_start);
+      const end = new Date(taskData.completed_at);
+      const duration = Math.round((end - start) / 1000);
+      setText("#taskDuration", formatDuration(duration));
+      setText("#statDuration", formatDuration(duration));
+    } else if (taskData.processing_start) {
+      const start = new Date(taskData.processing_start);
+      const now = new Date();
+      const elapsed = Math.round((now - start) / 1000);
+      setText("#taskDuration", formatDuration(elapsed));
+      setText("#statDuration", formatDuration(elapsed));
+    }
+
+    // Token 消耗（估算）
+    const noteLength = taskData.note_content ? taskData.note_content.length : 0;
+    const tokenEstimate = Math.round(noteLength * 1.5);
+    setText("#statToken", tokenEstimate > 0 ? tokenEstimate.toLocaleString() : "—");
+
+    // 模型
+    setText("#statModel", "Qwen-Plus");
+
+    // 生成字数
+    setText("#statWordCount", noteLength > 0 ? noteLength + "字" : "—");
+
+    // 状态标签
+    const statusBadge = $("#taskStatus");
+    if (statusBadge) {
+      const status = taskData.display_status || taskData.status;
+      statusBadge.textContent = taskData.stage_label || status;
+      statusBadge.className = "td-status-badge";
+      if (["deconstructing", "generating_note", "ai_scoring", "human_review", "generating_image", "processing"].includes(status)) {
+        statusBadge.classList.add("td-status-badge--running");
+      } else if (status === "done") {
+        statusBadge.classList.add("td-status-badge--success");
+      } else if (status === "failed") {
+        statusBadge.classList.add("td-status-badge--failed");
+      } else {
+        statusBadge.classList.add("td-status-badge--waiting");
+      }
+    }
+  }
+
+  function formatDuration(seconds) {
+    if (seconds < 60) return seconds + "秒";
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return minutes + "分" + secs + "秒";
   }
 
   /* ===== 渲染进度轴 ===== */
@@ -113,52 +188,21 @@
         step.classList.add("active");
       }
     });
-
-    // 显示时间信息
-    const createdAt = taskData.created_at;
-    const processingStart = taskData.processing_start;
-    const completedAt = taskData.completed_at;
-
-    if (createdAt) {
-      setText("#stepTimeWaiting", formatTime(createdAt));
-    }
-
-    if (processingStart) {
-      setText("#stepTimeDeconstructing", formatTime(processingStart));
-      if (createdAt) {
-        const waitSeconds = Math.round((new Date(processingStart) - new Date(createdAt)) / 1000);
-        setText("#stepDurationWaiting", "耗时" + fmtDuration(waitSeconds));
-      }
-    }
-
-    if (completedAt && processingStart) {
-      setText("#stepTimeDone", formatTime(completedAt));
-      const totalSeconds = Math.round((new Date(completedAt) - new Date(processingStart)) / 1000);
-      setText("#stepDurationDone", "总耗时" + fmtDuration(totalSeconds));
-    }
-
-    // 当前步骤显示进行中
-    if (status === "processing" || status === "deconstructing") {
-      const activeStep = $(".td-step.active");
-      if (activeStep) {
-        const durationEl = activeStep.querySelector(".td-step-duration");
-        if (durationEl && processingStart) {
-          const elapsed = Math.round((new Date() - new Date(processingStart)) / 1000);
-          durationEl.textContent = "已耗时" + fmtDuration(elapsed);
-        }
-      }
-    }
   }
 
   /* ===== 渲染笔记内容 ===== */
   function renderNote() {
     if (!taskData || !taskData.note_content) {
+      // 没有笔记内容
       const titleInput = $("#noteTitle");
       if (titleInput) titleInput.value = "";
+      
       const contentArea = $("#noteContent");
       if (contentArea) contentArea.value = "";
+      
       const tagsList = $("#tagsList");
       if (tagsList) tagsList.innerHTML = "";
+      
       updateTitleCount();
       updateWordCount();
       return;
@@ -178,6 +222,7 @@
       updateWordCount();
     }
 
+    // 标签
     const tagsList = $("#tagsList");
     if (tagsList && note.tags) {
       tagsList.innerHTML = note.tags.map((tag) =>
@@ -189,6 +234,7 @@
   /* ===== 渲染拆文结果 ===== */
   function renderDeconstruct() {
     if (!taskData || !taskData.deconstruct_result) {
+      // 没有拆文结果
       $$(".td-collapse-content").forEach(el => {
         el.innerHTML = '<div style="color:#999; padding:20px; text-align:center;">暂无拆文结果，请先运行拆文任务</div>';
       });
@@ -201,6 +247,7 @@
     setCollapseContent("collapseConflicts", result.conflicts);
     setCollapseContent("collapseEmotions", result.emotions);
 
+    // 金句特殊处理
     const quotesEl = $("#collapseQuotes");
     if (quotesEl && result.quotes) {
       quotesEl.querySelector(".td-collapse-content").innerHTML =
@@ -223,6 +270,7 @@
   /* ===== 渲染AI评分 ===== */
   function renderScore() {
     if (!taskData || !taskData.note_content || !taskData.note_content.score) {
+      // 没有评分数据
       setText("#totalScore", "—");
       setText("#scoreTitle", "—");
       setText("#scoreEmotion", "—");
@@ -230,6 +278,7 @@
       setText("#scoreInteraction", "—");
       setText("#scoreStyle", "—");
       setText("#scoreAi", "—");
+      
       const suggestionsList = $("#suggestionsList");
       if (suggestionsList) {
         suggestionsList.innerHTML = '<div style="color:#999; padding:20px; text-align:center;">暂无评分数据</div>';
@@ -247,6 +296,7 @@
     setText("#scoreStyle", (score.style_match || 0) + "/10");
     setText("#scoreAi", (score.ai_trace || 0) + "/5");
 
+    // 更新环形进度
     const ring = $("#scoreRing");
     if (ring) {
       const circumference = 2 * Math.PI * 54;
@@ -254,6 +304,7 @@
       ring.style.strokeDashoffset = offset;
     }
 
+    // 更新进度条
     const items = $$(".td-score-item");
     const values = [
       (score.title_attract || 0) / 30,
@@ -268,55 +319,13 @@
       if (fill) fill.style.width = (values[idx] * 100) + "%";
     });
 
+    // AI建议
     const suggestionsList = $("#suggestionsList");
     if (suggestionsList && score.suggestions) {
       suggestionsList.innerHTML = score.suggestions.map((s) =>
         '<div class="td-suggestion-item">' + esc(s) + "</div>"
       ).join("");
     }
-  }
-
-  /* ===== 渲染修改记录 ===== */
-  function renderHistory() {
-    const timeline = $("#historyTimeline");
-    if (!timeline) return;
-
-    // 示例数据（实际应从 API 获取）
-    const history = [
-      {
-        time: "2026-06-13 10:24",
-        user: "运营小明",
-        action: "标题修改",
-        detail: '<span class="old">重生后我逆袭豪门</span> → <span class="new">重生后我打脸豪门所有人</span>'
-      },
-      {
-        time: "2026-06-13 10:20",
-        user: "AI生成",
-        action: "笔记生成",
-        detail: "生成笔记初稿，共812字"
-      },
-      {
-        time: "2026-06-13 10:18",
-        user: "系统",
-        action: "拆文完成",
-        detail: "拆文分析完成，提取5个开篇套路、3个人物设定"
-      }
-    ];
-
-    if (history.length === 0) {
-      timeline.innerHTML = '<div class="td-history-empty">暂无修改记录</div>';
-      return;
-    }
-
-    timeline.innerHTML = history.map(item =>
-      '<div class="td-history-item">' +
-      '<div class="td-history-time">' + esc(item.time) + '</div>' +
-      '<div class="td-history-content">' +
-      '<div class="td-history-title">' + esc(item.action) + ' · ' + esc(item.user) + '</div>' +
-      '<div class="td-history-detail">' + item.detail + '</div>' +
-      '</div>' +
-      '</div>'
-    ).join("");
   }
 
   /* ===== Tab切换 ===== */
@@ -359,6 +368,7 @@
       contentArea.addEventListener("input", updateWordCount);
     }
 
+    // 添加标签
     const addTagBtn = $("#addTagBtn");
     if (addTagBtn) {
       addTagBtn.addEventListener("click", () => {
@@ -373,6 +383,7 @@
       });
     }
 
+    // 删除标签
     document.addEventListener("click", (e) => {
       if (e.target.classList.contains("td-tag-remove")) {
         e.target.parentElement.remove();
@@ -398,17 +409,30 @@
 
   /* ===== 操作按钮 ===== */
   function bindActions() {
+    // 保存草稿
     bindBtn("#btnSaveDraft", async () => {
       await apiCall("/api/task/" + taskData.record_id + "/save-draft", "草稿已保存");
     });
 
+    // 通过审核
     bindBtn("#btnApprove", async () => {
       await apiCall("/api/task/" + taskData.record_id + "/approve", "已通过审核");
       loadTaskDetail(taskData.record_id);
     });
 
+    // 重新生成
     bindBtn("#btnRegenerate", async () => {
       await apiCall("/api/task/" + taskData.record_id + "/regenerate-note", "重新生成中...");
+    });
+
+    // 重新生成笔记
+    bindBtn("#btnRegenerateNote", async () => {
+      await apiCall("/api/task/" + taskData.record_id + "/regenerate-note", "重新生成中...");
+    });
+
+    // 重新评分
+    bindBtn("#btnRescore", async () => {
+      await apiCall("/api/task/" + taskData.record_id + "/rescore", "重新评分中...");
     });
   }
 
@@ -471,17 +495,5 @@
     if (n == null) return "—";
     if (n >= 10000) return (n / 10000).toFixed(1) + "万字";
     return n + "字";
-  }
-
-  function fmtDuration(seconds) {
-    if (seconds < 60) return seconds + "秒";
-    if (seconds < 3600) return Math.floor(seconds / 60) + "分" + (seconds % 60) + "秒";
-    return Math.floor(seconds / 3600) + "时" + Math.floor((seconds % 3600) / 60) + "分";
-  }
-
-  function formatTime(timeStr) {
-    if (!timeStr) return "—";
-    const date = new Date(timeStr);
-    return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   }
 })();
