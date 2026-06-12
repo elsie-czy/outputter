@@ -206,12 +206,14 @@ def process_one(task, dry=False):
                 else:
                     _log(rid, f"图片生成失败: {img_result['error']}")
                 step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
-                # 恢复完成状态
-                update_status(rid, "done", images=images)
+                # 更新完成状态（包含完整的 step_times）
+                step_times["done"] = {"done": _now(), "duration": 0}
+                update_status(rid, "done", images=images, step_times=step_times)
             except Exception as e:
                 _log(rid, f"图片生成异常: {e}")
                 step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
-                update_status(rid, "done", images=images)
+                step_times["done"] = {"done": _now(), "duration": 0}
+                update_status(rid, "done", images=images, step_times=step_times)
         else:
             _log(rid, "图片生成未启用，跳过")
             step_times["generating_image"] = {"done": _now(), "duration": 0}
