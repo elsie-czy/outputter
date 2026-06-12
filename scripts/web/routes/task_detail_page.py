@@ -36,37 +36,84 @@ def task_detail_api(task_id):
         task["progress_percent"] = round(STAGE_PROGRESS.get(status, 0) / 6 * 100)
         task["display_status"] = status
         
-        # 模拟拆文结果（实际应从 deconstruct_result 字段读取）
-        if not task.get("deconstruct_result"):
+        # 处理拆文结果
+        deconstruct_result = task.get("deconstruct_result")
+        if not deconstruct_result or deconstruct_result.get("缓存"):
+            # 没有真实拆文结果或缓存命中
+            task["deconstruct_result"] = None
+        else:
+            # 转换字段名（中文 -> 英文）
             task["deconstruct_result"] = {
-                "openings": ["开篇以主角被退婚的戏剧性场景切入，迅速吸引读者注意力", "通过对比手法展现主角身份反转前后的巨大落差"],
-                "characters": ["主角：废材小姐，表面软弱实则隐藏实力", "男主：豪门继承人，冷酷外表下有柔软内心"],
-                "conflicts": ["主线冲突：主角与家族的对抗", "情感线：主角与男主从误解到相知"],
-                "emotions": ["爽感：打脸场景密集", "悬念：身世之谜逐步揭开"],
-                "quotes": ["她站在雨中，看着那扇紧闭的大门，突然笑了", "\"你以为我真的是废材吗？\"", "有些人的退让不是软弱，而是在等一个反击的机会"]
+                "openings": deconstruct_result.get("开篇套路", []),
+                "characters": _format_characters(deconstruct_result.get("人物设定", {})),
+                "conflicts": _format_conflicts(deconstruct_result.get("冲突设计", {})),
+                "emotions": deconstruct_result.get("情绪触发", []),
+                "quotes": deconstruct_result.get("金句", []),
             }
         
-        # 模拟笔记内容（实际应从 note_content 字段读取）
-        if not task.get("note_content"):
+        # 处理笔记内容
+        note_content = task.get("note_content")
+        if not note_content or note_content.startswith("（缓存"):
+            # 没有真实笔记内容
+            task["note_content"] = None
+        else:
+            # 笔记内容是 markdown 字符串
             task["note_content"] = {
-                "title": "重生后我打脸豪门所有人",
-                "content": "她曾是人人嘲笑的废材小姐，被退婚后一夜重生。\n\n当她再次踏入那扇大门，所有人都惊呆了。\n\n\"你们以为我还是那个任人欺负的废物吗？\"\n\n她用实力证明，退婚是他们最大的错误...",
-                "tags": ["重生逆袭", "豪门", "都市"],
-                "score": {
-                    "total": 82,
-                    "title_attract": 24,
-                    "emotion": 18,
-                    "collect_value": 16,
-                    "interaction": 12,
-                    "style_match": 8,
-                    "ai_trace": 4,
-                    "suggestions": ["建议增加反差感", "建议增加数字钩子", "建议强化收藏价值"]
-                }
+                "title": _extract_title(note_content),
+                "content": note_content,
+                "tags": _extract_tags(note_content),
+                "score": None,  # 评分需要单独计算
             }
         
         return jsonify({"ok": True, "data": task})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+def _format_characters(characters):
+    """格式化人物设定"""
+    if isinstance(characters, dict):
+        result = []
+        for role, desc in characters.items():
+            result.append(f"{role}：{desc}")
+        return result
+    return characters if isinstance(characters, list) else []
+
+
+def _format_conflicts(conflicts):
+    """格式化冲突设计"""
+    if isinstance(conflicts, dict):
+        result = []
+        for level, desc in conflicts.items():
+            result.append(f"{level}：{desc}")
+        return result
+    return conflicts if isinstance(conflicts, list) else []
+
+
+def _extract_title(note_content):
+    """从笔记内容提取标题"""
+    if not note_content:
+        return ""
+    lines = note_content.strip().split("\n")
+    for line in lines:
+        line = line.strip()
+        if line.startswith("# "):
+            return line[2:].strip()
+        if line and not line.startswith("#"):
+            return line[:50]
+    return ""
+
+
+def _extract_tags(note_content):
+    """从笔记内容提取标签"""
+    if not note_content:
+        return []
+    tags = []
+    import re
+    # 查找 # 标签
+    matches = re.findall(r'#(\w+)', note_content)
+    tags.extend(matches[:5])
+    return tags
 
 
 @bp.post("/api/task/<task_id>/regenerate-note")

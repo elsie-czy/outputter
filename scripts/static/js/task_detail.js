@@ -103,7 +103,22 @@
 
   /* ===== 渲染笔记内容 ===== */
   function renderNote() {
-    if (!taskData || !taskData.note_content) return;
+    if (!taskData || !taskData.note_content) {
+      // 没有笔记内容
+      const titleInput = $("#noteTitle");
+      if (titleInput) titleInput.value = "";
+      
+      const contentArea = $("#noteContent");
+      if (contentArea) contentArea.value = "";
+      
+      const tagsList = $("#tagsList");
+      if (tagsList) tagsList.innerHTML = "";
+      
+      updateTitleCount();
+      updateWordCount();
+      return;
+    }
+    
     const note = taskData.note_content;
 
     const titleInput = $("#noteTitle");
@@ -129,7 +144,13 @@
 
   /* ===== 渲染拆文结果 ===== */
   function renderDeconstruct() {
-    if (!taskData || !taskData.deconstruct_result) return;
+    if (!taskData || !taskData.deconstruct_result) {
+      // 没有拆文结果
+      $$(".td-collapse-content").forEach(el => {
+        el.innerHTML = '<div style="color:#999; padding:20px; text-align:center;">暂无拆文结果，请先运行拆文任务</div>';
+      });
+      return;
+    }
     const result = taskData.deconstruct_result;
 
     setCollapseContent("collapseOpenings", result.openings);
@@ -159,7 +180,23 @@
 
   /* ===== 渲染AI评分 ===== */
   function renderScore() {
-    if (!taskData || !taskData.note_content || !taskData.note_content.score) return;
+    if (!taskData || !taskData.note_content || !taskData.note_content.score) {
+      // 没有评分数据
+      setText("#totalScore", "—");
+      setText("#scoreTitle", "—");
+      setText("#scoreEmotion", "—");
+      setText("#scoreCollect", "—");
+      setText("#scoreInteraction", "—");
+      setText("#scoreStyle", "—");
+      setText("#scoreAi", "—");
+      
+      const suggestionsList = $("#suggestionsList");
+      if (suggestionsList) {
+        suggestionsList.innerHTML = '<div style="color:#999; padding:20px; text-align:center;">暂无评分数据</div>';
+      }
+      return;
+    }
+    
     const score = taskData.note_content.score;
 
     setText("#totalScore", score.total || 0);
