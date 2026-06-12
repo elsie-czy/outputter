@@ -1,5 +1,6 @@
 import os
 import subprocess
+import signal
 from flask import Blueprint, jsonify
 
 bp = Blueprint("web_health", __name__, url_prefix="/_health")
@@ -53,3 +54,58 @@ def worker_status():
                 "error": str(e),
             }
         })
+
+
+@bp.post("/worker-restart")
+def worker_restart():
+    """重启 Worker"""
+    try:
+        base_dir = os.path.join(os.path.dirname(__file__), "..", "..")
+        
+        # 1. 停止现有 Worker
+        try:
+            subprocess.run(["pkill", "-f", "deconstruct_worker"], capture_output=True)
+            import time
+            time.sleep(1)
+        except:
+            pass
+        
+        # 2. 删除锁文件
+        lock_file = os.path.join(base_dir, "data", "queue", "deconstruct_queue.lock")
+        if os.path.exists(lock_file):
+            os.remove(lock_file)
+        
+        # 3. 启动新 Worker
+        log_file = os.path.join(base_dir, "..", "logs", "worker_restart.log")
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        
+        with open(log_file, "a") as f:
+            subprocess.Popen(
+                ["python", "scripts/deconstruct_worker.py"],
+                cwd=base_dir,
+                stdout=f,
+                stderr=f,
+                start_new_session=True
+            )
+        
+        # 4. 等待一下检查是否启动成功
+        import time
+        time.sleep(2)
+        
+        # 检查进程
+        result = subprocess.run(
+            ["pgrep", "-f", "deconstruct_worker"],
+            capture_output=True,
+            text=True
+        )
+        started = result.returncode == 0
+        
+        return jsonify({
+            "ok": True,
+            "data": {
+                "started": started,
+                "message": "Worker 已重启" if started else "Worker 启动中..."
+            }
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
