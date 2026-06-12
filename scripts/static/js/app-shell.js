@@ -3,6 +3,7 @@
  * - Sidebar 折叠/展开
  * - 移动端抽屉模式
  * - Lucide icon 初始化
+ * - Worker 状态检查
  */
 (function () {
   "use strict";
@@ -34,5 +35,45 @@
         }
       });
     }
+
+    // Worker 状态检查
+    checkWorkerStatus();
+    setInterval(checkWorkerStatus, 10000); // 每10秒检查一次
   });
+
+  async function checkWorkerStatus() {
+    const el = document.getElementById("workerStatus");
+    if (!el) return;
+
+    try {
+      const res = await fetch("/_health/worker-status");
+      const json = await res.json();
+      if (!json.ok) return;
+
+      const data = json.data;
+      const dot = el.querySelector(".worker-dot");
+      const name = el.querySelector(".worker-name");
+
+      if (dot) {
+        dot.className = "worker-dot";
+        if (data.healthy) {
+          dot.classList.add("worker-dot--running");
+          el.title = "Worker 运行中";
+        } else {
+          dot.classList.add("worker-dot--stopped");
+          el.title = "Worker 已停止";
+        }
+      }
+
+      if (name) {
+        name.textContent = data.name || "Worker";
+      }
+    } catch (_) {
+      // 请求失败，显示未知状态
+      const dot = el.querySelector(".worker-dot");
+      if (dot) {
+        dot.className = "worker-dot worker-dot--unknown";
+      }
+    }
+  }
 })();
