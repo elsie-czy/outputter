@@ -143,6 +143,52 @@
   background: var(--bg-hover);
 }
 
+.tp-filter-right {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.tp-sync-btn,
+.tp-archive-btn {
+  height: 36px;
+  padding: 0 var(--space-md);
+  border: none;
+  border-radius: 8px;
+  font-size: var(--fs-body);
+  font-family: var(--font-family);
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  transition: all 0.15s;
+}
+
+.tp-sync-btn {
+  background: #EEF2FF;
+  color: #6C4EFF;
+}
+
+.tp-sync-btn:hover {
+  background: #DDD6FE;
+}
+
+.tp-archive-btn {
+  background: #F0FFF4;
+  color: #16A34A;
+}
+
+.tp-archive-btn:hover {
+  background: #BBF7D0;
+}
+
+.tp-sync-btn svg,
+.tp-archive-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
 /* ===== 快捷筛选栏 ===== */
 .tp-quick-filter {
   display: flex;

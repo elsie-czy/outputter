@@ -174,6 +174,21 @@ def process_one(task, dry=False):
                        deconstruct_result=analysis,
                        note_content=xhs_note)
 
+        # 9. owner 模式：保存结果到本地（待归档）
+        from scripts.local_data_manager import get_work_mode, save_result_to_local
+        if get_work_mode() == "owner":
+            save_result_to_local({
+                "record_id": rid,
+                "work_name": work.get("作品名称", ""),
+                "author": work.get("作者", ""),
+                "platform": work.get("平台", ""),
+                "category": work.get("分类", ""),
+                "deconstruct_result": analysis,
+                "note_content": xhs_note,
+                "archive_status": "pending",
+            })
+            _log(rid, "结果已保存到本地（待归档）")
+
         duration = round(time.perf_counter() - t0, 1)
         _log(rid, f"完成, 耗时 {duration}s")
         result["ok"] = True

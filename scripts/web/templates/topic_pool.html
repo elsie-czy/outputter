@@ -94,6 +94,14 @@
       <option value="created_at">最新更新</option>
     </select>
     <button class="tp-filter-btn tp-filter-btn--reset" id="tpResetBtn">重置</button>
+    <div class="tp-filter-right">
+      <button class="tp-sync-btn" id="tpSyncBtn" title="从飞书同步选题">
+        <i data-lucide="refresh-cw"></i> 同步选题
+      </button>
+      <button class="tp-archive-btn" id="tpArchiveBtn" title="归档到飞书" style="display:none;">
+        <i data-lucide="archive"></i> 归档 <span id="archiveCount">0</span>
+      </button>
+    </div>
   </div>
 
   <!-- ===== 快捷筛选栏 ===== -->

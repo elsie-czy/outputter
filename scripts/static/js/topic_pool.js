@@ -18,6 +18,7 @@ let currentSort = "score";
 let currentQuickFilter = null;
 let pollInterval = null;
 let currentPage = 1;
+let workMode = "client";
 const PAGE_SIZE = 10;
 
   /* ===== DOM 缓存 ===== */
@@ -31,6 +32,7 @@ const PAGE_SIZE = 10;
     bindToolbar();
     bindSubmit();
     bindModal();
+    bindSyncAndArchive();
     pollInterval = setInterval(loadKPI, 30000);
   });
 
@@ -64,6 +66,25 @@ const PAGE_SIZE = 10;
       const d = json.data;
       setText("#kpiPending", d.pending_topics);
       setText("#kpiToday", d.today_added);
+      setText("#kpiHighPot", d.high_potential);
+      
+      // 更新工作模式和待归档
+      workMode = d.work_mode || "client";
+      const syncBtn = $("#tpSyncBtn");
+      const archiveBtn = $("#tpArchiveBtn");
+      
+      if (workMode === "owner") {
+        if (syncBtn) syncBtn.style.display = "flex";
+        if (archiveBtn && d.pending_archive > 0) {
+          archiveBtn.style.display = "flex";
+          setText("#archiveCount", d.pending_archive);
+        } else if (archiveBtn) {
+          archiveBtn.style.display = "none";
+        }
+      } else {
+        if (syncBtn) syncBtn.style.display = "none";
+        if (archiveBtn) archiveBtn.style.display = "none";
+      }
     } catch (_) {}
   }
 
@@ -372,6 +393,65 @@ const PAGE_SIZE = 10;
   function bindBtn(sel, fn) {
     const el = $(sel);
     if (el) el.addEventListener("click", fn);
+  }
+
+  /* ===== 同步和归档 ===== */
+  function bindSyncAndArchive() {
+    // 同步选题
+    const syncBtn = $("#tpSyncBtn");
+    if (syncBtn) {
+      syncBtn.addEventListener("click", async () => {
+        syncBtn.disabled = true;
+        syncBtn.innerHTML = '<i data-lucide="loader"></i> 同步中...';
+        try {
+          const res = await fetch("/api/topic-pool/sync", { method: "POST" });
+          const json = await res.json();
+          if (json.ok) {
+            showToast("success", "✓ 同步成功，共 " + json.count + " 条");
+            loadTopics();
+            loadKPI();
+          } else {
+            showToast("error", "同步失败: " + json.error);
+          }
+        } catch (e) {
+          showToast("error", "同步失败: " + e.message);
+        } finally {
+          syncBtn.disabled = false;
+          syncBtn.innerHTML = '<i data-lucide="refresh-cw"></i> 同步选题';
+          if (typeof lucide !== "undefined") lucide.createIcons();
+        }
+      });
+    }
+
+    // 归档到飞书
+    const archiveBtn = $("#tpArchiveBtn");
+    if (archiveBtn) {
+      archiveBtn.addEventListener("click", async () => {
+        if (!confirm("确定要将待归档记录同步到飞书吗？")) return;
+        archiveBtn.disabled = true;
+        archiveBtn.innerHTML = '<i data-lucide="loader"></i> 归档中...';
+        try {
+          const res = await fetch("/api/topic-pool/archive", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({})
+          });
+          const json = await res.json();
+          if (json.ok) {
+            showToast("success", "✓ 归档成功，共 " + json.archived + " 条");
+            loadKPI();
+          } else {
+            showToast("error", "归档失败: " + json.error);
+          }
+        } catch (e) {
+          showToast("error", "归档失败: " + e.message);
+        } finally {
+          archiveBtn.disabled = false;
+          archiveBtn.innerHTML = '<i data-lucide="archive"></i> 归档 <span id="archiveCount">0</span>';
+          if (typeof lucide !== "undefined") lucide.createIcons();
+        }
+      });
+    }
   }
 
   /* ===== 右侧面板 ===== */
