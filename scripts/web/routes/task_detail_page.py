@@ -38,6 +38,9 @@ def task_detail_api(task_id):
         task["truly_done"] = is_task_truly_done(task)
         task["has_images"] = bool(task.get("images", {}).get("cover"))
         
+        # 步骤时间
+        task["step_times"] = task.get("step_times", {})
+        
         # 处理拆文结果
         deconstruct_result = task.get("deconstruct_result")
         if not deconstruct_result or deconstruct_result.get("缓存"):

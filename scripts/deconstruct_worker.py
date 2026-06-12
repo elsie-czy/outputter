@@ -70,6 +70,7 @@ def process_one(task, dry=False):
     result = {"ok": False, "record_id": rid, "error": None}
     record_id = None
     xhs_record_id = None
+    step_times = {}
 
     try:
         # 构建 work 对象（格式对齐 deconstruct_daily 的 load_selected_work 返回值）
@@ -82,6 +83,7 @@ def process_one(task, dry=False):
 
         # 标记处理中
         update_status(rid, "processing")
+        step_times["waiting"] = {"done": _now(), "duration": 0}
 
         # 1. 搜索补全
         search_info = search_work_info(work)
@@ -108,13 +110,18 @@ def process_one(task, dry=False):
             return result
 
         # 2. 调用模型拆解
+        t_deconstruct = time.perf_counter()
+        update_status(rid, "deconstructing")
         analysis = analyze_work(work)
         source = (analysis.get("元信息", {}) or {}).get("来源", "")
         if "openai_parse_fallback" in str(source):
             raise RuntimeError(f"模型解析失败: {source}")
         analysis["配图提示词"] = _build_image_prompts(work, analysis)
+        step_times["deconstructing"] = {"done": _now(), "duration": round(time.perf_counter() - t_deconstruct, 1)}
 
         # 3. 生成报告文件
+        t_note = time.perf_counter()
+        update_status(rid, "generating_note")
         run_date = get_run_date()
         safe_name = f"{work.get('作品名称', '未知作品')}_{work.get('作者', '未知作者')}"
         report = build_report(work, search_info, analysis)
@@ -132,10 +139,12 @@ def process_one(task, dry=False):
             f.write(xhs_note)
 
         # 4. 写入飞书主表
+        t_feishu = time.perf_counter()
         client = FeishuClient()
         if client.is_configured():
             record_id = sync_to_feishu(work, search_info, analysis)
             _log(rid, f"飞书主表写入完成, record_id={record_id}")
+            step_times["ai_scoring"] = {"done": _now(), "duration": round(time.perf_counter() - t_feishu, 1)}
 
             if record_id:
                 # 5. 写入小红书笔记库
@@ -155,8 +164,10 @@ def process_one(task, dry=False):
                         _log(rid, f"关联表同步失败: {e}")
         else:
             _log(rid, "飞书未配置，跳过同步")
+            step_times["ai_scoring"] = {"done": _now(), "duration": 0}
 
         # 7. 本地记录
+        step_times["generating_note"] = {"done": _now(), "duration": round(time.perf_counter() - t_note, 1)}
         append_jsonl(
             os.path.join(PATHS["logs"], "records.jsonl"),
             {
@@ -174,13 +185,16 @@ def process_one(task, dry=False):
         )
 
         # 8. 标记完成
+        step_times["done"] = {"done": _now(), "duration": 0}
         update_status(rid, "done",
                        deconstruct_result=analysis,
-                       note_content=xhs_note)
+                       note_content=xhs_note,
+                       step_times=step_times)
 
         # 9. 生成图片（如果启用）
         images = {}
         if os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
+            t_image = time.perf_counter()
             _log(rid, "开始生成图片...")
             try:
                 from scripts.image_provider import generate_images_for_task
@@ -191,13 +205,16 @@ def process_one(task, dry=False):
                     _log(rid, f"图片生成成功: {list(images.keys())}")
                 else:
                     _log(rid, f"图片生成失败: {img_result['error']}")
+                step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
                 # 恢复完成状态
                 update_status(rid, "done", images=images)
             except Exception as e:
                 _log(rid, f"图片生成异常: {e}")
+                step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
                 update_status(rid, "done", images=images)
         else:
             _log(rid, "图片生成未启用，跳过")
+            step_times["generating_image"] = {"done": _now(), "duration": 0}
 
         # 10. owner 模式：保存结果到本地（待归档）
         from scripts.local_data_manager import get_work_mode, save_result_to_local

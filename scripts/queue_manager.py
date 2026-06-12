@@ -159,7 +159,7 @@ def get_queue(status=None, platform=None, category=None, q=None, page=1, per_pag
 
 
 def update_status(record_id, status, error=None, deconstruct_result=None,
-                  note_content=None, quality_score=None, images=None):
+                  note_content=None, quality_score=None, images=None, step_times=None):
     """更新队列中某条记录的状态"""
     items = read_jsonl(QUEUE_FILE)
     updated = False
@@ -176,6 +176,8 @@ def update_status(record_id, status, error=None, deconstruct_result=None,
                 i["quality_score"] = quality_score
             if images is not None:
                 i["images"] = images
+            if step_times is not None:
+                i["step_times"] = step_times
             if status in ("processing", STATUS_DECONSTRUCTING, STATUS_GENERATING_NOTE, STATUS_AI_SCORING, 
                          STATUS_HUMAN_REVIEW, STATUS_GENERATING_IMAGE) and not i.get("processing_start"):
                 i["processing_start"] = _now()

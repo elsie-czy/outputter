@@ -179,13 +179,41 @@
     const status = taskData.display_status || taskData.status;
     const steps = ["waiting", "deconstructing", "generating_note", "ai_scoring", "human_review", "generating_image", "done"];
     const currentIdx = steps.indexOf(status);
+    const stepTimes = taskData.step_times || {};
 
     $$(".td-step").forEach((step, idx) => {
       step.classList.remove("completed", "active");
+      const stepName = step.dataset.step;
+      const timeEl = step.querySelector(".td-step-time");
+      
       if (idx < currentIdx) {
         step.classList.add("completed");
+        if (timeEl) {
+          const stepData = stepTimes[stepName];
+          if (stepData) {
+            timeEl.textContent = stepData.done + " (耗时" + stepData.duration + "秒)";
+          } else {
+            timeEl.textContent = "已完成";
+          }
+        }
       } else if (idx === currentIdx) {
         step.classList.add("active");
+        if (timeEl) {
+          if (status === "done") {
+            const stepData = stepTimes[stepName];
+            if (stepData) {
+              timeEl.textContent = stepData.done + " (耗时" + stepData.duration + "秒)";
+            } else {
+              timeEl.textContent = "已完成";
+            }
+          } else {
+            timeEl.textContent = "进行中...";
+          }
+        }
+      } else {
+        if (timeEl) {
+          timeEl.textContent = "等待中";
+        }
       }
     });
   }
