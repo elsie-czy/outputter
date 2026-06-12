@@ -55,15 +55,32 @@
     setText("#taskCategory", taskData.category || "—");
     setText("#taskWordCount", fmtWordCount(taskData.word_count));
     setText("#taskCreated", taskData.created_at || "—");
+    setText("#taskId", taskData.record_id || "—");
 
-    // 计算耗时
+    // 计算耗时和进度
+    const progress = taskData.progress_percent || 0;
+    setText("#taskPercent", progress + "%");
+    
+    const progressBar = $("#taskProgressBar");
+    if (progressBar) progressBar.style.width = progress + "%";
+    
+    // 预计剩余时间
     if (taskData.processing_start && taskData.completed_at) {
       const start = new Date(taskData.processing_start);
       const end = new Date(taskData.completed_at);
       const duration = Math.round((end - start) / 1000 / 60);
       setText("#taskDuration", duration + "分钟");
+      setText("#taskRemain", "已完成");
     } else if (taskData.processing_start) {
-      setText("#taskDuration", "进行中...");
+      const start = new Date(taskData.processing_start);
+      const now = new Date();
+      const elapsed = Math.round((now - start) / 1000 / 60);
+      setText("#taskDuration", elapsed + "分钟");
+      const remain = Math.max(0, Math.round(3 * (1 - progress / 100)));
+      setText("#taskRemain", remain + "分钟");
+    } else {
+      setText("#taskDuration", "—");
+      setText("#taskRemain", "—");
     }
 
     // 状态标签
@@ -72,7 +89,7 @@
       const status = taskData.display_status || taskData.status;
       statusBadge.textContent = taskData.stage_label || status;
       statusBadge.className = "td-status-badge";
-      if (["deconstructing", "generating_note", "ai_scoring", "human_review", "generating_image"].includes(status)) {
+      if (["deconstructing", "generating_note", "ai_scoring", "human_review", "generating_image", "processing"].includes(status)) {
         statusBadge.classList.add("td-status-badge--running");
       } else if (status === "done") {
         statusBadge.classList.add("td-status-badge--success");
