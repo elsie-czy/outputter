@@ -267,42 +267,34 @@
   }
 
   function renderNote() {
+    var titleInput = document.getElementById("noteTitle");
+    var contentArea = document.getElementById("noteContent");
     if (!taskData || !taskData.note_content) {
-      // 没有笔记内容
-      const titleInput = $("#noteTitle");
       if (titleInput) titleInput.value = "";
-      
-      const contentArea = $("#noteContent");
       if (contentArea) contentArea.value = "";
-      
-      const tagsList = $("#tagsList");
-      if (tagsList) tagsList.innerHTML = "";
-      
-      updateTitleCount();
-      updateWordCount();
       return;
     }
-    
-    const note = taskData.note_content;
 
-    const titleInput = $("#noteTitle");
+    var note = taskData.note_content;
     if (titleInput) {
       titleInput.value = note.title || "";
-      updateTitleCount();
+      titleInput.placeholder = "";
     }
-
-    const contentArea = $("#noteContent");
     if (contentArea) {
       contentArea.value = note.content || "";
-      updateWordCount();
+      contentArea.placeholder = "";
     }
-
-    // 标签
-    const tagsList = $("#tagsList");
-    if (tagsList && note.tags) {
-      tagsList.innerHTML = note.tags.map((tag) =>
-        '<span class="td-tag">' + esc(tag) + '<span class="td-tag-remove" data-tag="' + esc(tag) + '">×</span></span>'
-      ).join("");
+    var tagsList = document.getElementById("tagsList");
+    if (tagsList) {
+      tagsList.textContent = "";
+      if (note.tags && note.tags.length) {
+        for (var i = 0; i < note.tags.length; i++) {
+          var span = document.createElement("span");
+          span.className = "td-tag";
+          span.textContent = note.tags[i];
+          tagsList.appendChild(span);
+        }
+      }
     }
   }
 
