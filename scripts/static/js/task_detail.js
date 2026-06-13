@@ -231,15 +231,31 @@
 
     var coverEl = document.querySelector(".td-cover-img");
     if (coverEl) {
-      coverEl.innerHTML = '<img src="' + coverUrl + '" style="width:100%;height:100%;object-fit:cover;border-radius:12px" onerror="this.parentElement.innerHTML=\\'📖\\'" />';
+      coverEl.textContent = "";
+      var img = document.createElement("img");
+      img.src = coverUrl;
+      img.style.cssText = "width:100%;height:100%;object-fit:cover;border-radius:12px";
+      img.onerror = function() { this.parentElement.textContent = "📖"; };
+      coverEl.appendChild(img);
     }
     var previewEl = document.querySelector(".td-cover-preview");
     if (previewEl) {
-      var thumbs = keys.map(function(k, i) {
-        var url = _toImageUrl(imgs[k]);
-        return '<img src="' + url + '" style="width:60px;height:80px;object-fit:cover;border-radius:6px;border:2px solid ' + (i===0?'var(--color-primary)':'var(--border)') + ';cursor:pointer" onclick="var p=this.closest(\\'.td-cover-preview\\');var b=p.querySelector(\\'img\\');if(b)b.src=this.src" onerror="this.style.display=\\'none\\'" />';
-      }).join("");
-      previewEl.innerHTML = '<img src="' + coverUrl + '" style="width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:12px;margin-bottom:8px" /><div style="display:flex;gap:4px;overflow-x:auto">' + thumbs + '</div>';
+      previewEl.textContent = "";
+      var mainImg = document.createElement("img");
+      mainImg.src = coverUrl;
+      mainImg.style.cssText = "width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:12px;margin-bottom:8px";
+      previewEl.appendChild(mainImg);
+      var thumbRow = document.createElement("div");
+      thumbRow.style.cssText = "display:flex;gap:4px;overflow-x:auto";
+      keys.forEach(function(k, i) {
+        var thumb = document.createElement("img");
+        thumb.src = _toImageUrl(imgs[k]);
+        thumb.style.cssText = "width:60px;height:80px;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid " + (i === 0 ? "var(--color-primary)" : "var(--border)");
+        thumb.onclick = function() { mainImg.src = this.src; };
+        thumb.onerror = function() { this.style.display = "none"; };
+        thumbRow.appendChild(thumb);
+      });
+      previewEl.appendChild(thumbRow);
     }
   }
 
