@@ -31,8 +31,8 @@ def _now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _check_xhs_cache(work):
-    """从小红书笔记库获取已有图片提示词"""
+def _check_xhs_cache(work, need_prompts=True):
+    """从小红书笔记库获取已有图片提示词和笔记内容"""
     try:
         from scripts.feishu_config import get_feishu_config
         client = FeishuClient()
@@ -43,17 +43,36 @@ def _check_xhs_cache(work):
         if not table_id:
             return None
         records = client.list_records(table_id, page_size=500)
-        name = work.get("作品名称", "")
+        name = (work.get("作品名称", "") or "").strip()
         for r in records:
             f = r.get("fields", {}) or {}
-            if str(f.get("作品名称", "")) == name:
-                # Check if has any image prompts
-                has_prompts = any(f.get(f"生成配图提示词{i}") for i in range(1, 6))
-                if has_prompts:
-                    return f
+            f_name = str(f.get("作品名称", ""))
+            if isinstance(f_name, list):
+                f_name = str(f_name[0]) if f_name else ""
+            f_name = f_name.strip()
+            if f_name == name:
+                if need_prompts:
+                    has_prompts = any(_feishu_val_str(f.get(f"生成配图提示词{i}")) for i in range(1, 6))
+                    if not has_prompts:
+                        continue
+                return f
     except Exception:
         pass
     return None
+
+
+def _feishu_val_str(val):
+    """将飞书字段值转为字符串"""
+    if val is None:
+        return ""
+    if isinstance(val, list):
+        if len(val) == 0:
+            return ""
+        item = val[0]
+        if isinstance(item, dict):
+            return str(item.get("text", item.get("text_arr", [""])))
+        return str(item)
+    return str(val)
 
 
 def _feishu_to_analysis_format(fields):
@@ -180,19 +199,29 @@ def process_one(task, dry=False):
         if cached_main:
             _log(rid, "缓存命中，跳过 LLM 调用，尝试补生成图片")
 
+            # 从小红书笔记库获取笔记内容和配图提示词
+            cached_xhs = _check_xhs_cache(work, need_prompts=False)
+            if cached_xhs:
+                xhs_title = _feishu_val_str(cached_xhs.get("小红书标题模板", ""))
+                xhs_body = _feishu_val_str(cached_xhs.get("正文开头模板", ""))
+                xhs_cta = _feishu_val_str(cached_xhs.get("互动话术模板", ""))
+                xhs_tags = cached_xhs.get("热门标签推荐", [])
+                if isinstance(xhs_tags, list):
+                    xhs_tags = ", ".join(str(t) for t in xhs_tags)
+                else:
+                    xhs_tags = str(xhs_tags or "")
+                note_content = f"标题：{xhs_title}\n\n{xhs_body}\n\n互动话术：{xhs_cta}\n\n标签：{xhs_tags}"
+            else:
+                note_content = "标题：" + work.get("作品名称", "") + " 拆解笔记\n\n请运行拆文任务获取笔记内容"
+
             # 映射为前端可读的 analysis 格式
             analysis = _feishu_to_analysis_format(cached_main)
-            xhs_pkg = analysis.get("小红书包装", {})
-            note_content = (
-                f"标题：{xhs_pkg.get('小红书标题模板', '')}\n\n"
-                f"{xhs_pkg.get('正文开头模板', '')}"
-            )
             images = {}
 
-            # 从小红书笔记库获取配图提示词
-            cached_xhs = _check_xhs_cache(work)
-            if not cached_xhs:
-                cached_xhs = cached_main
+            # 从小红书笔记库获取配图提示词（用于生图）
+            cached_xhs_img = _check_xhs_cache(work, need_prompts=True)
+            if not cached_xhs_img:
+                cached_xhs_img = cached_main
 
             if os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
                 try:
