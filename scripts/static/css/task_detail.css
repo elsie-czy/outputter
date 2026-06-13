@@ -29,13 +29,13 @@
 }
 
 .td-cover {
-  width: 200px;
+  width: 100px;
   flex-shrink: 0;
 }
 
 .td-cover-img {
-  width: 200px;
-  height: 266px;
+  width: 100px;
+  height: 133px;
   border-radius: 12px;
   background: #F3F4F6;
   display: flex;
