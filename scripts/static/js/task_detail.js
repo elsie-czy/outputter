@@ -278,11 +278,11 @@
     var note = taskData.note_content;
     if (titleInput) {
       titleInput.value = note.title || "";
-      titleInput.placeholder = "";
+      updateTitleCount();
     }
     if (contentArea) {
       contentArea.value = note.content || "";
-      contentArea.placeholder = "";
+      updateWordCount();
     }
     var tagsList = document.getElementById("tagsList");
     if (tagsList) {
