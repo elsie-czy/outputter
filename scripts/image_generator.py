@@ -223,30 +223,101 @@ def _extract_task_id(data):
     return None
 
 
+def _generate_openai_images(url, api_key, model, prompt, n, size, cache_key_prefix="sf"):
+    """Standard OpenAI-compatible /v1/images/generations (SiliconFlow, etc.)"""
+    cache_enabled = os.getenv("IMAGE_CACHE_ENABLED", "true").strip().lower() in ["1", "true", "yes"]
+    if cache_enabled:
+        h = hashlib.sha256()
+        h.update(cache_key_prefix.encode())
+        h.update(b"\n")
+        h.update(prompt.encode("utf-8"))
+        h.update(b"\n")
+        h.update(str(n).encode())
+        h.update(b"\n")
+        h.update(size.encode())
+        key = h.hexdigest()[:32]
+        cache_path = os.path.join("temp", "jimeng_cache", key)
+        if os.path.exists(cache_path):
+            paths = [os.path.join(cache_path, f"img_{i}.png") for i in range(1, n + 1)
+                     if os.path.exists(os.path.join(cache_path, f"img_{i}.png"))]
+            if len(paths) == n:
+                return paths
+
+    payload = {"model": model, "prompt": prompt, "n": n, "size": size}
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+
+    resp = requests.post(url, headers=headers, json=payload, timeout=120)
+    try:
+        data = resp.json()
+    except Exception:
+        data = {"error": resp.text}
+    if resp.status_code >= 400:
+        raise RuntimeError(f"image generation http error: status={resp.status_code}, body={json.dumps(data, ensure_ascii=False)[:500]}")
+
+    paths = []
+    items = data.get("data", [])
+    for item in items:
+        img_url = item.get("url", "")
+        b64 = item.get("b64_json", "")
+        if img_url:
+            paths.append(_download_image(img_url))
+        elif b64:
+            paths.append(_write_bytes_file(base64.b64decode(b64), ".png"))
+    if not paths:
+        raise RuntimeError(f"no image in response: {json.dumps(data, ensure_ascii=False)[:300]}")
+
+    if cache_enabled and paths:
+        try:
+            os.makedirs(cache_path, exist_ok=True)
+            for i, p in enumerate(paths, 1):
+                dst = os.path.join(cache_path, f"img_{i}.png")
+                if not os.path.exists(dst):
+                    import shutil
+                    shutil.copy2(p, dst)
+        except Exception:
+            pass
+
+    return paths
+
+
 def generate_images_from_prompt(prompt, n=2):
     """
-    Generic OpenAI-compatible image generation client for JiMeng-like gateways.
+    Generic OpenAI-compatible image generation.
+    Supports SiliconFlow, Jimeng, and any /v1/images/generations endpoint.
+
     Environment:
-      - JIMENG_API_KEY
-      - JIMENG_BASE_URL (default: https://api.jimeng.example/v1)
-      - JIMENG_MODEL (default: jimeng-v1)
-      - JIMENG_IMAGE_SIZE (default: 768x1024)
+      - IMAGE_API_KEY or JIMENG_API_KEY
+      - IMAGE_BASE_URL or JIMENG_BASE_URL
+      - IMAGE_MODEL or JIMENG_MODEL  (default depends on provider)
+      - IMAGE_SIZE or JIMENG_IMAGE_SIZE (default: 768x1024)
+      - IMAGE_PROVIDER: siliconflow | jimeng (default: jimeng)
     Returns local file paths.
     """
-    api_key = os.getenv("JIMENG_API_KEY", "").strip()
+    provider = os.getenv("IMAGE_PROVIDER", "jimeng").strip().lower()
+
+    api_key = os.getenv("IMAGE_API_KEY", "").strip() or os.getenv("JIMENG_API_KEY", "").strip()
+    base_url = (os.getenv("IMAGE_BASE_URL", "").strip()
+                or os.getenv("JIMENG_BASE_URL", "https://api.jimeng.example/v1").strip()
+                ).rstrip("/")
+    model = (os.getenv("IMAGE_MODEL", "").strip()
+             or os.getenv("JIMENG_MODEL", "jimeng-v1").strip())
+    size = os.getenv("IMAGE_SIZE", "").strip() or os.getenv("JIMENG_IMAGE_SIZE", "768x1024").strip()
+    endpoint = os.getenv("JIMENG_IMAGES_ENDPOINT", "/images/generations").strip()
+    url = f"{base_url}{endpoint}" if not endpoint.startswith("http") else endpoint
+
+    # SiliconFlow / standard OpenAI format: simple Bearer auth + JSON payload
+    if provider == "siliconflow":
+        return _generate_openai_images(url, api_key, model, prompt, n, size, cache_key_prefix="sf")
+
+    # Legacy Jimeng / Volcengine mode
     ak = os.getenv("JIMENG_ACCESS_KEY_ID", "").strip()
     sk = os.getenv("JIMENG_SECRET_ACCESS_KEY", "").strip()
     if not api_key and not (ak and sk):
-        raise RuntimeError("JIMENG_API_KEY 或 JIMENG_ACCESS_KEY_ID/JIMENG_SECRET_ACCESS_KEY 未设置")
+        raise RuntimeError("API Key 未设置")
 
-    base_url = os.getenv("JIMENG_BASE_URL", "https://api.jimeng.example/v1").strip().rstrip("/")
-    model = os.getenv("JIMENG_MODEL", "jimeng-v1").strip()
-    size = os.getenv("JIMENG_IMAGE_SIZE", "768x1024").strip()
-    endpoint = os.getenv("JIMENG_IMAGES_ENDPOINT", "/images/generations").strip()
-    url = f"{base_url}{endpoint}" if not endpoint.startswith("http") else endpoint
     req_key = os.getenv("JIMENG_REQ_KEY", "jimeng_t2i_v10").strip()
-
-    cache_enabled = os.getenv("JIMENG_CACHE_ENABLED", "true").strip().lower() in ["1", "true", "yes"]
+    cache_enabled = os.getenv("IMAGE_CACHE_ENABLED", "true").strip().lower() in ["1","true","yes"] or \
+                    os.getenv("JIMENG_CACHE_ENABLED", "true").strip().lower() in ["1","true","yes"]
     if cache_enabled:
         cached = _read_cache(prompt, n, size, req_key, base_url)
         if cached:
