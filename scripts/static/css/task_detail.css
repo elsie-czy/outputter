@@ -140,74 +140,53 @@
 
 /* 右侧：进度统计 */
 .td-header-right {
-  width: 280px;
+  width: 240px;
   flex-shrink: 0;
 }
 
-.td-progress-card {
+.td-summary-card {
   background: #F8F9FA;
-  border-radius: 16px;
-  padding: 24px;
+  border-radius: 12px;
+  padding: 16px;
 }
 
-.td-progress-main {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.td-progress-percent {
-  font-size: 48px;
-  font-weight: 700;
-  color: #5B6CFF;
-  line-height: 1;
-}
-
-.td-progress-label {
+.td-summary-status {
   font-size: 14px;
-  color: #666;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin-bottom: 12px;
 }
 
-.td-progress-bar {
-  height: 8px;
-  background: #E5E7EB;
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 16px;
-}
-
-.td-progress-bar-fill {
-  height: 100%;
-  background: #5B6CFF;
-  border-radius: 4px;
-  transition: width 0.3s ease;
-}
-
-.td-progress-stats {
+.td-summary-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 12px 8px;
 }
 
-.td-progress-stat {
+.td-summary-item {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.td-stat-label {
+.td-summary-label {
   font-size: 11px;
   color: #94A3B8;
 }
 
-.td-stat-value {
+.td-summary-value {
   font-size: 14px;
   font-weight: 600;
   color: #333;
 }
 
 /* ===== 流程进度轴 ===== */
+.td-step-output {
+  font-size: 11px;
+  color: #94A3B8;
+  margin-top: 2px;
+  white-space: nowrap;
+}
 .td-steps-bar {
   padding: 32px;
   background: #fff;
@@ -939,6 +918,57 @@
 .td-btn--accent:hover {
   background: #FF8C1A;
 }
+
+/* ===== 笔记操作栏 ===== */
+.td-note-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.td-note-actions .td-btn { font-size: 12px; padding: 4px 12px; }
+
+/* ===== AI编辑建议 ===== */
+.td-ai-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.td-ai-advice-list { display: flex; flex-direction: column; gap: 8px; }
+
+.td-ai-advice-card {
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 12px;
+}
+
+.td-ai-advice-problem { font-weight: 600; color: #92400E; margin-bottom: 6px; }
+.td-ai-advice-compare { margin-bottom: 6px; line-height: 1.6; }
+.td-ai-advice-before { color: #EF4444; margin-bottom: 2px; }
+.td-ai-advice-after { color: var(--color-primary); }
+.td-ai-advice-reason { color: #6B7280; font-size: 11px; margin-bottom: 6px; }
+
+.td-ai-apply {
+  font-size: 11px !important;
+  padding: 2px 8px !important;
+}
+
+/* tag suggestions */
+.td-tags-suggest { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0 8px; }
+.td-keyword--add {
+  background: #F0FDF4;
+  color: var(--color-primary);
+  border: 1px dashed var(--color-primary);
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+}
+.td-keyword--add:hover { background: #DCFCE7; }
 
 .td-btn--small {
   height: 32px;

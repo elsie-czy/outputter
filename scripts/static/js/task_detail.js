@@ -100,71 +100,33 @@
     setText("#taskPlatform", taskData.platform || "—");
     setText("#taskCategory", taskData.category || "—");
     setText("#taskWordCount", fmtWordCount(taskData.word_count));
+    setText("#taskModel", "Qwen-Plus");
     setText("#taskCreated", taskData.created_at || "—");
-    setText("#taskStarted", taskData.processing_start || "—");
     setText("#taskId", taskData.record_id || "—");
 
-    // 计算进度
-    const progress = taskData.progress_percent || 0;
-    setText("#taskPercent", progress + "%");
-    
-    const progressBar = $("#taskProgressBar");
-    if (progressBar) progressBar.style.width = progress + "%";
-    
-    // 状态标签
-    const statusLabel = $("#taskStatusLabel");
-    if (statusLabel) {
-      if (progress === 100) {
-        statusLabel.textContent = "已完成";
-      } else if (progress > 0) {
-        statusLabel.textContent = "进行中";
-      } else {
-        statusLabel.textContent = "等待中";
-      }
-    }
-    
-    // 计算耗时
+    // 生产摘要卡
+    var done = taskData.display_status === "done" || taskData.status === "done";
+    setText("#summaryStatus", done ? "已完成 ✅" : (taskData.stage_label || "生产中"));
+    document.getElementById("summaryStatus").style.color = done ? "var(--color-primary)" : "var(--color-blue)";
+    setText("#summaryRetries", taskData.retry_count || 0);
+
     if (taskData.processing_start && taskData.completed_at) {
-      const start = new Date(taskData.processing_start);
-      const end = new Date(taskData.completed_at);
-      const duration = Math.round((end - start) / 1000);
+      var start = new Date(taskData.processing_start);
+      var end = new Date(taskData.completed_at);
+      var duration = Math.round((end - start) / 1000);
       setText("#taskDuration", formatDuration(duration));
-      setText("#statDuration", formatDuration(duration));
+      setText("#summaryDuration", formatDuration(duration));
+      var noteLen = (taskData.note_content && taskData.note_content.content) ? taskData.note_content.content.length : 0;
+      var speedPerMin = duration > 0 ? Math.round(noteLen / (duration / 60)) : 0;
+      setText("#summarySpeed", speedPerMin > 0 ? speedPerMin + "字/分" : "—");
     } else if (taskData.processing_start) {
-      const start = new Date(taskData.processing_start);
-      const now = new Date();
-      const elapsed = Math.round((now - start) / 1000);
+      var start2 = new Date(taskData.processing_start);
+      var elapsed = Math.round((new Date() - start2) / 1000);
       setText("#taskDuration", formatDuration(elapsed));
-      setText("#statDuration", formatDuration(elapsed));
+      setText("#summaryDuration", formatDuration(elapsed));
+      setText("#summarySpeed", "—");
     }
-
-    // Token 消耗（估算）
-    const noteLength = taskData.note_content ? taskData.note_content.length : 0;
-    const tokenEstimate = Math.round(noteLength * 1.5);
-    setText("#statToken", tokenEstimate > 0 ? tokenEstimate.toLocaleString() : "—");
-
-    // 模型
-    setText("#statModel", "Qwen-Plus");
-
-    // 生成字数
-    setText("#statWordCount", noteLength > 0 ? noteLength + "字" : "—");
-
-    // 状态标签
-    const statusBadge = $("#taskStatus");
-    if (statusBadge) {
-      const status = taskData.display_status || taskData.status;
-      statusBadge.textContent = taskData.stage_label || status;
-      statusBadge.className = "td-status-badge";
-      if (["deconstructing", "generating_note", "ai_scoring", "human_review", "generating_image", "processing"].includes(status)) {
-        statusBadge.classList.add("td-status-badge--running");
-      } else if (status === "done") {
-        statusBadge.classList.add("td-status-badge--success");
-      } else if (status === "failed") {
-        statusBadge.classList.add("td-status-badge--failed");
-      } else {
-        statusBadge.classList.add("td-status-badge--waiting");
-      }
-    }
+    setText("#summaryModel", "Qwen-Plus");
   }
 
   function formatDuration(seconds) {
