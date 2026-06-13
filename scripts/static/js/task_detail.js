@@ -43,6 +43,7 @@
       renderNote();
       renderDeconstruct();
       renderScore();
+      renderImages();
     } catch (e) {
       showToast("error", "加载失败: " + e.message);
     }
@@ -219,6 +220,36 @@
   }
 
   /* ===== 渲染笔记内容 ===== */
+  /* ===== 渲染笔记 ===== */
+  function renderImages() {
+    if (!taskData || !taskData.images) return;
+    var imgs = taskData.images;
+    var keys = Object.keys(imgs);
+    if (!keys.length) return;
+    var coverUrl = _toImageUrl(imgs.cover || imgs[keys[0]]);
+    if (!coverUrl) return;
+
+    var coverEl = document.querySelector(".td-cover-img");
+    if (coverEl) {
+      coverEl.innerHTML = '<img src="' + coverUrl + '" style="width:100%;height:100%;object-fit:cover;border-radius:12px" onerror="this.parentElement.innerHTML=\\'📖\\'" />';
+    }
+    var previewEl = document.querySelector(".td-cover-preview");
+    if (previewEl) {
+      var thumbs = keys.map(function(k, i) {
+        var url = _toImageUrl(imgs[k]);
+        return '<img src="' + url + '" style="width:60px;height:80px;object-fit:cover;border-radius:6px;border:2px solid ' + (i===0?'var(--color-primary)':'var(--border)') + ';cursor:pointer" onclick="var p=this.closest(\\'.td-cover-preview\\');var b=p.querySelector(\\'img\\');if(b)b.src=this.src" onerror="this.style.display=\\'none\\'" />';
+      }).join("");
+      previewEl.innerHTML = '<img src="' + coverUrl + '" style="width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:12px;margin-bottom:8px" /><div style="display:flex;gap:4px;overflow-x:auto">' + thumbs + '</div>';
+    }
+  }
+
+  function _toImageUrl(path) {
+    if (!path) return null;
+    if (path.indexOf("http") === 0) return path;
+    var p = path.replace(/^temp\/(jimeng_cache|generated_images)\//, "");
+    return "/_health/images/" + encodeURI(p);
+  }
+
   function renderNote() {
     if (!taskData || !taskData.note_content) {
       // 没有笔记内容
@@ -288,11 +319,15 @@
   }
 
   function setCollapseContent(id, items) {
-    const el = $("#" + id);
-    if (el && items) {
-      el.querySelector(".td-collapse-content").innerHTML =
-        "<ul>" + items.map((item) => "<li>" + esc(item) + "</li>").join("") + "</ul>";
+    var el = document.getElementById(id);
+    if (!el || !items || !items.length) {
+      if (el) {
+        el.querySelector(".td-collapse-content").innerHTML = '<div style="color:#999;padding:12px">内容为空，可点击重试获得完整结果</div>';
+      }
+      return;
     }
+    el.querySelector(".td-collapse-content").innerHTML =
+      "<ul>" + items.map(function(item) { return "<li>" + esc(item) + "</li>"; }).join("") + "</ul>";
   }
 
   /* ===== 渲染AI评分 ===== */
