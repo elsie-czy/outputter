@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, render_template, request
 
 from scripts.queue_manager import get_queue, update_status, retry_task, get_task_progress, is_task_truly_done
+from scripts.data_normalizer import normalize_feishu_record, normalize_for_frontend
 
 bp = Blueprint("web_task_detail", __name__)
 
@@ -48,13 +49,9 @@ def task_detail_api(task_id):
         elif deconstruct_result.get("缓存") and not deconstruct_result.get("开篇套路"):
             task["deconstruct_result"] = None
         else:
-            task["deconstruct_result"] = {
-                "openings": deconstruct_result.get("开篇套路", []),
-                "characters": _format_characters(deconstruct_result.get("人物设定", {})),
-                "conflicts": _format_conflicts(deconstruct_result.get("冲突设计", {})),
-                "emotions": deconstruct_result.get("情绪触发", []),
-                "quotes": deconstruct_result.get("金句", []),
-            }
+            task["deconstruct_result"] = normalize_for_frontend(
+                normalize_feishu_record(deconstruct_result, source="main")
+            )
         
         # 处理笔记内容
         note_content = task.get("note_content", "")
@@ -86,26 +83,6 @@ def task_detail_api(task_id):
         return jsonify({"ok": True, "data": task})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
-
-
-def _format_characters(characters):
-    """格式化人物设定"""
-    if isinstance(characters, dict):
-        result = []
-        for role, desc in characters.items():
-            result.append(f"{role}：{desc}")
-        return result
-    return characters if isinstance(characters, list) else []
-
-
-def _format_conflicts(conflicts):
-    """格式化冲突设计"""
-    if isinstance(conflicts, dict):
-        result = []
-        for level, desc in conflicts.items():
-            result.append(f"{level}：{desc}")
-        return result
-    return conflicts if isinstance(conflicts, list) else []
 
 
 def _extract_title(note_content):

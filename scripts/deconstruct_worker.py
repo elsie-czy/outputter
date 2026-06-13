@@ -19,6 +19,7 @@ from scripts.utils import append_jsonl, now_ts
 from scripts.queue_manager import (
     get_next_pending, update_status, retry_task, _acquire_lock, _release_lock,
 )
+from scripts.data_normalizer import normalize_feishu_record, normalize_feishu_value
 
 # Import from deconstruct_daily
 from scripts.deconstruct_daily import (
@@ -52,77 +53,13 @@ def _check_xhs_cache(work, need_prompts=True):
             f_name = f_name.strip()
             if f_name == name:
                 if need_prompts:
-                    has_prompts = any(_feishu_val_str(f.get(f"生成配图提示词{i}")) for i in range(1, 6))
+                    has_prompts = any(normalize_feishu_value(f.get(f"生成配图提示词{i}")) for i in range(1, 6))
                     if not has_prompts:
                         continue
                 return f
     except Exception:
         pass
     return None
-
-
-def _feishu_val_str(val):
-    """将飞书字段值转为字符串"""
-    if val is None:
-        return ""
-    if isinstance(val, list):
-        if len(val) == 0:
-            return ""
-        item = val[0]
-        if isinstance(item, dict):
-            return str(item.get("text", item.get("text_arr", [""])))
-        return str(item)
-    return str(val)
-
-
-def _feishu_to_analysis_format(fields):
-    """将飞书主表字段映射为 analysis JSON 格式"""
-    def _text(val):
-        if isinstance(val, list):
-            texts = []
-            for v in val:
-                if isinstance(v, dict):
-                    texts.append(str(v.get("text", v.get("text_arr", [""]))))
-                else:
-                    texts.append(str(v))
-            return "，".join(texts) if texts else ""
-        return str(val or "")
-
-    def _text_list(val, sep=None):
-        if isinstance(val, list):
-            return [str(v.get("text", v)) if isinstance(v, dict) else str(v) for v in val]
-        s = str(val or "")
-        parts = [p.strip() for p in s.split(sep) if p.strip()] if sep else [s]
-        return parts if parts and parts[0] else []
-
-    return {
-        "开篇套路": _text_list(fields.get("开篇套路类型", ""), sep=","),
-        "人物设定": {
-            "女主": _text(fields.get("女主设定", "")),
-            "男主": _text(fields.get("男主设定", "")),
-            "亮点配角": _text(fields.get("人物反差", "")),
-        },
-        "冲突设计": {
-            "第一层": _text(fields.get("第一层冲突", "")),
-            "第二层": _text(fields.get("第二层冲突", "")),
-            "第三层": _text(fields.get("第三层冲突", "")),
-        },
-        "情绪触发": _text_list(fields.get("情绪分析摘要", ""), sep=","),
-        "金句": _text_list(fields.get("金句（Top5）", "") or fields.get("金句_Top5_", ""), sep="\n"),
-        "小红书包装": {
-            "小红书标题模板": str(fields.get("小红书标题模板", "")),
-            "正文开头模板": str(fields.get("正文开头模板", "")),
-            "热门标签推荐": _text_list(fields.get("热门标签推荐", "")),
-            "互动话术模板": str(fields.get("互动话术模板", "")),
-            "封面图描述建议": str(fields.get("封面图描述建议", "")),
-        },
-        "元信息": {
-            "来源": "feishu_cache",
-            "平台": str(fields.get("平台", "")),
-            "分类": str(fields.get("分类", "")),
-            "作者": str(fields.get("作者", "")),
-        },
-    }
 
 
 def _check_cache(work):
@@ -202,9 +139,9 @@ def process_one(task, dry=False):
             # 从小红书笔记库获取笔记内容和配图提示词
             cached_xhs = _check_xhs_cache(work, need_prompts=False)
             if cached_xhs:
-                xhs_title = _feishu_val_str(cached_xhs.get("小红书标题模板", ""))
-                xhs_body = _feishu_val_str(cached_xhs.get("正文开头模板", ""))
-                xhs_cta = _feishu_val_str(cached_xhs.get("互动话术模板", ""))
+                xhs_title = normalize_feishu_value(cached_xhs.get("小红书标题模板", ""))
+                xhs_body = normalize_feishu_value(cached_xhs.get("正文开头模板", ""))
+                xhs_cta = normalize_feishu_value(cached_xhs.get("互动话术模板", ""))
                 xhs_tags = cached_xhs.get("热门标签推荐", [])
                 if isinstance(xhs_tags, list):
                     xhs_tags = ", ".join(str(t) for t in xhs_tags)
@@ -215,7 +152,7 @@ def process_one(task, dry=False):
                 note_content = "标题：" + work.get("作品名称", "") + " 拆解笔记\n\n请运行拆文任务获取笔记内容"
 
             # 映射为前端可读的 analysis 格式
-            analysis = _feishu_to_analysis_format(cached_main)
+            analysis = normalize_feishu_record(cached_main, source="main")
             images = {}
 
             # 从小红书笔记库获取配图提示词（用于生图）
