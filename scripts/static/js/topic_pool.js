@@ -619,7 +619,16 @@ const PAGE_SIZE = 10;
     if (selected.length === 0) return;
 
     const confirmBtn = $("#tpModalConfirm");
+    const cancelBtn = $("#tpModalCancel");
     if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = "提交中..."; }
+    if (cancelBtn) cancelBtn.disabled = true;
+
+    // 显示 loading 浮层
+    var overlay = document.createElement("div");
+    overlay.className = "tp-submit-loading";
+    overlay.innerHTML = '<div class="tp-spinner"></div><div style="margin-top:12px;font-size:14px">正在提交生产队列...</div>';
+    overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;color:#fff";
+    document.body.appendChild(overlay);
 
     try {
       const works = selected.map((i) => ({
@@ -650,7 +659,9 @@ const PAGE_SIZE = 10;
     } catch (e) {
       showToast("error", "✕ 提交失败：" + e.message);
     } finally {
+      if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
       if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = "确认提交"; }
+      if (cancelBtn) cancelBtn.disabled = false;
     }
   }
 

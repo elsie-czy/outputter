@@ -348,17 +348,19 @@ a:hover { text-decoration: underline; }
 .app-shell {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .app-shell-body {
   display: flex;
   flex: 1;
+  overflow: hidden;
 }
 
 .app-shell-content {
   flex: 1;
-  overflow: auto;
+  overflow-y: auto;
   padding: var(--space-lg);
   min-width: 0;
 }
