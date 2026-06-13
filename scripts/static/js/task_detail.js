@@ -221,6 +221,17 @@
 
   /* ===== 渲染笔记内容 ===== */
   /* ===== 渲染笔记 ===== */
+  function openLightbox(url) {
+    var lb = document.createElement("div");
+    lb.className = "td-cover-lightbox";
+    lb.innerHTML = '<img src="' + url + '" />';
+    lb.onclick = function() { document.body.removeChild(lb); };
+    document.addEventListener("keydown", function esc(e) {
+      if (e.key === "Escape" && lb.parentNode) { document.body.removeChild(lb); }
+    });
+    document.body.appendChild(lb);
+  }
+
   function renderImages() {
     if (!taskData || !taskData.images) return;
     var imgs = taskData.images;
@@ -236,6 +247,7 @@
       img.src = coverUrl;
       img.style.cssText = "width:100%;height:100%;object-fit:cover;border-radius:12px";
       img.onerror = function() { this.parentElement.textContent = "📖"; };
+      img.onclick = function() { openLightbox(this.src); };
       coverEl.appendChild(img);
     }
     var previewEl = document.querySelector(".td-cover-preview");
@@ -243,14 +255,15 @@
       previewEl.textContent = "";
       var mainImg = document.createElement("img");
       mainImg.src = coverUrl;
-      mainImg.style.cssText = "width:100%;height:280px;object-fit:cover;border-radius:8px;flex-shrink:0";
+      mainImg.style.cssText = "width:100%;height:360px;object-fit:cover;border-radius:8px;flex-shrink:0;cursor:pointer";
+      mainImg.onclick = function() { openLightbox(this.src); };
       previewEl.appendChild(mainImg);
       var thumbRow = document.createElement("div");
-      thumbRow.style.cssText = "display:flex;gap:4px;width:100%;flex-shrink:0;padding:0 4px";
+      thumbRow.style.cssText = "display:flex;gap:4px;width:100%;flex-shrink:0;padding:0 4px;flex-wrap:wrap";
       keys.forEach(function(k, i) {
         var thumb = document.createElement("img");
         thumb.src = _toImageUrl(imgs[k]);
-        thumb.style.cssText = "width:48px;height:64px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid " + (i === 0 ? "var(--color-primary)" : "var(--border)");
+        thumb.style.cssText = "width:56px;height:74px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid " + (i === 0 ? "var(--color-primary)" : "var(--border)");
         thumb.onclick = function() { mainImg.src = this.src; };
         thumb.onerror = function() { this.style.display = "none"; };
         thumbRow.appendChild(thumb);
