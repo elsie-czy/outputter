@@ -349,8 +349,11 @@
   border-radius: 16px;
   background: #F3F4F6;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  overflow-y: auto;
+  gap: 4px;
 }
 
 .td-cover-placeholder {

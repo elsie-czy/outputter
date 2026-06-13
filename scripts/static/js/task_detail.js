@@ -243,14 +243,14 @@
       previewEl.textContent = "";
       var mainImg = document.createElement("img");
       mainImg.src = coverUrl;
-      mainImg.style.cssText = "width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:12px;margin-bottom:8px";
+      mainImg.style.cssText = "width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;flex-shrink:0";
       previewEl.appendChild(mainImg);
       var thumbRow = document.createElement("div");
-      thumbRow.style.cssText = "display:flex;gap:4px;overflow-x:auto";
+      thumbRow.style.cssText = "display:flex;gap:4px;width:100%;flex-shrink:0;padding:0 4px";
       keys.forEach(function(k, i) {
         var thumb = document.createElement("img");
         thumb.src = _toImageUrl(imgs[k]);
-        thumb.style.cssText = "width:60px;height:80px;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid " + (i === 0 ? "var(--color-primary)" : "var(--border)");
+        thumb.style.cssText = "width:48px;height:64px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid " + (i === 0 ? "var(--color-primary)" : "var(--border)");
         thumb.onclick = function() { mainImg.src = this.src; };
         thumb.onerror = function() { this.style.display = "none"; };
         thumbRow.appendChild(thumb);
