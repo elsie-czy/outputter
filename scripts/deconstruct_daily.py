@@ -200,7 +200,8 @@ def _build_image_prompts(work, analysis):
         f"supporting role ({support_desc or 'key trigger character'}). "
         "Ground only to official synopsis and listed genre; avoid adding new names or settings. "
         "Gender must stay consistent. Wardrobe and props must match one era only. "
-        "No text, no letters, no subtitle, no logo, no watermark."
+        "No text, no Chinese characters, no letters, no subtitle, no logo, no watermark. "
+        "Image must be text-free."
     )
 
     p1 = (
