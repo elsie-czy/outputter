@@ -181,12 +181,6 @@
 }
 
 /* ===== 流程进度轴 ===== */
-.td-step-output {
-  font-size: 11px;
-  color: #94A3B8;
-  margin-top: 2px;
-  white-space: nowrap;
-}
 .td-steps-bar {
   padding: 32px;
   background: #fff;
@@ -237,10 +231,23 @@
 .td-step.active .td-step-icon {
   background: #EEF2FF;
   box-shadow: 0 0 0 4px rgba(91, 108, 255, 0.2);
+  animation: td-step-pulse 2s ease-in-out infinite;
+}
+
+@keyframes td-step-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(91,108,255,0.2); }
+  50% { box-shadow: 0 0 0 8px rgba(91,108,255,0.05); }
 }
 
 .td-step.active .td-step-icon svg {
   color: #5B6CFF;
+}
+
+.td-step-output {
+  font-size: 11px;
+  color: #94A3B8;
+  margin-top: 2px;
+  white-space: nowrap;
 }
 
 .td-step-info {
@@ -919,6 +926,12 @@
   background: #FF8C1A;
 }
 
+.td-btn--small {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
 /* ===== 笔记操作栏 ===== */
 .td-note-actions {
   display: flex;
@@ -969,9 +982,3 @@
   font-size: 11px;
 }
 .td-keyword--add:hover { background: #DCFCE7; }
-
-.td-btn--small {
-  height: 32px;
-  padding: 0 14px;
-  font-size: 13px;
-}

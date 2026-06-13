@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_components/icon.html" import icon %}
 
 {% block title %}任务详情 - 超级工具{% endblock %}
 
@@ -68,7 +69,7 @@
   <div class="td-steps-bar">
     <div class="td-steps" id="stepsContainer">
       <div class="td-step" data-step="waiting">
-        <div class="td-step-icon">📥</div>
+        <div class="td-step-icon">{{ icon("inbox", 18) }}</div>
         <div class="td-step-info">
           <div class="td-step-label">入队</div>
           <div class="td-step-time">—</div>
@@ -77,7 +78,7 @@
       </div>
       <div class="td-step-line"></div>
       <div class="td-step" data-step="deconstructing">
-        <div class="td-step-icon">🔍</div>
+        <div class="td-step-icon">{{ icon("search", 18) }}</div>
         <div class="td-step-info">
           <div class="td-step-label">拆文分析</div>
           <div class="td-step-time">—</div>
@@ -86,7 +87,7 @@
       </div>
       <div class="td-step-line"></div>
       <div class="td-step" data-step="generating_note">
-        <div class="td-step-icon">📝</div>
+        <div class="td-step-icon">{{ icon("file-text", 18) }}</div>
         <div class="td-step-info">
           <div class="td-step-label">生成笔记</div>
           <div class="td-step-time">—</div>
@@ -95,7 +96,7 @@
       </div>
       <div class="td-step-line"></div>
       <div class="td-step" data-step="ai_scoring">
-        <div class="td-step-icon">⭐</div>
+        <div class="td-step-icon">{{ icon("star", 18) }}</div>
         <div class="td-step-info">
           <div class="td-step-label">AI评分</div>
           <div class="td-step-time">—</div>
@@ -104,7 +105,7 @@
       </div>
       <div class="td-step-line"></div>
       <div class="td-step" data-step="human_review">
-        <div class="td-step-icon">👁️</div>
+        <div class="td-step-icon">{{ icon("eye", 18) }}</div>
         <div class="td-step-info">
           <div class="td-step-label">人工审核</div>
           <div class="td-step-time">—</div>
@@ -113,7 +114,7 @@
       </div>
       <div class="td-step-line"></div>
       <div class="td-step" data-step="generating_image">
-        <div class="td-step-icon">🖼️</div>
+        <div class="td-step-icon">{{ icon("image", 18) }}</div>
         <div class="td-step-info">
           <div class="td-step-label">生成图片</div>
           <div class="td-step-time">—</div>
@@ -122,7 +123,7 @@
       </div>
       <div class="td-step-line"></div>
       <div class="td-step" data-step="done">
-        <div class="td-step-icon">✅</div>
+        <div class="td-step-icon">{{ icon("check-circle", 18) }}</div>
         <div class="td-step-info">
           <div class="td-step-label">完成</div>
           <div class="td-step-time">—</div>
@@ -265,7 +266,7 @@
         {% for sid, label in sections %}
         <div class="td-collapse-item">
           <div class="td-collapse-header" data-target="{{ sid }}">
-            <span class="td-collapse-icon">▼</span>
+            <span class="td-collapse-icon">{{ icon("chevron-down", 16) }}</span>
             <span>{{ label }}</span>
           </div>
           <div class="td-collapse-body" id="{{ sid }}">
