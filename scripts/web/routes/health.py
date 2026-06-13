@@ -6,15 +6,21 @@ from flask import Blueprint, jsonify, send_file
 bp = Blueprint("web_health", __name__, url_prefix="/_health")
 
 
-@bp.get("/images/<path:filename>")
-def serve_image(filename):
-    """服务本地生成的图片文件"""
-    img_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "temp", "generated_images")
-    img_dir = os.path.abspath(img_dir)
-    filepath = os.path.join(img_dir, filename)
-    if not os.path.exists(filepath):
+@bp.get("/images/<path:filepath>")
+def serve_image(filepath):
+    """服务本地图片: /_health/images/dir/filename.png"""
+    base = os.path.join(os.path.dirname(__file__), "..", "..", "..")
+    base = os.path.abspath(base)
+    # filepath 可能带子目录
+    full = os.path.join(base, "temp", "generated_images", filepath)
+    if not os.path.exists(full):
+        full = os.path.join(base, "temp", "jimeng_cache", filepath)
+    if not os.path.exists(full):
+        # Try as full relative path from project root
+        full = os.path.join(base, filepath)
+    if not os.path.exists(full):
         return jsonify({"ok": False, "error": "image not found"}), 404
-    return send_file(filepath, mimetype="image/png")
+    return send_file(full, mimetype="image/png")
 
 
 @bp.get("")
