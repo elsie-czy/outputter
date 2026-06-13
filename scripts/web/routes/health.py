@@ -1,9 +1,20 @@
 import os
 import subprocess
 import signal
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, send_file
 
 bp = Blueprint("web_health", __name__, url_prefix="/_health")
+
+
+@bp.get("/images/<path:filename>")
+def serve_image(filename):
+    """服务本地生成的图片文件"""
+    img_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "temp", "generated_images")
+    img_dir = os.path.abspath(img_dir)
+    filepath = os.path.join(img_dir, filename)
+    if not os.path.exists(filepath):
+        return jsonify({"ok": False, "error": "image not found"}), 404
+    return send_file(filepath, mimetype="image/png")
 
 
 @bp.get("")
