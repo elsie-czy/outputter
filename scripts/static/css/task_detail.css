@@ -49,6 +49,38 @@
 
 .td-cover-img:hover { opacity: 0.9; }
 
+.td-cover-img:hover .td-cover-hover-layer {
+  opacity: 1;
+}
+
+.td-cover-hover-layer {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  border-radius: 12px;
+}
+
+.td-cover-hover-layer button {
+  padding: 3px 10px;
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 4px;
+  background: transparent;
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.td-cover-hover-layer button:hover {
+  background: rgba(255,255,255,0.2);
+}
+
 .td-cover-lightbox {
   position: fixed;
   inset: 0;
@@ -982,3 +1014,11 @@
   font-size: 11px;
 }
 .td-keyword--add:hover { background: #DCFCE7; }
+
+/* ===== 修改记录结构化 ===== */
+.td-history-diff { margin: 6px 0; }
+.td-history-before, .td-history-after { margin-bottom: 4px; line-height: 1.5; }
+.td-diff-label { font-size: 11px; color: #94A3B8; margin-right: 4px; }
+.td-diff-removed { color: #EF4444; text-decoration: line-through; font-size: 12px; }
+.td-diff-added { color: var(--color-primary); font-size: 12px; }
+.td-history-reason { font-size: 11px; color: #6B7280; margin-top: 6px; padding-top: 6px; border-top: 1px dashed #E5E7EB; }

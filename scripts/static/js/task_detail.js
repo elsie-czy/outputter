@@ -54,43 +54,47 @@
     const timeline = $("#historyTimeline");
     if (!timeline) return;
     
-    // 模拟修改记录数据
-    const history = [
+    var history = [
       {
         time: "2026-06-13 10:24",
-        type: "标题修改",
-        detail: "原：重生后我逆袭豪门 → 改：重生后我打脸豪门所有人",
-        user: "运营小明"
+        type: "标题优化",
+        before: "重生后我逆袭豪门",
+        after: "重生后我打脸豪门所有人",
+        reason: "提高点击率：增加冲突感和反转期待"
       },
       {
         time: "2026-06-13 10:22",
-        type: "正文修改",
-        detail: "新增120字，增加互动引导语",
-        user: "运营小明"
+        type: "正文优化",
+        before: "这是一本非常好看的文，推荐给大家",
+        after: "谁懂啊！！这本让我通宵看完的文，后劲太大了...",
+        reason: "增加网感，强化情绪钩子，降低AI痕迹"
       },
       {
         time: "2026-06-13 10:20",
-        type: "标签修改",
-        detail: "新增标签：#逆袭、#打脸",
-        user: "系统"
+        type: "标签优化",
+        before: "#网文拆解 #写作套路",
+        after: "#爽文推荐 #重生逆袭 #爆款拆解 #虐渣打脸",
+        reason: "精准化标签，提升搜索曝光和兴趣匹配"
       }
     ];
     
     if (history.length === 0) {
-      timeline.innerHTML = '<div class="td-history-empty">暂无修改记录</div>';
+      timeline.innerHTML = '<div class="td-history-empty">暂无修改记录，完成修改后自动生成</div>';
       return;
     }
     
-    timeline.innerHTML = history.map(item =>
-      '<div class="td-history-item">' +
-      '<div class="td-history-time">' + esc(item.time) + '</div>' +
-      '<div class="td-history-content">' +
-      '<div class="td-history-type">' + esc(item.type) + '</div>' +
-      '<div class="td-history-detail">' + esc(item.detail) + '</div>' +
-      '<div class="td-history-user">修改人：' + esc(item.user) + '</div>' +
-      '</div>' +
-      '</div>'
-    ).join("");
+    timeline.innerHTML = history.map(function(item) {
+      return '<div class="td-history-item">' +
+        '<div class="td-history-time">' + esc(item.time) + '</div>' +
+        '<div class="td-history-content">' +
+        '<div class="td-history-type">' + esc(item.type) + '</div>' +
+        '<div class="td-history-diff">' +
+          '<div class="td-history-before"><span class="td-diff-label">修改前：</span><span class="td-diff-text td-diff-removed">' + esc(item.before) + '</span></div>' +
+          '<div class="td-history-after"><span class="td-diff-label">修改后：</span><span class="td-diff-text td-diff-added">' + esc(item.after) + '</span></div>' +
+        '</div>' +
+        '<div class="td-history-reason"><strong>原因：</strong>' + esc(item.reason) + '</div>' +
+      '</div></div>';
+    }).join("");
   }
 
   /* ===== 渲染任务信息 ===== */
@@ -205,12 +209,18 @@
     var coverEl = document.querySelector(".td-cover-img");
     if (coverEl) {
       coverEl.textContent = "";
+      coverEl.style.position = "relative";
       var img = document.createElement("img");
       img.src = coverUrl;
       img.style.cssText = "width:100%;height:100%;object-fit:cover;border-radius:12px";
       img.onerror = function() { this.parentElement.textContent = "📖"; };
       img.onclick = function() { openLightbox(this.src); };
       coverEl.appendChild(img);
+      // hover 操作层
+      var hover = document.createElement("div");
+      hover.className = "td-cover-hover-layer";
+      hover.innerHTML = '<button onclick="event.stopPropagation();openLightbox(\'' + coverUrl + '\')">查看大图</button><button onclick="event.stopPropagation()">重新生成</button><button onclick="event.stopPropagation()">下载</button>';
+      coverEl.appendChild(hover);
     }
     var previewEl = document.querySelector(".td-cover-preview");
     if (previewEl) {
