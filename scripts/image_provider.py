@@ -83,7 +83,11 @@ def get_image_generator() -> ImageGeneratorBase:
     elif provider == "mock":
         return MockGenerator()
     else:
-        return MockGenerator()
+        valid = "jimeng, siliconflow, mock"
+        raise RuntimeError(
+            f"未知的 IMAGE_PROVIDER: {provider}，有效值: {valid}。"
+            f"请检查 .env 文件中的 IMAGE_PROVIDER 配置。"
+        )
 
 
 def generate_images_for_task(deconstruct_result: dict) -> dict:
