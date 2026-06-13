@@ -34,17 +34,17 @@ class ImageGeneratorBase(ABC):
 
 
 class JimengGenerator(ImageGeneratorBase):
-    """即梦图片生成"""
-    
+    """即梦/SiliconFlow 图片生成"""
+
     def __init__(self):
         from scripts.image_generator import generate_images_from_prompt, is_image_generation_enabled
         self._generate = generate_images_from_prompt
         self._enabled = is_image_generation_enabled()
-    
+
     def generate(self, prompt: str, **kwargs) -> dict:
         if not self._enabled:
             return {"ok": False, "url": None, "error": "图片生成未启用"}
-        
+
         try:
             result = self._generate(prompt, **kwargs)
             if result and len(result) > 0:
@@ -52,7 +52,7 @@ class JimengGenerator(ImageGeneratorBase):
             return {"ok": False, "url": None, "error": "生成失败"}
         except Exception as e:
             return {"ok": False, "url": None, "error": str(e)}
-    
+
     def is_available(self) -> bool:
         return self._enabled
 
@@ -77,13 +77,12 @@ def get_image_generator() -> ImageGeneratorBase:
     根据环境变量选择实现
     """
     provider = os.getenv("IMAGE_PROVIDER", "jimeng").strip().lower()
-    
-    if provider == "jimeng":
+
+    if provider in ("jimeng", "siliconflow"):
         return JimengGenerator()
     elif provider == "mock":
         return MockGenerator()
     else:
-        # 默认使用 Mock，避免阻塞主流程
         return MockGenerator()
 
 
@@ -108,6 +107,12 @@ def generate_images_for_task(deconstruct_result: dict) -> dict:
     
     # 从拆文结果中提取配图提示词
     prompts = deconstruct_result.get("配图提示词", [])
+    if not prompts:
+        # 兼容飞书缓存格式：生成配图提示词1~5
+        for i in range(1, 6):
+            p = deconstruct_result.get(f"生成配图提示词{i}", "")
+            if p and str(p).strip():
+                prompts.append(str(p).strip())
     if not prompts:
         return {"ok": False, "images": {}, "error": "无配图提示词"}
     
