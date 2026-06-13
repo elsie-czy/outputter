@@ -43,11 +43,11 @@ def task_detail_api(task_id):
         
         # 处理拆文结果
         deconstruct_result = task.get("deconstruct_result")
-        if not deconstruct_result or deconstruct_result.get("缓存"):
-            # 没有真实拆文结果或缓存命中
+        if not deconstruct_result:
+            task["deconstruct_result"] = None
+        elif deconstruct_result.get("缓存") and not deconstruct_result.get("开篇套路"):
             task["deconstruct_result"] = None
         else:
-            # 转换字段名（中文 -> 英文）
             task["deconstruct_result"] = {
                 "openings": deconstruct_result.get("开篇套路", []),
                 "characters": _format_characters(deconstruct_result.get("人物设定", {})),
@@ -57,17 +57,30 @@ def task_detail_api(task_id):
             }
         
         # 处理笔记内容
-        note_content = task.get("note_content")
-        if not note_content or note_content.startswith("（缓存"):
-            # 没有真实笔记内容
-            task["note_content"] = None
+        note_content = task.get("note_content", "")
+        if not note_content or note_content.startswith("（缓存") or len(str(note_content).strip()) < 10:
+            # 从拆文结果中提取笔记内容
+            dr = task.get("deconstruct_result") or {}
+            xhs = dr.get("小红书包装") or {}
+            title = xhs.get("小红书标题模板", "") or ""
+            body = xhs.get("正文开头模板", "") or ""
+            if not title and not body:
+                title = task.get('work_name', '') + ' 拆解笔记'
+                body = "请运行拆文任务获取笔记内容"
+            note_content = f"标题：{title}\n\n{body}"
+            task["note_content"] = {
+                "title": title,
+                "content": note_content,
+                "tags": [],
+                "score": None,
+            }
         else:
             # 笔记内容是 markdown 字符串
             task["note_content"] = {
-                "title": _extract_title(note_content),
-                "content": note_content,
-                "tags": _extract_tags(note_content),
-                "score": None,  # 评分需要单独计算
+                "title": _extract_title(str(note_content)),
+                "content": str(note_content),
+                "tags": _extract_tags(str(note_content)),
+                "score": None,
             }
         
         return jsonify({"ok": True, "data": task})
@@ -165,9 +178,24 @@ def approve_task(task_id):
 
 @bp.post("/api/task/<task_id>/retry")
 def retry_task_api(task_id):
-    """重试任务"""
+    """重试任务——重置为 pending 强制重新拆文"""
     try:
-        success = retry_task(task_id)
-        return jsonify({"ok": success})
+        # queue_manager.retry_task 只处理 failed，这里强制重置
+        from scripts.queue_manager import get_queue, write_jsonl, read_jsonl, QUEUE_FILE
+        items = read_jsonl(QUEUE_FILE)
+        for i in items:
+            if i.get("record_id") == task_id:
+                i["status"] = "pending"
+                i["error"] = None
+                i["retry_count"] = i.get("retry_count", 0) + 1
+                i["deconstruct_result"] = None
+                i["note_content"] = None
+                i["quality_score"] = None
+                i["images"] = {}
+                write_jsonl(QUEUE_FILE, items)
+                return jsonify({"ok": True, "data": {"retried": True, "message": "已重置，worker 将重新拆文"}})
+        return jsonify({"ok": False, "error": "任务未找到"}), 404
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
