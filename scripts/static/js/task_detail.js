@@ -243,7 +243,7 @@
       previewEl.textContent = "";
       var mainImg = document.createElement("img");
       mainImg.src = coverUrl;
-      mainImg.style.cssText = "width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;flex-shrink:0";
+      mainImg.style.cssText = "width:100%;height:280px;object-fit:cover;border-radius:8px;flex-shrink:0";
       previewEl.appendChild(mainImg);
       var thumbRow = document.createElement("div");
       thumbRow.style.cssText = "display:flex;gap:4px;width:100%;flex-shrink:0;padding:0 4px";
