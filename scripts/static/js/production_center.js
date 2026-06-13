@@ -98,6 +98,15 @@
     }
   }
 
+  function imgUrl(imgs) {
+    if (!imgs) return null;
+    var cover = imgs.cover || imgs[Object.keys(imgs)[0]];
+    if (!cover) return null;
+    if (cover.indexOf("http") === 0) return cover;
+    var p = cover.replace(/^temp\/(jimeng_cache|generated_images)\//, "");
+    return "/_health/images/" + encodeURI(p);
+  }
+
   function renderTable(items) {
     const tbody = $("#pcTableBody");
     if (!tbody) return;
@@ -110,11 +119,12 @@
       const stageLabel = item.stage_label || "等待中";
       const stageStatus = item.display_status || item.status || "waiting";
       const error = item.error || "";
+      const coverUrl = imgUrl(item.images);
 
       html +=
         "<tr>" +
         '<td><input type="checkbox" class="pc-checkbox" data-rid="' + esc(rid) + '"' + checked + " /></td>" +
-        '<td><div class="pc-cover">📖</div></td>' +
+        '<td><div class="pc-cover">' + (coverUrl ? '<img src="' + coverUrl + '" style="width:100%;height:100%;object-fit:cover;border-radius:6px" />' : '📖') + '</div></td>' +
         "<td>" +
         '<div class="pc-info-name">' + esc(item.work_name || "未知作品") + "</div>" +
         '<div class="pc-info-meta">' +
