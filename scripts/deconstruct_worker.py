@@ -31,6 +31,31 @@ def _now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _check_xhs_cache(work):
+    """从小红书笔记库获取已有图片提示词"""
+    try:
+        from scripts.feishu_config import get_feishu_config
+        client = FeishuClient()
+        if not client.is_configured():
+            return None
+        cfg = get_feishu_config()
+        table_id = (cfg.get("related_table_ids") or {}).get("小红书笔记库")
+        if not table_id:
+            return None
+        records = client.list_records(table_id, page_size=500)
+        name = work.get("作品名称", "")
+        for r in records:
+            f = r.get("fields", {}) or {}
+            if str(f.get("作品名称", "")) == name:
+                # Check if has any image prompts
+                has_prompts = any(f.get(f"生成配图提示词{i}") for i in range(1, 6))
+                if has_prompts:
+                    return f
+    except Exception:
+        pass
+    return None
+
+
 def _check_cache(work):
     """检查飞书主表是否已有拆解记录，有则返回旧 analysis，否则返回 None"""
     try:
@@ -101,16 +126,22 @@ def process_one(task, dry=False):
 
         # 1.5 缓存检查：作品已拆解则跳过 LLM，但仍生成图片
         force = os.getenv("FORCE_REDECONSTRUCT", "").strip().lower() in ("1", "true", "yes")
-        cached = _check_cache(work) if not force else None
-        if cached:
+        cached_main = _check_cache(work) if not force else None
+        if cached_main:
             _log(rid, "缓存命中，跳过 LLM 调用，尝试补生成图片")
             note_content = "（缓存命中，从飞书主表复用）"
             images = {}
+
+            # 从小红书笔记库获取配图提示词（主表不一定有）
+            cached_xhs = _check_xhs_cache(work)
+            if not cached_xhs:
+                cached_xhs = cached_main
+
             if os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
                 try:
                     from scripts.image_provider import generate_images_for_task
                     update_status(rid, "generating_image")
-                    img_result = generate_images_for_task(cached)
+                    img_result = generate_images_for_task(cached_xhs)
                     if img_result["ok"]:
                         images = img_result["images"]
                         _log(rid, f"图片补生成成功: {list(images.keys())}")
@@ -119,7 +150,7 @@ def process_one(task, dry=False):
                 except Exception as e:
                     _log(rid, f"图片补生成异常: {e}")
             update_status(rid, "done",
-                          deconstruct_result=cached,
+                          deconstruct_result=cached_main,
                           note_content=note_content,
                           images=images)
             result["ok"] = True
