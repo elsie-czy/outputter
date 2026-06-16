@@ -91,6 +91,7 @@
 
   function updateRefreshStatus(text) {
     setText("#autoRefreshStatus", text || "自动刷新中");
+    setText("#footerRefreshStatus", text === "刷新失败" ? "异常" : "运行中");
     const last = $("#lastRefresh");
     if (last) last.textContent = new Date().toLocaleTimeString("zh-CN", { hour12: false });
   }
@@ -132,7 +133,7 @@
     setText("#summaryStage", taskData.stage_label || "—");
 
     // 生产摘要卡
-    var status = taskData.display_status || taskData.status || "pending";
+    var status = normalizeDisplayStatus(taskData.display_status || taskData.status || "pending");
     var statusLabel = getStatusLabel(status, taskData.stage_label);
     var statusEl = $("#summaryStatus");
     if (statusEl) {
@@ -164,8 +165,16 @@
     if (status === "failed") return "失败";
     if (status === "cancelled" || status === "terminated") return "已终止";
     if (status === "human_review") return "待审核";
+    if (status === "processing") return "生产中";
     if (status === "waiting" || status === "pending") return "待处理";
     return fallback || "生产中";
+  }
+
+  function normalizeDisplayStatus(status) {
+    if (status === "completed") return "done";
+    if (status === "review") return "human_review";
+    if (status === "terminated") return "cancelled";
+    return status || "pending";
   }
 
   function formatDuration(seconds) {
@@ -178,23 +187,24 @@
   /* ===== 渲染进度轴 ===== */
   function renderProgress() {
     if (!taskData) return;
-    const status = taskData.display_status || taskData.status;
+    const rawStatus = normalizeDisplayStatus(taskData.display_status || taskData.status);
+    const status = resolveStepStatus(rawStatus, taskData);
     const steps = ["waiting", "deconstructing", "generating_note", "ai_scoring", "human_review", "generating_image", "done"];
-    const failed = status === "failed" || status === "cancelled" || status === "terminated";
-    const currentIdx = failed ? Math.max(0, getTaskProgressIndex(taskData)) : steps.indexOf(status);
+    const failed = rawStatus === "failed" || rawStatus === "cancelled";
+    const currentIdx = failed ? Math.max(0, getTaskProgressIndex(taskData)) : Math.max(0, steps.indexOf(status));
     const stepTimes = taskData.step_times || {};
 
     $$(".td-step").forEach((step, idx) => {
-      step.classList.remove("completed", "active", "failed", "cancelled");
+      step.classList.remove("completed", "active", "failed", "cancelled", "waiting");
       const stepName = step.dataset.step;
       const timeEl = step.querySelector(".td-step-time");
       const outputEl = step.querySelector(".td-step-output");
       
       if (failed && idx === currentIdx) {
-        step.classList.add(status === "cancelled" || status === "terminated" ? "cancelled" : "failed");
-        if (timeEl) timeEl.textContent = status === "failed" ? "失败" : "已终止";
+        step.classList.add(rawStatus === "cancelled" ? "cancelled" : "failed");
+        if (timeEl) timeEl.textContent = rawStatus === "failed" ? "失败" : "已终止";
         if (outputEl) outputEl.textContent = taskData.error || "任务未完成";
-      } else if (idx < currentIdx || status === "done") {
+      } else if (idx < currentIdx || rawStatus === "done") {
         step.classList.add("completed");
         if (timeEl) {
           const stepData = stepTimes[stepName];
@@ -219,6 +229,7 @@
           }
         }
       } else {
+        step.classList.add("waiting");
         if (timeEl) {
           timeEl.textContent = "等待中";
         }
@@ -230,6 +241,16 @@
     var progress = Number(task && task.stage_progress);
     if (!Number.isFinite(progress)) return 0;
     return Math.max(0, Math.min(6, Math.floor(progress)));
+  }
+
+  function resolveStepStatus(status, task) {
+    const steps = ["waiting", "deconstructing", "generating_note", "ai_scoring", "human_review", "generating_image", "done"];
+    if (steps.indexOf(status) >= 0) return status;
+    if (status === "pending") return "waiting";
+    if (status === "processing") {
+      return steps[Math.max(1, Math.min(5, getTaskProgressIndex(task)))] || "deconstructing";
+    }
+    return steps[Math.max(0, Math.min(6, getTaskProgressIndex(task)))] || "waiting";
   }
 
   /* ===== 渲染笔记内容 ===== */
@@ -574,8 +595,11 @@
   function bindActions() {
     // 保存草稿
     bindBtn("#btnSaveDraft", async () => {
-      await apiCall("/api/task/" + taskData.record_id + "/save-draft", "草稿已保存", getDraftPayload());
-      isDraftDirty = false;
+      const result = await apiCall("/api/task/" + taskData.record_id + "/save-draft", "草稿已保存", getDraftPayload());
+      if (result) {
+        isDraftDirty = false;
+        setText("#saveStatus", "已保存 " + new Date().toLocaleTimeString("zh-CN", { hour12: false }));
+      }
       loadTaskDetail(taskData.record_id);
     });
 
@@ -630,8 +654,10 @@
       const json = await res.json();
       if (!json.ok) throw new Error(json.error);
       showToast("success", successMsg || "操作成功");
+      return json;
     } catch (e) {
       showToast("error", "操作失败: " + e.message);
+      return null;
     }
   }
 

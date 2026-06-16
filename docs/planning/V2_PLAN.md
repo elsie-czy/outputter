@@ -488,6 +488,7 @@ V2 页面树
 | C | `docs/operations/planning/task-v2-legacy-migration.md` | refactor | P1 | ☐ | 逐步迁移 `web_app_legacy.py`，控制文件长度和维护成本 |
 | D | `docs/guides/SCREENSHOT_HANDOFF_TEMPLATE.md` | workflow | P0 | ☑ | 固化截图/设计图交付模板，供后续页面开发使用 |
 | E | 任务详情页工作台优化 | UI | P0 | ☑ | 重排顶部概览、进度轴、笔记三栏和 5 秒自动刷新，不改后端 API |
+| F | 任务详情页密度压实优化 | UI | P0 | ☑ | 压实顶部概览、进度轴、Tab 工作区和笔记三栏，提高首屏信息密度 |
 
 ### 8.0 前端架构优化
 
