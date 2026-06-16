@@ -24,36 +24,20 @@
           <span class="td-info-tag" id="taskCategory">—</span>
           <span class="td-info-tag" id="taskWordCount">—</span>
         </div>
-        <div class="td-info-meta">
-          <span>任务ID: <code id="taskId">{{ task_id }}</code></span>
-        </div>
       </div>
     </div>
     <div class="td-header-middle">
-      <div class="td-task-meta-grid">
-        <div class="td-summary-item">
-          <span class="td-summary-label">创建时间</span>
-          <span class="td-summary-value" id="taskCreated">—</span>
+      <div class="td-meta-lines">
+        <div class="td-meta-line">
+          <span>创建 <strong id="taskCreated">—</strong></span>
+          <span>耗时 <strong id="taskDuration">—</strong></span>
+          <span>重试 <strong id="summaryRetries">0</strong></span>
+          <span>阶段 <strong id="summaryStage">—</strong></span>
         </div>
-        <div class="td-summary-item">
-          <span class="td-summary-label">耗时</span>
-          <span class="td-summary-value" id="taskDuration">—</span>
-        </div>
-        <div class="td-summary-item">
-          <span class="td-summary-label">重试次数</span>
-          <span class="td-summary-value" id="summaryRetries">0</span>
-        </div>
-        <div class="td-summary-item">
-          <span class="td-summary-label">当前阶段</span>
-          <span class="td-summary-value" id="summaryStage">—</span>
-        </div>
-        <div class="td-summary-item">
-          <span class="td-summary-label">生成效率</span>
-          <span class="td-summary-value" id="summarySpeed">—</span>
-        </div>
-        <div class="td-summary-item">
-          <span class="td-summary-label">模型</span>
-          <span class="td-summary-value" id="taskModel">—</span>
+        <div class="td-meta-line">
+          <span>效率 <strong id="summarySpeed">—</strong></span>
+          <span>模型 <strong id="taskModel">—</strong></span>
+          <span>任务 <code id="taskId">{{ task_id }}</code></span>
         </div>
       </div>
       <div class="td-refresh-meta">

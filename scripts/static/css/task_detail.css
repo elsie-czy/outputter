@@ -1874,3 +1874,230 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ===== Density fix: rebuild as a full-width task bench ===== */
+.app-shell-content:has(.td-container) {
+  padding: 16px;
+}
+
+.td-container {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 0 72px;
+}
+
+.td-header {
+  grid-template-columns: minmax(300px, 390px) minmax(420px, 1fr) 238px;
+  gap: 18px;
+  min-height: 122px;
+  padding: 16px;
+  align-items: center;
+}
+
+.td-header-left {
+  min-width: 0;
+}
+
+.td-cover,
+.td-cover-img {
+  width: 72px;
+}
+
+.td-cover-img {
+  height: 96px;
+  border-radius: 10px;
+}
+
+.td-header-info {
+  gap: 7px;
+}
+
+.td-info-title {
+  font-size: 24px;
+  line-height: 1.15;
+}
+
+.td-info-tags {
+  gap: 6px;
+}
+
+.td-info-tag {
+  min-height: 22px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--bg-hover);
+}
+
+.td-header-middle {
+  gap: 8px;
+  padding: 0;
+  align-self: stretch;
+  justify-content: center;
+}
+
+.td-task-meta-grid {
+  display: none;
+}
+
+.td-meta-lines {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.td-meta-line {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.td-meta-line span {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.td-meta-line strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.td-meta-line code {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.td-refresh-meta {
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.td-summary-card {
+  min-height: 86px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  gap: 8px;
+}
+
+.td-summary-progress {
+  font-size: 34px;
+}
+
+.td-summary-actions {
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.td-summary-actions .td-btn {
+  height: 30px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.td-steps-bar {
+  padding: 8px 14px;
+}
+
+.td-step {
+  width: 104px;
+}
+
+.td-step-icon {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 5px;
+}
+
+.td-step-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.td-step-label,
+.td-step-time,
+.td-step-output {
+  font-size: 12px;
+}
+
+.td-step-output {
+  max-width: 96px;
+}
+
+.td-step-line {
+  margin-top: 12px;
+}
+
+.td-workspace-panel {
+  width: 100%;
+}
+
+.td-tabs {
+  height: 40px;
+}
+
+.td-tab {
+  height: 40px;
+  padding: 0 20px;
+}
+
+.td-tab-content {
+  padding: 14px;
+  min-height: 0;
+}
+
+.td-note-layout {
+  grid-template-columns: 280px minmax(0, 1fr) 260px;
+  gap: 14px;
+}
+
+.td-cover-preview {
+  min-height: 328px;
+}
+
+.td-cover-preview > img {
+  height: 280px !important;
+}
+
+.td-thumb {
+  width: 44px;
+  height: 58px;
+}
+
+.td-content-textarea {
+  min-height: 280px;
+}
+
+.td-note-right {
+  padding: 12px;
+}
+
+.td-footer {
+  height: 52px;
+}
+
+@media (min-width: 1600px) {
+  .td-note-layout {
+    grid-template-columns: 280px minmax(720px, 1fr) 260px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .td-header {
+    grid-template-columns: 1fr;
+  }
+
+  .td-note-layout {
+    grid-template-columns: 1fr;
+  }
+}
