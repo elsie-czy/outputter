@@ -477,6 +477,17 @@ V2 页面树
 
 > 状态标记：☐ 未开始 | ◐ 进行中 | ☑ 已完成
 
+### 8.-1 主线程任务池
+
+> 用途：主线程用于下发给执行线程的任务单。执行线程优先读取对应 `docs/operations/planning/*.md` 文件。
+
+| # | 任务单 | 类型 | 优先级 | 状态 | 说明 |
+|---|--------|------|--------|------|------|
+| A | `docs/operations/planning/task-v2-stability-baseline.md` | hotfix | P0 | ☐ | 修复 Web/Gunicorn 启动、增加状态归一化、建立稳定基线 |
+| B | `docs/operations/planning/task-v2-production-loop.md` | feature | P0 | ☐ | 打通 worker 评分、任务详情保存、重新评分、修改日志闭环 |
+| C | `docs/operations/planning/task-v2-legacy-migration.md` | refactor | P1 | ☐ | 逐步迁移 `web_app_legacy.py`，控制文件长度和维护成本 |
+| D | `docs/SCREENSHOT_HANDOFF_TEMPLATE.md` | workflow | P0 | ☑ | 固化截图/设计图交付模板，供后续页面开发使用 |
+
 ### 8.0 前端架构优化
 
 > 目标：不动旧版代码，建立新页面架构标准。后续所有 V2 页面走新架构（Jinja2 模板 + 独立 CSS/JS + 可复用组件）

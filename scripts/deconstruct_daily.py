@@ -302,7 +302,67 @@ def build_report(work, search_info, analysis):
     return "\n".join(lines)
 
 
-def build_xhs_note(work, analysis):
+def generate_title_options(work, analysis):
+    """基于xhs-writer-skill的5种标题公式生成标题选项"""
+    name = work.get("作品名称", "")
+    category = work.get("分类", "")
+    p = analysis.get("小红书包装", {})
+    
+    # 提取核心卖点（从开篇套路和冲突设计中提取关键词）
+    opening = analysis.get("开篇套路", [""])[0] if analysis.get("开篇套路") else ""
+    conflict = analysis.get("冲突设计", {}).get("第一层", "")
+    emotion = analysis.get("情绪触发", ["爽感"])[0] if analysis.get("情绪触发") else "爽感"
+    
+    # 提取关键词（去除冗余描述）
+    def _extract_keyword(text, max_len=8):
+        s = re.sub(r"[\s，。、；]", "", str(text))
+        return s[:max_len] if s else ""
+    
+    hook = _extract_keyword(opening)
+    pain_point = _extract_keyword(conflict)
+    
+    # 5种标题公式（来自xhs-writer-skill）
+    titles = []
+    
+    # 公式1：痛点+解决方案
+    if pain_point:
+        titles.append(f"{pain_point}？这本{category}把答案写透了")
+    else:
+        titles.append(f"追{category}总踩雷？这本真的不一样")
+    
+    # 公式2：提问式
+    titles.append(f"有没有那种看完就走不出来的{category}？")
+    
+    # 公式3：发现式
+    if hook:
+        titles.append(f"我发现了个宝藏！{hook}的{category}")
+    else:
+        titles.append(f"我发现了个宝藏！{name}真的绝了")
+    
+    # 公式4：热点词
+    titles.append(f"刷到就是赚到！这本{category}我连刷了三遍")
+    
+    # 公式5：身份共鸣
+    titles.append(f"{category}党必备！{name}把{emotion}拉满了")
+    
+    # 使用原有标题模板（如果有）
+    original_title = p.get("小红书标题模板", "")
+    if original_title and original_title not in titles:
+        titles.insert(0, original_title)
+    
+    return titles
+
+
+def _select_best_title(titles, work):
+    """选择最佳标题（优先选择包含作品名的标题）"""
+    name = work.get("作品名称", "")
+    for t in titles:
+        if name and name in t:
+            return t
+    return titles[0] if titles else ""
+
+
+def build_xhs_note(work, analysis, use_formula=True):
     p = analysis["小红书包装"]
     tags = p.get("热门标签推荐", [])
     if not isinstance(tags, list):
@@ -312,10 +372,35 @@ def build_xhs_note(work, analysis):
     score = str(work.get("评分", "")).strip()
     finish = str(work.get("完结状态", "")).strip()
     lines = []
-    lines.append(f"【标题】{p.get('小红书标题模板', '')}")
+    
+    # 使用5种标题公式生成标题
+    if use_formula:
+        title_options = generate_title_options(work, analysis)
+        best_title = _select_best_title(title_options, work)
+        lines.append(f"【标题】{best_title}")
+        lines.append(f"【备选标题】")
+        for i, t in enumerate(title_options[:5], 1):
+            if t != best_title:
+                lines.append(f"  {i}. {t}")
+    else:
+        lines.append(f"【标题】{p.get('小红书标题模板', '')}")
     lines.append("")
+    
+    # 痛点共鸣开头（参考xhs-writer-skill方法论）
     lines.append("姐妹们我先说结论👇")
     lines.append(f"✨ {_compact_mobile(p.get('正文开头模板', ''), 72)}")
+    lines.append("")
+    
+    # 情绪钩子（使用情绪词库）
+    emotion_hooks = [
+        "这本真的好看哭了😭",
+        "我后悔没早知道这本！",
+        "刷到就是缘分，这本绝了",
+        "我不是最后一个知道的吧！",
+    ]
+    import random
+    lines.append(random.choice(emotion_hooks))
+    lines.append("")
     lines.append("这本不是靠设定噱头撑着走的，是真有阅读粘性的那种。")
     lines.append("我本来只想看几章，结果直接连着刷下去。")
     lines.append("")
@@ -339,6 +424,8 @@ def build_xhs_note(work, analysis):
 
     lines.append("✨ 核心亮点")
     lines.append("")
+    
+    # 聚焦核心卖点（参考xhs-writer-skill：只讲1-2个最稀缺的功能）
     lines.append("🔹 开篇抓人：先抛生存题，再给反转")
     for i, item in enumerate(analysis["开篇套路"][:3], 1):
         lines.append(f"{i}. {_compact_mobile(item, 46)}")
@@ -360,9 +447,32 @@ def build_xhs_note(work, analysis):
     lines.append(f"- 情绪关键词：{_compact_mobile(' / '.join(analysis['情绪触发']), 44)}")
     lines.append(f"- 结构节奏：{_compact_mobile(p.get('正文结构建议', ''), 48)}")
     lines.append("")
+    
+    # 个人推荐点（增加真实感）
     lines.append("🔹 我个人最吃的一点")
-    lines.append("不是“她有多强”，而是她每次做选择都很清醒。")
-    lines.append("这种“我命由我不由人”的劲儿，特别容易代入。")
+    lines.append("不是\"她有多强\"，而是她每次做选择都很清醒。")
+    lines.append("这种\"我命由我不由人\"的劲儿，特别容易代入。")
+    lines.append("")
+
+    lines.append("🔹 人设不扁平，关系有拉扯感")
+    lines.append(f"- 女主：{_compact_mobile(analysis['人物设定']['女主'], 40)}")
+    lines.append(f"- 男主：{_compact_mobile(analysis['人物设定']['男主'], 40)}")
+    lines.append(f"- 配角：{_compact_mobile(analysis['人物设定']['亮点配角'], 40)}")
+    lines.append("")
+
+    lines.append("🔹 冲突是递进的，不是单点吵架")
+    lines.append(f"- 第一层：{_compact_mobile(analysis['冲突设计']['第一层'], 42)}")
+    lines.append(f"- 第二层：{_compact_mobile(analysis['冲突设计']['第二层'], 42)}")
+    lines.append(f"- 第三层：{_compact_mobile(analysis['冲突设计']['第三层'], 42)}")
+    lines.append("")
+
+    lines.append("🔹 情绪反馈稳定，容易追更")
+    lines.append(f"- 情绪关键词：{_compact_mobile(' / '.join(analysis['情绪触发']), 44)}")
+    lines.append(f"- 结构节奏：{_compact_mobile(p.get('正文结构建议', ''), 48)}")
+    lines.append("")
+    lines.append("🔹 我个人最吃的一点")
+    lines.append("不是\"她有多强\"，而是她每次做选择都很清醒。")
+    lines.append("这种\"我命由我不由人\"的劲儿，特别容易代入。")
     lines.append("")
 
     lines.append("📝 可抄作业句子（收藏版）")
@@ -376,14 +486,20 @@ def build_xhs_note(work, analysis):
     lines.append("")
 
     lines.append("💬 我的结论")
-    lines.append("如果你最近想看“有爽点但不空心”的文，这本真的可以试。")
+    lines.append("如果你最近想看\"有爽点但不空心\"的文，这本真的可以试。")
     lines.append("它不是喊口号式的大女主，而是一步步把命运拿回来的过程。")
     lines.append("")
-
+    
+    # CTA行动号召（参考xhs-writer-skill：点赞/收藏/关注）
     lines.append("👇 你来选")
     lines.append(_compact_mobile(p.get("互动话术模板", "你最吃哪类开篇？评论区告诉我"), 56))
     lines.append("我也想抄你们的书单，评论区互相投喂！")
     lines.append("")
+    
+    # 增加收藏引导
+    lines.append("📌 觉得有用就收藏一下，下次书荒不迷路！")
+    lines.append("")
+    
     lines.append("🏷️ 标签")
     lines.append(" ".join(tags))
     # Keep note attachment mobile-friendly; prompts are stored in dedicated Feishu fields.

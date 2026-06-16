@@ -16,6 +16,21 @@
 - 回滚方式：
 - 风险与注意事项：
 
+## 2026-06-16
+- 变更摘要：新增截图/设计图交付模板，并将 V2 接手后的稳定性、生产链路闭环、legacy 迁移拆成主线程可下发任务单。
+- 影响范围：文档 / 协作流程
+- 行为变化：
+  - 新增 `docs/SCREENSHOT_HANDOFF_TEMPLATE.md`，规范截图交付信息、执行线程工作流与验收方式
+  - 新增 `task-v2-stability-baseline.md` / `task-v2-production-loop.md` / `task-v2-legacy-migration.md`
+  - `docs/V2_PLAN.md` 增加主线程任务池
+  - `docs/线程协作规范.md` 增加截图/设计图开发开场模板
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：删除新增文档并回退 `V2_PLAN.md` / `线程协作规范.md` / `CHANGELOG.md` 对应段落
+- 风险与注意事项：
+  - 本次只落文档计划，不修改业务代码
+  - 当前代码仍存在未提交修改：`scripts/deconstruct_daily.py`、`scripts/model_adapter.py`
+
 ## 2026-03-02
 - 变更摘要：增加“选题库-初筛”维护能力（schema 初始化 + 抓取写入 + Web 触发与监控）；Web UI 多次可用性与布局修复（500 修复、表单防挤压、溢出处理、列表可读性提升）。
 - 影响范围：Web / 飞书表结构 / 抓取脚本

@@ -38,6 +38,15 @@ def _local_analyze(work):
             "最狠的报复，是把自己活成想要的样子。",
             "人心最难，是对自己诚实。",
         ],
+        "卖点分析": {
+            "核心卖点": f"{name}的开篇套路和人物设定",
+            "稀缺性评分": 4,
+            "实用性评分": 4,
+            "可感知评分": 5,
+            "总分": 80,
+            "优先级": "核心",
+            "辅助卖点": ["冲突设计层层递进", "情绪触发稳定"],
+        },
         "小红书包装": {
             "小红书标题模板": f"{name}：开篇三步把人拉进坑",
             "封面图描述建议": "大字标题+人物剪影+高对比色",
@@ -92,6 +101,19 @@ def _ensure_analysis_shape(result, work):
     result.setdefault("金句", ["", "", "", "", ""])
     if len(result["金句"]) < 5:
         result["金句"] = (result["金句"] + ["", "", "", "", ""])[:5]
+
+    # 卖点分析字段（参考xhs-writer-skill：稀缺性×实用性×可感知）
+    result.setdefault("卖点分析", {})
+    sa = result["卖点分析"]
+    sa.setdefault("核心卖点", "")
+    sa.setdefault("稀缺性评分", 3)
+    sa.setdefault("实用性评分", 3)
+    sa.setdefault("可感知评分", 3)
+    sa.setdefault("总分", 27)
+    sa.setdefault("优先级", "辅助")
+    sa.setdefault("辅助卖点", [])
+    if not isinstance(sa["辅助卖点"], list):
+        sa["辅助卖点"] = [str(sa["辅助卖点"])] if sa["辅助卖点"] else []
 
     result.setdefault("小红书包装", {})
     p = result["小红书包装"]
@@ -197,6 +219,15 @@ def _openai_analyze(work, reference_notes=None, recent_feedback=None):
         "\"冲突设计\": {\"第一层\":string,\"第二层\":string,\"第三层\":string},"
         "\"情绪触发\": [string,string,string],"
         "\"金句\": [string,string,string,string,string],"
+        "\"卖点分析\": {"
+        "\"核心卖点\":string,"
+        "\"稀缺性评分\":number,"
+        "\"实用性评分\":number,"
+        "\"可感知评分\":number,"
+        "\"总分\":number,"
+        "\"优先级\":string,"
+        "\"辅助卖点\":[string,string]"
+        "},"
         "\"小红书包装\": {"
         "\"小红书标题模板\":string,"
         "\"封面图描述建议\":string,"
