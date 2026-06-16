@@ -14,10 +14,10 @@
 
 | # | 文件 | 为什么读 |
 |---|------|----------|
-| 1 | `docs/开发规范手册.md` | 代码、文件长度、错误处理规范 |
-| 2 | `docs/线程协作规范.md` | 分支、交接摘要、文档同步要求 |
-| 3 | `docs/项目目录结构规范.md` | 目录职责和新增文件位置 |
-| 4 | `docs/V2_PLAN.md` | V2 目标和任务状态 |
+| 1 | `docs/guides/开发规范手册.md` | 代码、文件长度、错误处理规范 |
+| 2 | `docs/guides/线程协作规范.md` | 分支、交接摘要、文档同步要求 |
+| 3 | `docs/guides/项目目录结构规范.md` | 目录职责和新增文件位置 |
+| 4 | `docs/planning/V2_PLAN.md` | V2 目标和任务状态 |
 | 5 | `docker-compose.yml` | 当前容器启动方式 |
 | 6 | `scripts/web_app.py` / `scripts/web/app.py` | Web 启动入口 |
 
@@ -30,7 +30,7 @@
 | `scripts/web_app.py` | 修改 | 增加模块级 `app = create_app()`，保证 `gunicorn scripts.web_app:app` 可启动 |
 | `docker-compose.yml` | 修改 | 确认 web 使用正确 app target；runner 后续可切 worker，但本线程只修启动错误 |
 | `scripts/queue_manager.py` | 小改 | 增加状态归一化函数，不大改业务 |
-| `docs/V2_PLAN.md` | 修改 | 记录稳定性基线任务状态 |
+| `docs/planning/V2_PLAN.md` | 修改 | 记录稳定性基线任务状态 |
 | `docs/CHANGELOG.md` | 修改 | 记录本次稳定性修复 |
 
 ---

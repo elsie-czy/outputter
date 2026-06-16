@@ -24,7 +24,7 @@ worker缓存: 原始飞书字段 or 可分析JSON           |  值类型: 混杂
 | `scripts/data_normalizer.py` | **新建** | 数据格式归一化模块，全项目唯一入口 |
 | `scripts/web/routes/task_detail_page.py` | **修改** | deconstruct_result 转换改用 normalizer |
 | `scripts/deconstruct_worker.py` | **修改** | `_feishu_to_analysis_format` 改用 normalizer |
-| `docs/V2_PLAN.md` | **修改** | 更新进度，新增"稳定性措施"章节 |
+| `docs/planning/V2_PLAN.md` | **修改** | 更新进度，新增"稳定性措施"章节 |
 
 === **技术要点** ===
 

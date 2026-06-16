@@ -18,8 +18,8 @@ V2 队列、worker、任务详情页和质量评分模块已经具备雏形，�
 
 | # | 文件 | 为什么读 |
 |---|------|----------|
-| 1 | `docs/V2_PLAN.md` | V2.1 质量闭环目标 |
-| 2 | `docs/V2_DECONSTRUCT_CENTER.md` | 任务详情、评分、修改日志设计 |
+| 1 | `docs/planning/V2_PLAN.md` | V2.1 质量闭环目标 |
+| 2 | `docs/planning/V2_DECONSTRUCT_CENTER.md` | 任务详情、评分、修改日志设计 |
 | 3 | `scripts/deconstruct_worker.py` | 生产链路主入口 |
 | 4 | `scripts/queue_manager.py` | 队列状态与结果写入 |
 | 5 | `scripts/quality_scorer.py` | AI 评分模块 |
@@ -37,7 +37,7 @@ V2 队列、worker、任务详情页和质量评分模块已经具备雏形，�
 | `scripts/web/routes/task_detail_page.py` | 修改 | 接通重新评分、保存草稿、重新生成笔记，不再返回占位成功 |
 | `scripts/web/routes/note_api.py` | 修改 | 保存修改后同步更新队列与飞书 |
 | `scripts/static/js/task_detail.js` | 修改 | 对接真实 API，展示保存/评分结果 |
-| `docs/V2_PLAN.md` | 修改 | 更新 V2.1 闭环任务状态 |
+| `docs/planning/V2_PLAN.md` | 修改 | 更新 V2.1 闭环任务状态 |
 | `docs/CHANGELOG.md` | 修改 | 记录行为变化 |
 
 ---

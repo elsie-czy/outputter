@@ -14,7 +14,7 @@
 - 方式 B：`Docker Compose`（推荐，一键拉起，便于后续升级）
 
 阿里云 ECS 专用最小化上线清单：
-- 见 `docs/ALIYUN_ECS_CHECKLIST.md`
+- 见 `docs/operations/ALIYUN_ECS_CHECKLIST.md`
 
 ---
 

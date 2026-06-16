@@ -6,7 +6,7 @@
 
 === **背景** ===
 
-`docs/ui-rules.md` 已发布为全项目 UI 规范，但现有 CSS 和 JS 文件中存在 40 处不合规：蓝色残留（应改为绿色主色）、非标准字号（11px/13px/15px）、废弃 CSS 变量。本线程只做样式对齐，不新增任何功能。
+`docs/guides/ui-rules.md` 已发布为全项目 UI 规范，但现有 CSS 和 JS 文件中存在 40 处不合规：蓝色残留（应改为绿色主色）、非标准字号（11px/13px/15px）、废弃 CSS 变量。本线程只做样式对齐，不新增任何功能。
 
 ---
 
@@ -14,7 +14,7 @@
 
 | # | 文件 | 为什么读 |
 |---|------|----------|
-| 1 | `docs/ui-rules.md` | 目标规范——所有颜色、字号、圆角、按钮标准 |
+| 1 | `docs/guides/ui-rules.md` | 目标规范——所有颜色、字号、圆角、按钮标准 |
 | 2 | `scripts/static/css/base.css` | CSS 变量定义，修改时确认变量存在 |
 
 ---
@@ -97,7 +97,7 @@
 
 ### 文件5：`scripts/web/templates/_components/status_badge.html`
 
-根据 `docs/ui-rules.md` Rule 10，状态系统改为 5 态：
+根据 `docs/guides/ui-rules.md` Rule 10，状态系统改为 5 态：
 
 ```jinja2
 {% macro status_badge(status, text=None) %}

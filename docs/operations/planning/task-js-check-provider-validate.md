@@ -17,7 +17,7 @@
 | `scripts/web/app.py` | **修改** | `create_app()` 中增加启动时配置校验函数调用 |
 | `scripts/check_js.sh` | **新建** | JS 语法检查脚本 |
 | `scripts/image_provider.py` | **修改** | 未知 provider 时抛出明确错误而非静默降级 |
-| `docs/V2_PLAN.md` | **修改** | 更新进度 |
+| `docs/planning/V2_PLAN.md` | **修改** | 更新进度 |
 
 ---
 

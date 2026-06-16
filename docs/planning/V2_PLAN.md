@@ -486,7 +486,7 @@ V2 页面树
 | A | `docs/operations/planning/task-v2-stability-baseline.md` | hotfix | P0 | ☐ | 修复 Web/Gunicorn 启动、增加状态归一化、建立稳定基线 |
 | B | `docs/operations/planning/task-v2-production-loop.md` | feature | P0 | ☐ | 打通 worker 评分、任务详情保存、重新评分、修改日志闭环 |
 | C | `docs/operations/planning/task-v2-legacy-migration.md` | refactor | P1 | ☐ | 逐步迁移 `web_app_legacy.py`，控制文件长度和维护成本 |
-| D | `docs/SCREENSHOT_HANDOFF_TEMPLATE.md` | workflow | P0 | ☑ | 固化截图/设计图交付模板，供后续页面开发使用 |
+| D | `docs/guides/SCREENSHOT_HANDOFF_TEMPLATE.md` | workflow | P0 | ☑ | 固化截图/设计图交付模板，供后续页面开发使用 |
 
 ### 8.0 前端架构优化
 

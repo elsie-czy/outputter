@@ -623,10 +623,10 @@ def v2_test():
 
 === **规范要求** ===
 
-- `docs/线程协作规范.md` §二 核心红线、§五 交接摘要模板
-- `docs/开发规范手册.md` §1.3 Jinja2 模板规范、§二 文件长度限制
-- `docs/项目目录结构规范.md` 命名规范（文件名 snake_case）
-- `docs/V2_PLAN.md` §6 页面层级结构、§8.0 任务清单
+- `docs/guides/线程协作规范.md` §二 核心红线、§五 交接摘要模板
+- `docs/guides/开发规范手册.md` §1.3 Jinja2 模板规范、§二 文件长度限制
+- `docs/guides/项目目录结构规范.md` 命名规范（文件名 snake_case）
+- `docs/planning/V2_PLAN.md` §6 页面层级结构、§8.0 任务清单
 
 ---
 

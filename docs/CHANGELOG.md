@@ -16,15 +16,32 @@
 - 回滚方式：
 - 风险与注意事项：
 
+## 2026-06-16（docs 结构整理）
+- 变更摘要：规整 `docs/` 目录结构，新增文档总入口 `docs/INDEX.md`，按总览、规划、规范、运维四类归档文档。
+- 影响范围：文档 / 协作流程
+- 行为变化：
+  - 项目总览与历史文档移动到 `docs/overview/`
+  - V2 规划、页面设计与 schema 文档移动到 `docs/planning/`
+  - 开发、协作、UI、截图交付规范移动到 `docs/guides/`
+  - 运维、部署、ECS 检查清单保留在 `docs/operations/`
+  - 主线程任务单继续放在 `docs/operations/planning/`
+  - 后续新增全局文档必须同步更新 `docs/INDEX.md`
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退本次文档移动、`docs/INDEX.md`、路径引用修正和本条变更记录
+- 风险与注意事项：
+  - 本次只调整文档结构与引用，不修改业务代码
+  - 历史任务单中的文档路径已同步改为新目录
+
 ## 2026-06-16
 - 变更摘要：新增截图/设计图交付模板，并将 V2 接手后的稳定性、生产链路闭环、legacy 迁移拆成主线程可下发任务单。
 - 影响范围：文档 / 协作流程
 - 行为变化：
-  - 新增 `docs/SCREENSHOT_HANDOFF_TEMPLATE.md`，规范截图交付信息、执行线程工作流与验收方式
+  - 新增 `docs/guides/SCREENSHOT_HANDOFF_TEMPLATE.md`，规范截图交付信息、执行线程工作流与验收方式
   - 新增 `task-v2-stability-baseline.md` / `task-v2-production-loop.md` / `task-v2-legacy-migration.md`
-  - `docs/V2_PLAN.md` 增加主线程任务池
-  - `docs/线程协作规范.md` 增加截图/设计图开发开场模板
-  - `docs/线程协作规范.md` 补充 Codex 额度与上下文控制规则，吸收旧项目 `CODEX_GIT_THREAD_PROTOCOL.md` 中适用于本项目的部分
+  - `docs/planning/V2_PLAN.md` 增加主线程任务池
+  - `docs/guides/线程协作规范.md` 增加截图/设计图开发开场模板
+  - `docs/guides/线程协作规范.md` 补充 Codex 额度与上下文控制规则，吸收旧项目 `CODEX_GIT_THREAD_PROTOCOL.md` 中适用于本项目的部分
 - 配置变更（.env）：无
 - 数据迁移/回填动作：无
 - 回滚方式：删除新增文档并回退 `V2_PLAN.md` / `线程协作规范.md` / `CHANGELOG.md` 对应段落

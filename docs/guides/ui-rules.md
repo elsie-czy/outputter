@@ -370,7 +370,7 @@ scripts/web/templates/_components/
 
 ### 开发纪律
 
-- 所有新页面必须遵守 `docs/ui-rules.md`
+- 所有新页面必须遵守 `docs/guides/ui-rules.md`
 - 禁止单页面自定义设计体系
 - 所有组件优先复用 `templates/_components/`
 - 颜色禁止硬编码，必须用 `var(--color-*)`

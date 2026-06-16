@@ -14,9 +14,9 @@
 
 | # | 文件 | 为什么读 |
 |---|------|----------|
-| 1 | `docs/开发规范手册.md` | 文件长度与模块拆分规范 |
-| 2 | `docs/项目目录结构规范.md` | V2 目录职责 |
-| 3 | `docs/ui-rules.md` | 样式迁移时保持 UI 规范 |
+| 1 | `docs/guides/开发规范手册.md` | 文件长度与模块拆分规范 |
+| 2 | `docs/guides/项目目录结构规范.md` | V2 目录职责 |
+| 3 | `docs/guides/ui-rules.md` | 样式迁移时保持 UI 规范 |
 | 4 | `scripts/web_app_legacy.py` | 识别待迁移函数 |
 | 5 | `scripts/web/routes/` | 现有 Blueprint 结构 |
 | 6 | `scripts/web/services/` | 现有服务层结构 |
@@ -53,7 +53,7 @@
 | `scripts/web/routes/xhs_api.py` | 承接小红书笔记库 API | 保持返回结构 |
 | `scripts/web/services/xhs_fields.py` | 承接字段转换 | 已存在，继续补齐 |
 | `scripts/web/services/xhs_preview_data.py` | 承接预览数据 | 已存在，继续补齐 |
-| `docs/V2_PLAN.md` | 更新迁移进度 | 标记已迁移范围 |
+| `docs/planning/V2_PLAN.md` | 更新迁移进度 | 标记已迁移范围 |
 
 ---
 

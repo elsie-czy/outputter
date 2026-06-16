@@ -267,4 +267,4 @@
 - 提供回滚命令并验证可恢复。
 
 5. 文档验收
-- `DAILY_COLLAB_NOTES.md`、`CHANGELOG.md`、`PROJECT_OVERVIEW.md` 同步更新。
+- `docs/overview/DAILY_COLLAB_NOTES.md`、`docs/CHANGELOG.md`、`docs/overview/PROJECT_OVERVIEW.md` 同步更新。

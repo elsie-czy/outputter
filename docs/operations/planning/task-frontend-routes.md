@@ -18,7 +18,7 @@
 | `scripts/web/routes/landing_page.py` | **新建** | Flask Blueprint，注册 `/` 和 `/deconstruct` 路由 |
 | `scripts/web/routes/__init__.py` | **修改** | import 并注册 landing_page Blueprint |
 | `scripts/web_app_legacy.py` | **最小修改** | 侧边栏 `<ul>` 追加一行 `<li><a>` 链接到新版首页 |
-| `docs/V2_PLAN.md` | **修改** | 更新任务清单 0.12-0.15 状态为 ☑ |
+| `docs/planning/V2_PLAN.md` | **修改** | 更新任务清单 0.12-0.15 状态为 ☑ |
 
 === **技术要点** ===
 
@@ -112,7 +112,7 @@ web_app_legacy.py 改动：
 
 ### 5. 路由规范约定更新
 
-更新 `docs/V2_PLAN.md` 中的 0.12 任务状态，确认规范已在文档中明确（§6 页面架构 技术方案部分）。
+更新 `docs/planning/V2_PLAN.md` 中的 0.12 任务状态，确认规范已在文档中明确（§6 页面架构 技术方案部分）。
 
 === **验证** ===
 
@@ -136,8 +136,8 @@ python scripts/web_app.py
 
 === **规范要求** ===
 
-- 遵循 `docs/线程协作规范.md` §五（交接摘要）、§六（文档更新）
-- 遵循 `docs/V2_PLAN.md` §8.0 任务清单 0.12-0.15
+- 遵循 `docs/guides/线程协作规范.md` §五（交接摘要）、§六（文档更新）
+- 遵循 `docs/planning/V2_PLAN.md` §8.0 任务清单 0.12-0.15
 
 === **分支** ===
 
@@ -157,7 +157,7 @@ git commit -m "feat: V2 前端路由注册 — landing_page blueprint + /legacy 
 
 | # | 任务 | 产出物 |
 |---|------|--------|
-| 0.12 | 新页面路由规范约定（确认 `docs/V2_PLAN.md` §6 技术方案 已明确） | 规范确认 |
+| 0.12 | 新页面路由规范约定（确认 `docs/planning/V2_PLAN.md` §6 技术方案 已明确） | 规范确认 |
 | 0.13 | 创建 `scripts/web/routes/landing_page.py` + 注册到 `__init__.py` | 路由文件 |
 | 0.14 | 旧版 `web_app_legacy.py` 修改：`/` → `/legacy` + 侧边栏追加新版入口 | 旧版兼容 |
 | 0.15 | 启动验证所有人项：新旧页面共存、API 正常、组件渲染、导航正确 | 验收通过 |
