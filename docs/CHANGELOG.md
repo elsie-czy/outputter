@@ -24,6 +24,7 @@
   - 新增 `task-v2-stability-baseline.md` / `task-v2-production-loop.md` / `task-v2-legacy-migration.md`
   - `docs/V2_PLAN.md` 增加主线程任务池
   - `docs/线程协作规范.md` 增加截图/设计图开发开场模板
+  - `docs/线程协作规范.md` 补充 Codex 额度与上下文控制规则，吸收旧项目 `CODEX_GIT_THREAD_PROTOCOL.md` 中适用于本项目的部分
 - 配置变更（.env）：无
 - 数据迁移/回填动作：无
 - 回滚方式：删除新增文档并回退 `V2_PLAN.md` / `线程协作规范.md` / `CHANGELOG.md` 对应段落
