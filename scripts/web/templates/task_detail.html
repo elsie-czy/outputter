@@ -10,51 +10,60 @@
 {% block content %}
 <div class="td-container" data-task-id="{{ task_id }}">
 
-  <!-- ===== 顶部信息区（三层结构） ===== -->
+  <!-- ===== 顶部任务概览 ===== -->
   <div class="td-header">
     <div class="td-header-left">
       <div class="td-cover">
         <div class="td-cover-img">📖</div>
       </div>
       <div class="td-header-info">
-        <!-- 第一层：标题 -->
         <h1 class="td-info-title" id="taskTitle">加载中...</h1>
-        <!-- 第二层：元信息 -->
         <div class="td-info-tags" id="taskMeta">
+          <span class="td-info-tag" id="taskAuthor">—</span>
           <span class="td-info-tag" id="taskPlatform">—</span>
           <span class="td-info-tag" id="taskCategory">—</span>
           <span class="td-info-tag" id="taskWordCount">—</span>
-          <span class="td-info-tag td-info-tag--model" id="taskModel">—</span>
         </div>
-        <!-- 第三层：任务弱信息 -->
         <div class="td-info-meta">
           <span>任务ID: <code id="taskId">{{ task_id }}</code></span>
           <span>创建: <span id="taskCreated">—</span></span>
           <span>耗时: <span id="taskDuration">—</span></span>
+          <span>重试: <span id="summaryRetries">0</span></span>
+        </div>
+        <div class="td-refresh-meta">
+          <span id="autoRefreshStatus">自动刷新中</span>
+          <span>最近刷新: <span id="lastRefresh">—</span></span>
         </div>
       </div>
     </div>
-    <!-- 右侧：生产摘要卡 -->
     <div class="td-header-right">
       <div class="td-summary-card">
-        <div class="td-summary-status" id="summaryStatus">已完成</div>
+        <div class="td-summary-topline">
+          <div class="td-summary-status" id="summaryStatus">加载中</div>
+          <div class="td-summary-progress"><span id="summaryProgress">0</span>%</div>
+        </div>
         <div class="td-summary-grid">
           <div class="td-summary-item">
             <span class="td-summary-label">总耗时</span>
             <span class="td-summary-value" id="summaryDuration">—</span>
           </div>
           <div class="td-summary-item">
-            <span class="td-summary-label">模型</span>
-            <span class="td-summary-value" id="summaryModel">—</span>
+            <span class="td-summary-label">当前阶段</span>
+            <span class="td-summary-value" id="summaryStage">—</span>
           </div>
           <div class="td-summary-item">
             <span class="td-summary-label">生成效率</span>
             <span class="td-summary-value" id="summarySpeed">—</span>
           </div>
           <div class="td-summary-item">
-            <span class="td-summary-label">重试次数</span>
-            <span class="td-summary-value" id="summaryRetries">0</span>
+            <span class="td-summary-label">模型</span>
+            <span class="td-summary-value" id="taskModel">—</span>
           </div>
+        </div>
+        <div class="td-summary-actions">
+          <button class="td-btn td-btn--secondary td-btn--small" id="btnRefresh">手动刷新</button>
+          <button class="td-btn td-btn--secondary td-btn--small" id="btnRegenerate">重新生成</button>
+          <button class="td-btn td-btn--secondary td-btn--small" id="btnRescore">重新评分</button>
         </div>
       </div>
     </div>
@@ -128,11 +137,11 @@
     </div>
   </div>
 
-  <!-- ===== Tab导航（重排：笔记→评分→拆文→修改记录） ===== -->
+  <!-- ===== Tab导航 ===== -->
   <div class="td-tabs">
     <button class="td-tab active" data-tab="note">笔记内容</button>
-    <button class="td-tab" data-tab="score">AI评分</button>
     <button class="td-tab" data-tab="deconstruct">拆文结果</button>
+    <button class="td-tab" data-tab="score">AI评分</button>
     <button class="td-tab" data-tab="history">修改记录</button>
   </div>
 
@@ -150,8 +159,6 @@
           <!-- 操作栏 -->
           <div class="td-note-actions">
             <button class="td-btn td-btn--secondary td-btn--small" id="btnRegenerateNote">重新生成</button>
-            <button class="td-btn td-btn--secondary td-btn--small" id="btnGenerateImage">生成图片</button>
-            <button class="td-btn td-btn--secondary td-btn--small" id="btnExport">导出MD</button>
           </div>
           <div class="td-editor-title">
             <input type="text" id="noteTitle" class="td-title-input" placeholder="笔记标题..." />
@@ -167,7 +174,7 @@
             </div>
           </div>
           <div class="td-editor-tags">
-            <div class="td-tags-header">标签 <span class="text-muted" style="font-size:11px">（点击 × 删除）</span></div>
+            <div class="td-tags-header">标签 <span class="td-inline-muted">点击 × 删除</span></div>
             <div class="td-tags-list" id="tagsList"></div>
             <div class="td-tags-suggest" id="tagsSuggest"></div>
             <button class="td-tag-add" id="addTagBtn">+ 添加标签</button>
@@ -177,28 +184,24 @@
         <div class="td-note-right">
           <div class="td-ai-section-title">AI 编辑建议</div>
           <div class="td-ai-advice-list" id="aiAdviceList">
-            <div class="td-ai-advice-card">
-              <div class="td-ai-advice-problem">⛔ 标题缺少冲突感</div>
-              <div class="td-ai-advice-compare">
-                <div class="td-ai-advice-before">❌ 当前：<span class="ai-before-text">—</span></div>
-                <div class="td-ai-advice-after">✅ 推荐：<span class="ai-after-text">—</span></div>
-              </div>
-              <div class="td-ai-advice-reason">📌 增加反差 + 情绪钩子，预计提升点击率</div>
-              <button class="td-btn td-btn--small td-btn--primary td-ai-apply">应用此建议</button>
-            </div>
+            <div class="td-empty-state td-empty-state--compact">暂无 AI 建议，重新评分后会显示改进方向</div>
           </div>
-          <!-- 关键词 -->
-          <div class="td-ai-section-title" style="margin-top:12px">智能标签推荐</div>
+          <div class="td-ai-section-title">字数统计</div>
+          <div class="td-editor-stats">
+            <div><span id="sideWordCount">0</span><small>正文字符</small></div>
+            <div><span id="sideTagCount">0</span><small>标签数</small></div>
+          </div>
+          <div class="td-ai-section-title">关键词建议</div>
           <div class="td-keywords" id="keywordSuggestions">
-            <span class="td-keyword td-keyword--add">+ 情绪爆点</span>
-            <span class="td-keyword td-keyword--add">+ 反转剧情</span>
-            <span class="td-keyword td-keyword--add">+ 爽文结构</span>
+            <span class="td-keyword td-keyword--add">情绪爆点</span>
+            <span class="td-keyword td-keyword--add">反转剧情</span>
+            <span class="td-keyword td-keyword--add">爽文结构</span>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Tab2: AI评分 -->
+    <!-- Tab3: AI评分 -->
     <div class="td-tab-pane" id="tabScore">
       <div class="td-score-layout">
         <div class="td-score-total">
@@ -246,9 +249,10 @@
           </div>
         </div>
       </div>
+      <div class="td-empty-state td-empty-state--compact" id="scoreEmptyState">暂无评分数据，点击重新评分后会显示六维质量评估</div>
     </div>
 
-    <!-- Tab3: 拆文结果 -->
+    <!-- Tab2: 拆文结果 -->
     <div class="td-tab-pane" id="tabDeconstruct">
       <div class="td-deconstruct-list">
         {% set sections = [
@@ -288,8 +292,7 @@
     </div>
     <div class="td-footer-right">
       <button class="td-btn td-btn--secondary" id="btnSaveDraft">保存草稿</button>
-      <button class="td-btn td-btn--primary" id="btnApprove">保存并通过</button>
-      <button class="td-btn td-btn--secondary" id="btnRegenerate">重新生成全部</button>
+      <button class="td-btn td-btn--primary" id="btnApprove">通过审核</button>
     </div>
   </div>
 

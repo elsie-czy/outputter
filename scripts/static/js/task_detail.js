@@ -13,6 +13,11 @@
   /* ===== 状态 ===== */
   let taskData = null;
   let currentTab = "note";
+  let autoRefreshTimer = null;
+  let isDraftDirty = false;
+  let editorHasFocus = false;
+  let currentTaskId = null;
+  const AUTO_REFRESH_MS = 5000;
 
   /* ===== DOM 缓存 ===== */
   const $ = (sel) => document.querySelector(sel);
@@ -23,31 +28,71 @@
     const container = $(".td-container");
     if (!container) return;
     const taskId = container.dataset.taskId;
+    currentTaskId = taskId;
     loadTaskDetail(taskId);
     bindTabs();
     bindActions();
     bindCollapses();
     bindEditor();
+    startAutoRefresh(taskId);
+    window.addEventListener("pagehide", stopAutoRefresh);
+    window.addEventListener("beforeunload", stopAutoRefresh);
     renderHistory();
   });
 
   /* ===== 数据加载 ===== */
-  async function loadTaskDetail(taskId) {
+  async function loadTaskDetail(taskId, options) {
+    options = options || {};
     try {
       const res = await fetch("/api/task/" + taskId);
       const json = await res.json();
       if (!json.ok) throw new Error(json.error);
       taskData = json.data;
+      const preserveDraft = options.preserveDraft || shouldPreserveDraft();
       renderTaskInfo();
       renderProgress();
-      renderNote();
+      if (!preserveDraft) {
+        renderNote();
+      } else {
+        updateTitleCount();
+        updateWordCount();
+        updateSideStats();
+      }
       renderDeconstruct();
       renderScore();
       renderImages();
       renderHistory();
+      updateRefreshStatus(options.auto ? "自动刷新中" : "已刷新");
     } catch (e) {
+      updateRefreshStatus("刷新失败");
       showToast("error", "加载失败: " + e.message);
     }
+  }
+
+  function startAutoRefresh(taskId) {
+    stopAutoRefresh();
+    updateRefreshStatus("自动刷新中");
+    autoRefreshTimer = window.setInterval(function() {
+      if (document.hidden) return;
+      loadTaskDetail(taskId, { auto: true, preserveDraft: shouldPreserveDraft() });
+    }, AUTO_REFRESH_MS);
+  }
+
+  function stopAutoRefresh() {
+    if (autoRefreshTimer) {
+      window.clearInterval(autoRefreshTimer);
+      autoRefreshTimer = null;
+    }
+  }
+
+  function shouldPreserveDraft() {
+    return editorHasFocus || isDraftDirty;
+  }
+
+  function updateRefreshStatus(text) {
+    setText("#autoRefreshStatus", text || "自动刷新中");
+    const last = $("#lastRefresh");
+    if (last) last.textContent = new Date().toLocaleTimeString("zh-CN", { hour12: false });
   }
 
   /* ===== 渲染修改记录 ===== */
@@ -76,17 +121,24 @@
   function renderTaskInfo() {
     if (!taskData) return;
     setText("#taskTitle", taskData.work_name || "未知作品");
+    setText("#taskAuthor", taskData.author || "作者未知");
     setText("#taskPlatform", taskData.platform || "—");
     setText("#taskCategory", taskData.category || "—");
     setText("#taskWordCount", fmtWordCount(taskData.word_count));
     setText("#taskModel", "Qwen-Plus");
     setText("#taskCreated", taskData.created_at || "—");
     setText("#taskId", taskData.record_id || "—");
+    setText("#summaryProgress", taskData.progress_percent != null ? taskData.progress_percent : 0);
+    setText("#summaryStage", taskData.stage_label || "—");
 
     // 生产摘要卡
-    var done = taskData.display_status === "done" || taskData.status === "done";
-    setText("#summaryStatus", done ? "已完成 ✅" : (taskData.stage_label || "生产中"));
-    document.getElementById("summaryStatus").style.color = done ? "var(--color-primary)" : "var(--color-blue)";
+    var status = taskData.display_status || taskData.status || "pending";
+    var statusLabel = getStatusLabel(status, taskData.stage_label);
+    var statusEl = $("#summaryStatus");
+    if (statusEl) {
+      statusEl.textContent = statusLabel;
+      statusEl.className = "td-summary-status status-" + status;
+    }
     setText("#summaryRetries", taskData.retry_count || 0);
 
     if (taskData.processing_start && taskData.completed_at) {
@@ -105,7 +157,15 @@
       setText("#summaryDuration", formatDuration(elapsed));
       setText("#summarySpeed", "—");
     }
-    setText("#summaryModel", "Qwen-Plus");
+  }
+
+  function getStatusLabel(status, fallback) {
+    if (status === "done" || status === "completed") return "已完成";
+    if (status === "failed") return "失败";
+    if (status === "cancelled" || status === "terminated") return "已终止";
+    if (status === "human_review") return "待审核";
+    if (status === "waiting" || status === "pending") return "待处理";
+    return fallback || "生产中";
   }
 
   function formatDuration(seconds) {
@@ -120,15 +180,21 @@
     if (!taskData) return;
     const status = taskData.display_status || taskData.status;
     const steps = ["waiting", "deconstructing", "generating_note", "ai_scoring", "human_review", "generating_image", "done"];
-    const currentIdx = steps.indexOf(status);
+    const failed = status === "failed" || status === "cancelled" || status === "terminated";
+    const currentIdx = failed ? Math.max(0, getTaskProgressIndex(taskData)) : steps.indexOf(status);
     const stepTimes = taskData.step_times || {};
 
     $$(".td-step").forEach((step, idx) => {
-      step.classList.remove("completed", "active");
+      step.classList.remove("completed", "active", "failed", "cancelled");
       const stepName = step.dataset.step;
       const timeEl = step.querySelector(".td-step-time");
+      const outputEl = step.querySelector(".td-step-output");
       
-      if (idx < currentIdx) {
+      if (failed && idx === currentIdx) {
+        step.classList.add(status === "cancelled" || status === "terminated" ? "cancelled" : "failed");
+        if (timeEl) timeEl.textContent = status === "failed" ? "失败" : "已终止";
+        if (outputEl) outputEl.textContent = taskData.error || "任务未完成";
+      } else if (idx < currentIdx || status === "done") {
         step.classList.add("completed");
         if (timeEl) {
           const stepData = stepTimes[stepName];
@@ -160,6 +226,12 @@
     });
   }
 
+  function getTaskProgressIndex(task) {
+    var progress = Number(task && task.stage_progress);
+    if (!Number.isFinite(progress)) return 0;
+    return Math.max(0, Math.min(6, Math.floor(progress)));
+  }
+
   /* ===== 渲染笔记内容 ===== */
   /* ===== 渲染笔记 ===== */
   function openLightbox(url) {
@@ -174,14 +246,23 @@
   }
 
   function renderImages() {
-    if (!taskData || !taskData.images) return;
+    var coverEl = document.querySelector(".td-cover-img");
+    var previewEl = document.querySelector(".td-cover-preview");
+    if (!taskData || !taskData.images || !Object.keys(taskData.images).length) {
+      if (coverEl) coverEl.innerHTML = '<span aria-hidden="true">📖</span>';
+      if (previewEl) {
+        previewEl.innerHTML = '<div class="td-empty-state">暂无图片<br>封面和配图生成后会显示在这里</div>';
+      }
+      return;
+    }
     var imgs = taskData.images;
     var keys = Object.keys(imgs);
-    if (!keys.length) return;
     var coverUrl = _toImageUrl(imgs.cover || imgs[keys[0]]);
-    if (!coverUrl) return;
+    if (!coverUrl) {
+      if (previewEl) previewEl.innerHTML = '<div class="td-empty-state">暂无可预览图片</div>';
+      return;
+    }
 
-    var coverEl = document.querySelector(".td-cover-img");
     if (coverEl) {
       coverEl.textContent = "";
       coverEl.style.position = "relative";
@@ -191,13 +272,15 @@
       img.onerror = function() { this.parentElement.textContent = "📖"; };
       img.onclick = function() { openLightbox(this.src); };
       coverEl.appendChild(img);
-      // hover 操作层
       var hover = document.createElement("div");
       hover.className = "td-cover-hover-layer";
-      hover.innerHTML = '<button onclick="event.stopPropagation();openLightbox(\'' + coverUrl + '\')">查看大图</button><button onclick="event.stopPropagation()">重新生成</button><button onclick="event.stopPropagation()">下载</button>';
+      hover.innerHTML = '<button type="button">查看大图</button>';
+      hover.querySelector("button").onclick = function(event) {
+        event.stopPropagation();
+        openLightbox(coverUrl);
+      };
       coverEl.appendChild(hover);
     }
-    var previewEl = document.querySelector(".td-cover-preview");
     if (previewEl) {
       previewEl.textContent = "";
       var mainImg = document.createElement("img");
@@ -206,12 +289,18 @@
       mainImg.onclick = function() { openLightbox(this.src); };
       previewEl.appendChild(mainImg);
       var thumbRow = document.createElement("div");
-      thumbRow.style.cssText = "display:flex;gap:4px;width:100%;flex-shrink:0;padding:0 4px;flex-wrap:wrap";
+      thumbRow.className = "td-thumb-row";
       keys.forEach(function(k, i) {
+        var thumbUrl = _toImageUrl(imgs[k]);
+        if (!thumbUrl) return;
         var thumb = document.createElement("img");
-        thumb.src = _toImageUrl(imgs[k]);
-        thumb.style.cssText = "width:56px;height:74px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid " + (i === 0 ? "var(--color-primary)" : "var(--border)");
-        thumb.onclick = function() { mainImg.src = this.src; };
+        thumb.src = thumbUrl;
+        thumb.className = "td-thumb" + (i === 0 ? " active" : "");
+        thumb.onclick = function() {
+          mainImg.src = this.src;
+          $$(".td-thumb").forEach(function(el) { el.classList.remove("active"); });
+          this.classList.add("active");
+        };
         thumb.onerror = function() { this.style.display = "none"; };
         thumbRow.appendChild(thumb);
       });
@@ -251,11 +340,14 @@
         for (var i = 0; i < note.tags.length; i++) {
           var span = document.createElement("span");
           span.className = "td-tag";
-          span.textContent = note.tags[i];
+          span.innerHTML = esc(note.tags[i]) + '<span class="td-tag-remove" data-tag="' + esc(note.tags[i]) + '">×</span>';
           tagsList.appendChild(span);
         }
+      } else {
+        tagsList.innerHTML = '<span class="td-empty-inline">暂无标签</span>';
       }
     }
+    updateSideStats();
   }
 
   /* ===== 渲染拆文结果 ===== */
@@ -263,7 +355,7 @@
     if (!taskData || !taskData.deconstruct_result) {
       // 没有拆文结果
       $$(".td-collapse-content").forEach(el => {
-        el.innerHTML = '<div style="color:#999; padding:20px; text-align:center;">暂无拆文结果，请先运行拆文任务</div>';
+        el.innerHTML = '<div class="td-empty-state td-empty-state--compact">暂无拆文结果，请先运行拆文任务</div>';
       });
       return;
     }
@@ -290,7 +382,7 @@
     var el = document.getElementById(id);
     if (!el || !items || !items.length) {
       if (el) {
-        el.querySelector(".td-collapse-content").innerHTML = '<div style="color:#999;padding:12px">内容为空，可点击重试获得完整结果</div>';
+        el.querySelector(".td-collapse-content").innerHTML = '<div class="td-empty-state td-empty-state--compact">内容为空，可点击重试获得完整结果</div>';
       }
       return;
     }
@@ -309,15 +401,16 @@
       setText("#scoreInteraction", "—");
       setText("#scoreStyle", "—");
       setText("#scoreAi", "—");
+      const empty = $("#scoreEmptyState");
+      if (empty) empty.style.display = "flex";
       
-      const suggestionsList = $("#suggestionsList");
-      if (suggestionsList) {
-        suggestionsList.innerHTML = '<div style="color:#999; padding:20px; text-align:center;">暂无评分数据</div>';
-      }
+      renderAdvice([]);
       return;
     }
     
     const score = taskData.note_content.score;
+    const empty = $("#scoreEmptyState");
+    if (empty) empty.style.display = "none";
 
     setText("#totalScore", score.total || 0);
     setText("#scoreTitle", (score.title_attract || 0) + "/30");
@@ -351,12 +444,19 @@
     });
 
     // AI建议
-    const suggestionsList = $("#suggestionsList");
-    if (suggestionsList && score.suggestions) {
-      suggestionsList.innerHTML = score.suggestions.map((s) =>
-        '<div class="td-suggestion-item">' + esc(s) + "</div>"
-      ).join("");
+    renderAdvice(score.suggestions || []);
+  }
+
+  function renderAdvice(suggestions) {
+    const adviceList = $("#aiAdviceList");
+    if (!adviceList) return;
+    if (!suggestions || !suggestions.length) {
+      adviceList.innerHTML = '<div class="td-empty-state td-empty-state--compact">暂无 AI 建议，重新评分后会显示改进方向</div>';
+      return;
     }
+    adviceList.innerHTML = suggestions.map(function(s) {
+      return '<div class="td-suggestion-item">' + esc(s) + "</div>";
+    }).join("");
   }
 
   /* ===== Tab切换 ===== */
@@ -391,13 +491,30 @@
   function bindEditor() {
     const titleInput = $("#noteTitle");
     if (titleInput) {
-      titleInput.addEventListener("input", updateTitleCount);
+      titleInput.addEventListener("input", function() {
+        isDraftDirty = true;
+        updateTitleCount();
+      });
     }
 
     const contentArea = $("#noteContent");
     if (contentArea) {
-      contentArea.addEventListener("input", updateWordCount);
+      contentArea.addEventListener("input", function() {
+        isDraftDirty = true;
+        updateWordCount();
+      });
     }
+
+    ["#noteTitle", "#noteContent", "#tagsList"].forEach(function(sel) {
+      const el = $(sel);
+      if (!el) return;
+      el.addEventListener("focusin", function() { editorHasFocus = true; });
+      el.addEventListener("focusout", function() {
+        window.setTimeout(function() {
+          editorHasFocus = !!document.activeElement && !!document.activeElement.closest("#noteTitle, #noteContent, #tagsList");
+        }, 0);
+      });
+    });
 
     // 添加标签
     const addTagBtn = $("#addTagBtn");
@@ -409,7 +526,11 @@
           const tagEl = document.createElement("span");
           tagEl.className = "td-tag";
           tagEl.innerHTML = esc(tag.trim()) + '<span class="td-tag-remove" data-tag="' + esc(tag.trim()) + '">×</span>';
+          const empty = tagsList.querySelector(".td-empty-inline");
+          if (empty) empty.remove();
           tagsList.appendChild(tagEl);
+          isDraftDirty = true;
+          updateSideStats();
         }
       });
     }
@@ -418,6 +539,8 @@
     document.addEventListener("click", (e) => {
       if (e.target.classList.contains("td-tag-remove")) {
         e.target.parentElement.remove();
+        isDraftDirty = true;
+        updateSideStats();
       }
     });
   }
@@ -428,6 +551,7 @@
     if (input && counter) {
       counter.textContent = input.value.length;
     }
+    updateSideStats();
   }
 
   function updateWordCount() {
@@ -436,6 +560,14 @@
     if (textarea && counter) {
       counter.textContent = textarea.value.length;
     }
+    updateSideStats();
+  }
+
+  function updateSideStats() {
+    const content = $("#noteContent");
+    const tags = $$("#tagsList .td-tag");
+    setText("#sideWordCount", content ? content.value.length : 0);
+    setText("#sideTagCount", tags.length);
   }
 
   /* ===== 操作按钮 ===== */
@@ -443,6 +575,7 @@
     // 保存草稿
     bindBtn("#btnSaveDraft", async () => {
       await apiCall("/api/task/" + taskData.record_id + "/save-draft", "草稿已保存", getDraftPayload());
+      isDraftDirty = false;
       loadTaskDetail(taskData.record_id);
     });
 
@@ -470,6 +603,10 @@
         note_content: ($("#noteContent") || {}).value || ""
       });
       loadTaskDetail(taskData.record_id);
+    });
+
+    bindBtn("#btnRefresh", async () => {
+      await loadTaskDetail((taskData && taskData.record_id) || currentTaskId, { preserveDraft: shouldPreserveDraft() });
     });
   }
 
