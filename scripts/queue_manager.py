@@ -20,6 +20,28 @@ STATUS_FAILED = "failed"
 STATUS_PAUSED = "paused"
 STATUS_CANCELLED = "cancelled"
 
+
+def normalize_status(status) -> str:
+    """Map legacy worker stages to the stable UI status set."""
+    mapping = {
+        "waiting": "pending",
+        "pending": "pending",
+        "retry": "pending",
+        "paused": "pending",
+        "processing": "processing",
+        "deconstructing": "processing",
+        "generating_note": "processing",
+        "ai_scoring": "processing",
+        "generating_image": "processing",
+        "human_review": "review",
+        "review": "review",
+        "done": "completed",
+        "completed": "completed",
+        "failed": "failed",
+        "cancelled": "failed",
+    }
+    return mapping.get(str(status or "").strip().lower(), "pending")
+
 # 阶段进度映射（共6步）
 STAGE_PROGRESS = {
     STATUS_WAITING: 0,
@@ -133,10 +155,17 @@ def get_queue(status=None, platform=None, category=None, q=None, page=1, per_pag
     if not items:
         return {"items": [], "total": 0, "page": page, "per_page": per_page}
 
+    items = [_with_normalized_status(i) for i in items]
+
     # 筛选
     filtered = items
     if status:
-        filtered = [i for i in filtered if i.get("status") == status]
+        wanted = {
+            normalize_status(s)
+            for s in str(status).split(",")
+            if str(s).strip()
+        }
+        filtered = [i for i in filtered if i.get("normalized_status") in wanted]
     if platform:
         filtered = [i for i in filtered if i.get("platform") == platform]
     if category:
@@ -156,6 +185,12 @@ def get_queue(status=None, platform=None, category=None, q=None, page=1, per_pag
         "page": page,
         "per_page": per_page,
     }
+
+
+def _with_normalized_status(item: dict) -> dict:
+    normalized = dict(item)
+    normalized["normalized_status"] = normalize_status(item.get("status"))
+    return normalized
 
 
 def update_status(record_id, status, error=None, deconstruct_result=None,
@@ -309,11 +344,11 @@ def retry_task(record_id):
 
 def get_stats():
     """队列统计：今日产出/完成率/均耗时"""
-    items = read_jsonl(QUEUE_FILE)
+    items = [_with_normalized_status(i) for i in read_jsonl(QUEUE_FILE)]
     today = datetime.now().strftime("%Y-%m-%d")
     total = len(items)
-    done = [i for i in items if i.get("status") == "done"]
-    failed = [i for i in items if i.get("status") == "failed"]
+    done = [i for i in items if i.get("normalized_status") == "completed"]
+    failed = [i for i in items if i.get("normalized_status") == "failed"]
     today_done = [i for i in done
                    if str(i.get("completed_at", "")).startswith(today)]
 
@@ -341,7 +376,9 @@ def get_stats():
         "total": total,
         "done": len(done),
         "failed": len(failed),
-        "pending": total - len(done) - len(failed),
+        "pending": len([i for i in items if i.get("normalized_status") == "pending"]),
+        "processing": len([i for i in items if i.get("normalized_status") == "processing"]),
+        "review": len([i for i in items if i.get("normalized_status") == "review"]),
         "today_done": len(today_done),
         "completion_rate": completion_rate,
         "avg_duration_sec": avg_duration,
@@ -353,6 +390,6 @@ def get_next_pending():
     """获取下一个待处理任务"""
     items = read_jsonl(QUEUE_FILE)
     for i in items:
-        if i.get("status") in ("pending", "retry"):
+        if normalize_status(i.get("status")) == "pending":
             return i
     return None

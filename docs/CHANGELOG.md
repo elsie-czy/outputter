@@ -16,6 +16,21 @@
 - 回滚方式：
 - 风险与注意事项：
 
+## 2026-06-16（V2 稳定性基线）
+- 变更摘要：修复 Web WSGI 启动入口，并为拆文队列增加轻量状态归一化。
+- 影响范围：Web / 队列 / Docker 启动链路
+- 行为变化：
+  - `scripts/web_app.py` 暴露模块级 `app`，匹配 `gunicorn scripts.web_app:app`
+  - `scripts/queue_manager.py` 新增 `normalize_status()`，把旧阶段状态映射到 `pending` / `processing` / `review` / `completed` / `failed`
+  - 队列查询、统计和待处理任务选择兼容旧状态，不强制迁移历史 JSONL
+  - `docs/planning/V2_PLAN.md` 将稳定性基线任务标记为完成
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/web_app.py`、`scripts/queue_manager.py`、`docs/planning/V2_PLAN.md` 和本条记录
+- 风险与注意事项：
+  - 本次不接 AI 评分闭环，不改任务详情页，不重构 legacy 页面
+  - 历史 JSONL 中的原始 `status` 字段保持不变，仅在读取层归一化
+
 ## 2026-06-16（docs 结构整理）
 - 变更摘要：规整 `docs/` 目录结构，新增文档总入口 `docs/INDEX.md`，按总览、规划、规范、运维四类归档文档。
 - 影响范围：文档 / 协作流程
