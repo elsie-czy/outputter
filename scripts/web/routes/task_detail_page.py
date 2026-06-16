@@ -1,7 +1,21 @@
+from datetime import datetime
+
 from flask import Blueprint, jsonify, render_template, request
 
-from scripts.queue_manager import get_queue, update_status, retry_task, get_task_progress, is_task_truly_done
+from scripts.queue_manager import (
+    QUEUE_FILE,
+    get_queue,
+    get_task_progress,
+    is_task_truly_done,
+    read_jsonl,
+    update_status,
+    update_task_fields,
+    write_jsonl,
+)
 from scripts.data_normalizer import normalize_feishu_record, normalize_for_frontend
+from scripts.deconstruct_daily import build_xhs_note
+from scripts.model_adapter import analyze_work
+from scripts.quality_scorer import score_note
 
 bp = Blueprint("web_task_detail", __name__)
 
@@ -69,7 +83,7 @@ def task_detail_api(task_id):
                 "title": title,
                 "content": note_content,
                 "tags": [],
-                "score": None,
+                "score": _format_score(task.get("quality_score")),
             }
         else:
             # 笔记内容是 markdown 字符串
@@ -77,8 +91,9 @@ def task_detail_api(task_id):
                 "title": _extract_title(str(note_content)),
                 "content": str(note_content),
                 "tags": _extract_tags(str(note_content)),
-                "score": None,
+                "score": _format_score(task.get("quality_score")),
             }
+        task["modification_log"] = task.get("modification_log", "")
         
         return jsonify({"ok": True, "data": task})
     except Exception as e:
@@ -111,12 +126,136 @@ def _extract_tags(note_content):
     return tags
 
 
+def _find_task(task_id):
+    items = read_jsonl(QUEUE_FILE)
+    for item in items:
+        if item.get("record_id") == task_id:
+            return item
+    return None
+
+
+def _format_score(score):
+    if not isinstance(score, dict):
+        return None
+    suggestion = score.get("suggestion", "")
+    return {
+        "total": score.get("total", 0),
+        "title_attract": score.get("title_appeal", 0),
+        "emotion": score.get("emotion_density", 0),
+        "collect_value": score.get("collection_value", 0),
+        "interaction": score.get("interaction_guide", 0),
+        "style_match": score.get("xhs_style_match", 0),
+        "ai_trace": score.get("ai_trace", 0),
+        "grade": score.get("grade", ""),
+        "suggestions": [suggestion] if suggestion else [],
+    }
+
+
+def _compose_note(title, content, tags):
+    title = str(title or "").strip()
+    content = str(content or "").strip()
+    clean_tags = [str(t).strip().lstrip("#") for t in (tags or []) if str(t).strip()]
+    parts = []
+    if title:
+        parts.append(f"# {title}")
+    if content:
+        parts.append(content)
+    if clean_tags:
+        parts.append("标签：" + " ".join(f"#{tag}" for tag in clean_tags))
+    return "\n\n".join(parts).strip()
+
+
+def _build_modification_log(task, new_note, quality_score):
+    old_note = str(task.get("note_content") or "")
+    changed = []
+    if _extract_title(old_note) != _extract_title(new_note):
+        changed.append("标题")
+    if old_note.strip() != new_note.strip():
+        changed.append("正文")
+    if _extract_tags(old_note) != _extract_tags(new_note):
+        changed.append("标签")
+    if not changed:
+        changed.append("草稿")
+    total = 0
+    if isinstance(quality_score, dict):
+        total = quality_score.get("total", 0)
+    return (
+        f"{datetime.now().strftime('%Y%m%d %H:%M')} | "
+        f"字段: {'/'.join(changed)} | 说明: 人工修改 | 评分:{total}"
+    )
+
+
+def _append_local_modification_log(task, log_line):
+    current = str(task.get("modification_log") or "").strip()
+    return log_line if not current else f"{current}\n{log_line}"
+
+
+def _save_to_feishu_note(task, title, content, tags, log_line, score):
+    xhs_record_id = task.get("xhs_record_id")
+    if not xhs_record_id:
+        return {"attempted": False, "ok": False, "error": "missing xhs_record_id"}
+    try:
+        from scripts.feishu_client import FeishuClient
+        from scripts.feishu_config import get_feishu_config
+
+        client = FeishuClient()
+        cfg = get_feishu_config()
+        xhs_table_id = (cfg.get("related_table_ids") or {}).get("小红书笔记库")
+        if not xhs_table_id or not client.is_configured():
+            return {"attempted": False, "ok": False, "error": "feishu not configured"}
+
+        patch = {}
+        if title:
+            patch["小红书标题模板"] = title
+        if content:
+            patch["正文开头模板"] = content
+        if tags:
+            patch["热门标签推荐"] = tags
+        if patch:
+            client.update_record_in_table(xhs_table_id, xhs_record_id, patch)
+        log_ok = client.save_modification_log(
+            xhs_table_id,
+            xhs_record_id,
+            _diff_log_for_feishu(log_line),
+            score.get("total", 0) if isinstance(score, dict) else 0,
+        )
+        return {"attempted": True, "ok": bool(log_ok), "error": None if log_ok else "log write failed"}
+    except Exception as e:
+        return {"attempted": True, "ok": False, "error": str(e)}
+
+
+def _diff_log_for_feishu(log_line):
+    parts = [p.strip() for p in str(log_line or "").split("|")]
+    if len(parts) >= 3:
+        return " | ".join(parts[1:-1])
+    return str(log_line or "").strip()
+
+
 @bp.post("/api/task/<task_id>/regenerate-note")
 def regenerate_note(task_id):
     """重新生成笔记"""
     try:
-        # TODO: 调用 model_adapter.generate_note()
-        return jsonify({"ok": True, "message": "笔记重新生成中..."})
+        task = _find_task(task_id)
+        if not task:
+            return jsonify({"ok": False, "error": "任务不存在"}), 404
+        work = {
+            "作品名称": task.get("work_name", ""),
+            "作者": task.get("author", ""),
+            "平台": task.get("platform", ""),
+            "分类": task.get("category", ""),
+        }
+        analysis = analyze_work(work)
+        note_text = build_xhs_note(work, analysis)
+        score = score_note(note_text)
+        updated = update_task_fields(
+            task_id,
+            deconstruct_result=analysis,
+            note_content=note_text,
+            quality_score=score,
+        )
+        if not updated:
+            return jsonify({"ok": False, "error": "任务不存在"}), 404
+        return jsonify({"ok": True, "data": {"note_content": note_text, "quality_score": score}})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -125,8 +264,15 @@ def regenerate_note(task_id):
 def rescore_note(task_id):
     """重新评分"""
     try:
-        # TODO: 调用 quality_scorer.score_note()
-        return jsonify({"ok": True, "message": "重新评分中..."})
+        task = _find_task(task_id)
+        if not task:
+            return jsonify({"ok": False, "error": "任务不存在"}), 404
+        note_text = str((request.get_json(silent=True) or {}).get("note_content") or task.get("note_content") or "")
+        if not note_text.strip():
+            return jsonify({"ok": False, "error": "笔记内容为空"}), 400
+        score = score_note(note_text)
+        update_task_fields(task_id, quality_score=score)
+        return jsonify({"ok": True, "data": {"quality_score": score, "score": _format_score(score)}})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -135,9 +281,34 @@ def rescore_note(task_id):
 def save_draft(task_id):
     """保存草稿"""
     try:
-        data = request.get_json()
-        # TODO: 写入飞书笔记库
-        return jsonify({"ok": True, "message": "草稿已保存"})
+        task = _find_task(task_id)
+        if not task:
+            return jsonify({"ok": False, "error": "任务不存在"}), 404
+        data = request.get_json(force=True) or {}
+        title = data.get("title", "")
+        content = data.get("content", "")
+        tags = data.get("tags", [])
+        note_text = _compose_note(title, content, tags)
+        if not note_text:
+            return jsonify({"ok": False, "error": "草稿内容为空"}), 400
+
+        score = task.get("quality_score") if isinstance(task.get("quality_score"), dict) else {}
+        log_line = _build_modification_log(task, note_text, score)
+        local_log = _append_local_modification_log(task, log_line)
+        feishu_result = _save_to_feishu_note(task, title, content, tags, log_line, score)
+        update_task_fields(
+            task_id,
+            note_content=note_text,
+            modification_log=local_log,
+        )
+        return jsonify({
+            "ok": True,
+            "data": {
+                "saved": True,
+                "modification_log": log_line,
+                "feishu": feishu_result,
+            },
+        })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -158,7 +329,6 @@ def retry_task_api(task_id):
     """重试任务——重置为 pending 强制重新拆文"""
     try:
         # queue_manager.retry_task 只处理 failed，这里强制重置
-        from scripts.queue_manager import get_queue, write_jsonl, read_jsonl, QUEUE_FILE
         items = read_jsonl(QUEUE_FILE)
         for i in items:
             if i.get("record_id") == task_id:
@@ -172,7 +342,5 @@ def retry_task_api(task_id):
                 write_jsonl(QUEUE_FILE, items)
                 return jsonify({"ok": True, "data": {"retried": True, "message": "已重置，worker 将重新拆文"}})
         return jsonify({"ok": False, "error": "任务未找到"}), 404
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500

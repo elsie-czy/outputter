@@ -225,6 +225,35 @@ def update_status(record_id, status, error=None, deconstruct_result=None,
     return updated
 
 
+def update_task_fields(record_id, **fields):
+    """更新队列记录的指定字段，不改变任务状态。"""
+    allowed = {
+        "note_content",
+        "quality_score",
+        "modification_log",
+        "main_record_id",
+        "xhs_record_id",
+        "deconstruct_result",
+        "images",
+        "step_times",
+    }
+    patch = {k: v for k, v in fields.items() if k in allowed}
+    if not patch:
+        return False
+
+    items = read_jsonl(QUEUE_FILE)
+    updated = False
+    for item in items:
+        if item.get("record_id") == record_id:
+            item.update(patch)
+            item["updated_at"] = _now()
+            updated = True
+            break
+    if updated:
+        write_jsonl(QUEUE_FILE, items)
+    return updated
+
+
 def pause_task(record_id):
     """暂停任务"""
     items = read_jsonl(QUEUE_FILE)
@@ -369,7 +398,8 @@ def get_stats():
 
     completion_rate = round(len(done) / total * 100, 1) if total > 0 else 0
 
-    scores = [i.get("quality_score") for i in items if i.get("quality_score")]
+    scores = [_score_total(i.get("quality_score")) for i in items if i.get("quality_score")]
+    scores = [s for s in scores if s is not None]
     avg_score = round(sum(scores) / len(scores), 1) if scores else None
 
     return {
@@ -393,3 +423,14 @@ def get_next_pending():
         if normalize_status(i.get("status")) == "pending":
             return i
     return None
+
+
+def _score_total(score):
+    if isinstance(score, dict):
+        value = score.get("total")
+    else:
+        value = score
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None

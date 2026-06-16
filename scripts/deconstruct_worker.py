@@ -18,7 +18,9 @@ from scripts.related_sync import sync_related, update_main_links
 from scripts.utils import append_jsonl, now_ts
 from scripts.queue_manager import (
     get_next_pending, update_status, retry_task, _acquire_lock, _release_lock,
+    update_task_fields,
 )
+from scripts.quality_scorer import score_note
 from scripts.data_normalizer import normalize_feishu_record, normalize_feishu_value
 
 # Import from deconstruct_daily
@@ -88,6 +90,34 @@ def _log(rid, msg):
     log_path = os.path.join(PATHS["logs"], "deconstruct_worker.log")
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(f"[{ts}] [{rid}] {msg}\n")
+
+
+def _score_note_for_task(rid, note_text, step_times):
+    t_score = time.perf_counter()
+    update_status(rid, "ai_scoring")
+    try:
+        score = score_note(note_text)
+        _log(rid, f"AI评分完成: {score.get('total', 0)}")
+    except Exception as e:
+        _log(rid, f"AI评分失败，使用降级评分: {e}")
+        score = {
+            "title_appeal": 0,
+            "emotion_density": 0,
+            "collection_value": 0,
+            "interaction_guide": 0,
+            "xhs_style_match": 0,
+            "ai_trace": 0,
+            "total": 0,
+            "grade": "retry",
+            "suggestion": f"评分失败: {e}",
+            "_fallback": True,
+        }
+    step_times["ai_scoring"] = {
+        "done": _now(),
+        "duration": round(time.perf_counter() - t_score, 1),
+    }
+    update_task_fields(rid, quality_score=score)
+    return score
 
 
 def process_one(task, dry=False):
@@ -160,6 +190,7 @@ def process_one(task, dry=False):
             if not cached_xhs_img:
                 cached_xhs_img = cached_main
 
+            quality_score = _score_note_for_task(rid, note_content, step_times)
             if os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
                 try:
                     from scripts.image_provider import generate_images_for_task
@@ -175,6 +206,8 @@ def process_one(task, dry=False):
             update_status(rid, "done",
                           deconstruct_result=analysis,
                           note_content=note_content,
+                          quality_score=quality_score,
+                          step_times=step_times,
                           images=images)
             result["ok"] = True
             return result
@@ -196,6 +229,7 @@ def process_one(task, dry=False):
         safe_name = f"{work.get('作品名称', '未知作品')}_{work.get('作者', '未知作者')}"
         report = build_report(work, search_info, analysis)
         xhs_note = build_xhs_note(work, analysis)
+        quality_score = _score_note_for_task(rid, xhs_note, step_times)
 
         report_path = os.path.join(PATHS["outputs"], "拆解报告", f"{run_date}_{safe_name}_拆解报告.md")
         os.makedirs(os.path.dirname(report_path), exist_ok=True)
@@ -214,8 +248,6 @@ def process_one(task, dry=False):
         if client.is_configured():
             record_id = sync_to_feishu(work, search_info, analysis)
             _log(rid, f"飞书主表写入完成, record_id={record_id}")
-            step_times["ai_scoring"] = {"done": _now(), "duration": round(time.perf_counter() - t_feishu, 1)}
-
             if record_id:
                 # 5. 写入小红书笔记库
                 try:
@@ -234,7 +266,6 @@ def process_one(task, dry=False):
                         _log(rid, f"关联表同步失败: {e}")
         else:
             _log(rid, "飞书未配置，跳过同步")
-            step_times["ai_scoring"] = {"done": _now(), "duration": 0}
 
         # 7. 本地记录
         step_times["generating_note"] = {"done": _now(), "duration": round(time.perf_counter() - t_note, 1)}
@@ -259,7 +290,9 @@ def process_one(task, dry=False):
         update_status(rid, "done",
                        deconstruct_result=analysis,
                        note_content=xhs_note,
+                       quality_score=quality_score,
                        step_times=step_times)
+        update_task_fields(rid, main_record_id=record_id, xhs_record_id=xhs_record_id)
 
         # 9. 生成图片（如果启用）
         images = {}

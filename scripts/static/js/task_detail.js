@@ -44,6 +44,7 @@
       renderDeconstruct();
       renderScore();
       renderImages();
+      renderHistory();
     } catch (e) {
       showToast("error", "加载失败: " + e.message);
     }
@@ -54,45 +55,19 @@
     const timeline = $("#historyTimeline");
     if (!timeline) return;
     
-    var history = [
-      {
-        time: "2026-06-13 10:24",
-        type: "标题优化",
-        before: "重生后我逆袭豪门",
-        after: "重生后我打脸豪门所有人",
-        reason: "提高点击率：增加冲突感和反转期待"
-      },
-      {
-        time: "2026-06-13 10:22",
-        type: "正文优化",
-        before: "这是一本非常好看的文，推荐给大家",
-        after: "谁懂啊！！这本让我通宵看完的文，后劲太大了...",
-        reason: "增加网感，强化情绪钩子，降低AI痕迹"
-      },
-      {
-        time: "2026-06-13 10:20",
-        type: "标签优化",
-        before: "#网文拆解 #写作套路",
-        after: "#爽文推荐 #重生逆袭 #爆款拆解 #虐渣打脸",
-        reason: "精准化标签，提升搜索曝光和兴趣匹配"
-      }
-    ];
+    var logText = taskData && taskData.modification_log ? String(taskData.modification_log) : "";
+    var history = logText.split("\n").filter(Boolean);
     
     if (history.length === 0) {
       timeline.innerHTML = '<div class="td-history-empty">暂无修改记录，完成修改后自动生成</div>';
       return;
     }
     
-    timeline.innerHTML = history.map(function(item) {
+    timeline.innerHTML = history.slice().reverse().map(function(item) {
       return '<div class="td-history-item">' +
-        '<div class="td-history-time">' + esc(item.time) + '</div>' +
+        '<div class="td-history-time">' + esc(item.split("|")[0] || "") + '</div>' +
         '<div class="td-history-content">' +
-        '<div class="td-history-type">' + esc(item.type) + '</div>' +
-        '<div class="td-history-diff">' +
-          '<div class="td-history-before"><span class="td-diff-label">修改前：</span><span class="td-diff-text td-diff-removed">' + esc(item.before) + '</span></div>' +
-          '<div class="td-history-after"><span class="td-diff-label">修改后：</span><span class="td-diff-text td-diff-added">' + esc(item.after) + '</span></div>' +
-        '</div>' +
-        '<div class="td-history-reason"><strong>原因：</strong>' + esc(item.reason) + '</div>' +
+        '<div class="td-history-type">' + esc(item) + '</div>' +
       '</div></div>';
     }).join("");
   }
@@ -467,7 +442,8 @@
   function bindActions() {
     // 保存草稿
     bindBtn("#btnSaveDraft", async () => {
-      await apiCall("/api/task/" + taskData.record_id + "/save-draft", "草稿已保存");
+      await apiCall("/api/task/" + taskData.record_id + "/save-draft", "草稿已保存", getDraftPayload());
+      loadTaskDetail(taskData.record_id);
     });
 
     // 通过审核
@@ -479,22 +455,41 @@
     // 重新生成
     bindBtn("#btnRegenerate", async () => {
       await apiCall("/api/task/" + taskData.record_id + "/regenerate-note", "重新生成中...");
+      loadTaskDetail(taskData.record_id);
     });
 
     // 重新生成笔记
     bindBtn("#btnRegenerateNote", async () => {
       await apiCall("/api/task/" + taskData.record_id + "/regenerate-note", "重新生成中...");
+      loadTaskDetail(taskData.record_id);
     });
 
     // 重新评分
     bindBtn("#btnRescore", async () => {
-      await apiCall("/api/task/" + taskData.record_id + "/rescore", "重新评分中...");
+      await apiCall("/api/task/" + taskData.record_id + "/rescore", "重新评分完成", {
+        note_content: ($("#noteContent") || {}).value || ""
+      });
+      loadTaskDetail(taskData.record_id);
     });
   }
 
-  async function apiCall(url, successMsg) {
+  function getDraftPayload() {
+    return {
+      title: ($("#noteTitle") || {}).value || "",
+      content: ($("#noteContent") || {}).value || "",
+      tags: Array.from(document.querySelectorAll("#tagsList .td-tag")).map(function(el) {
+        return (el.childNodes[0] ? el.childNodes[0].textContent : el.textContent).replace("×", "").trim();
+      }).filter(Boolean)
+    };
+  }
+
+  async function apiCall(url, successMsg, payload) {
     try {
-      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" } });
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {})
+      });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error);
       showToast("success", successMsg || "操作成功");

@@ -16,6 +16,23 @@
 - 回滚方式：
 - 风险与注意事项：
 
+## 2026-06-16（V2 生产链路闭环）
+- 变更摘要：打通 worker AI 评分、任务详情保存草稿、重新评分、重新生成笔记与修改日志闭环。
+- 影响范围：Worker / Web API / 队列 / 飞书笔记库
+- 行为变化：
+  - `deconstruct_worker.py` 在笔记生成后调用 `quality_scorer.score_note()`，评分失败时写入降级评分且不阻断主流程
+  - 队列记录支持保存 dict 格式 `quality_score`、`modification_log`、飞书主表和小红书笔记库 record_id
+  - `POST /api/task/<task_id>/rescore` 写回队列评分
+  - `POST /api/task/<task_id>/save-draft` 写回队列草稿和本地修改日志；存在 `xhs_record_id` 且飞书可用时同步小红书笔记库
+  - `POST /api/task/<task_id>/regenerate-note` 重新拆解生成笔记并写回队列
+  - `docs/planning/V2_PLAN.md` 将生产链路闭环任务标记为完成
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退本次涉及的 worker、队列、任务详情 API、笔记 API、任务详情 JS 和文档变更
+- 风险与注意事项：
+  - 本次不做低分自动重生成，不重构 legacy 页面，不改 Docker 结构
+  - 历史队列记录若没有 `xhs_record_id`，保存草稿仍会写队列，但不会同步飞书修改日志
+
 ## 2026-06-16（V2 稳定性基线）
 - 变更摘要：修复 Web WSGI 启动入口，并为拆文队列增加轻量状态归一化。
 - 影响范围：Web / 队列 / Docker 启动链路
