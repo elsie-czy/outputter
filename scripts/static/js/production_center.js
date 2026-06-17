@@ -18,6 +18,7 @@
   let selectedIds = new Set();
   let pendingAction = null;
   const PAGE_SIZE = 20;
+  const POLL_MS = 5000;
 
   /* ===== DOM 缓存 ===== */
   const $ = (sel) => document.querySelector(sel);
@@ -31,7 +32,9 @@
     bindTabs();
     bindBatchMenu();
     bindModal();
-    pollInterval = setInterval(loadStats, 30000);
+    pollInterval = setInterval(refreshVisibleData, POLL_MS);
+    window.addEventListener("pagehide", stopPolling);
+    window.addEventListener("beforeunload", stopPolling);
   });
 
   /* ===== 数据加载 ===== */
@@ -56,10 +59,13 @@
     } catch (_) {}
   }
 
-  async function loadList() {
+  async function loadList(options) {
+    options = options || {};
     const tbody = $("#pcTableBody");
     if (!tbody) return;
-    tbody.innerHTML = '<tr class="pc-loading"><td colspan="8">加载中...</td></tr>';
+    if (!options.silent) {
+      tbody.innerHTML = '<tr class="pc-loading"><td colspan="8">加载中...</td></tr>';
+    }
 
     try {
       const q = ($("#pcSearch")?.value || "").trim();
@@ -95,6 +101,18 @@
       renderPagination(Math.ceil(total / PAGE_SIZE));
     } catch (e) {
       tbody.innerHTML = '<tr class="pc-empty"><td colspan="8">加载失败: ' + esc(e.message) + '</td></tr>';
+    }
+  }
+
+  function refreshVisibleData() {
+    loadStats();
+    loadList({ silent: true });
+  }
+
+  function stopPolling() {
+    if (pollInterval) {
+      clearInterval(pollInterval);
+      pollInterval = null;
     }
   }
 

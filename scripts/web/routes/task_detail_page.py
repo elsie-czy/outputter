@@ -79,19 +79,19 @@ def task_detail_api(task_id):
             if not title and not body:
                 title = task.get('work_name', '') + ' 拆解笔记'
                 body = "请运行拆文任务获取笔记内容"
-            note_content = f"标题：{title}\n\n{body}"
             task["note_content"] = {
                 "title": title,
-                "content": note_content,
+                "content": body,
                 "tags": [],
                 "score": _format_score(task.get("quality_score")),
             }
         else:
             # 笔记内容是 markdown 字符串
+            note_text = str(note_content)
             task["note_content"] = {
-                "title": _extract_title(str(note_content)),
-                "content": str(note_content),
-                "tags": _extract_tags(str(note_content)),
+                "title": _extract_title(note_text),
+                "content": _extract_body(note_text),
+                "tags": _extract_tags(note_text),
                 "score": _format_score(task.get("quality_score")),
             }
         task["modification_log"] = task.get("modification_log", "")
@@ -110,9 +110,27 @@ def _extract_title(note_content):
         line = line.strip()
         if line.startswith("# "):
             return line[2:].strip()
+        if line.startswith("【标题】"):
+            return line.replace("【标题】", "", 1).strip()
+        if line.startswith("标题："):
+            return line.replace("标题：", "", 1).strip()
+        if line.startswith("标题:"):
+            return line.replace("标题:", "", 1).strip()
         if line and not line.startswith("#"):
             return line[:50]
     return ""
+
+
+def _extract_body(note_content):
+    """去掉单独标题行，避免正文编辑框重复出现“标题：”。"""
+    if not note_content:
+        return ""
+    lines = str(note_content).splitlines()
+    if lines:
+        first = lines[0].strip()
+        if first.startswith("# ") or first.startswith("【标题】") or first.startswith("标题：") or first.startswith("标题:"):
+            return "\n".join(lines[1:]).lstrip()
+    return str(note_content)
 
 
 def _extract_tags(note_content):

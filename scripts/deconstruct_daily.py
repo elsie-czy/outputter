@@ -388,7 +388,7 @@ def build_xhs_note(work, analysis, use_formula=True):
     
     # 痛点共鸣开头（参考xhs-writer-skill方法论）
     lines.append("姐妹们我先说结论👇")
-    lines.append(f"✨ {_compact_mobile(p.get('正文开头模板', ''), 72)}")
+    lines.append(f"✨ {_compact_mobile(p.get('正文开头模板', ''), 120)}")
     lines.append("")
     
     # 情绪钩子（使用情绪词库）
@@ -428,24 +428,24 @@ def build_xhs_note(work, analysis, use_formula=True):
     # 聚焦核心卖点（参考xhs-writer-skill：只讲1-2个最稀缺的功能）
     lines.append("🔹 开篇抓人：先抛生存题，再给反转")
     for i, item in enumerate(analysis["开篇套路"][:3], 1):
-        lines.append(f"{i}. {_compact_mobile(item, 46)}")
+        lines.append(f"{i}. {_compact_mobile(item, 120)}")
     lines.append("")
 
     lines.append("🔹 人设不扁平，关系有拉扯感")
-    lines.append(f"- 女主：{_compact_mobile(analysis['人物设定']['女主'], 40)}")
-    lines.append(f"- 男主：{_compact_mobile(analysis['人物设定']['男主'], 40)}")
-    lines.append(f"- 配角：{_compact_mobile(analysis['人物设定']['亮点配角'], 40)}")
+    lines.append(f"- 女主：{_compact_mobile(analysis['人物设定']['女主'], 160)}")
+    lines.append(f"- 男主：{_compact_mobile(analysis['人物设定']['男主'], 150)}")
+    lines.append(f"- 配角：{_compact_mobile(analysis['人物设定']['亮点配角'], 140)}")
     lines.append("")
 
     lines.append("🔹 冲突是递进的，不是单点吵架")
-    lines.append(f"- 第一层：{_compact_mobile(analysis['冲突设计']['第一层'], 42)}")
-    lines.append(f"- 第二层：{_compact_mobile(analysis['冲突设计']['第二层'], 42)}")
-    lines.append(f"- 第三层：{_compact_mobile(analysis['冲突设计']['第三层'], 42)}")
+    lines.append(f"- 第一层：{_compact_mobile(analysis['冲突设计']['第一层'], 150)}")
+    lines.append(f"- 第二层：{_compact_mobile(analysis['冲突设计']['第二层'], 150)}")
+    lines.append(f"- 第三层：{_compact_mobile(analysis['冲突设计']['第三层'], 150)}")
     lines.append("")
 
     lines.append("🔹 情绪反馈稳定，容易追更")
-    lines.append(f"- 情绪关键词：{_compact_mobile(' / '.join(analysis['情绪触发']), 44)}")
-    lines.append(f"- 结构节奏：{_compact_mobile(p.get('正文结构建议', ''), 48)}")
+    lines.append(f"- 情绪关键词：{_compact_mobile(' / '.join(analysis['情绪触发']), 160)}")
+    lines.append(f"- 结构节奏：{_compact_mobile(p.get('正文结构建议', ''), 120)}")
     lines.append("")
     
     # 个人推荐点（增加真实感）
@@ -454,30 +454,9 @@ def build_xhs_note(work, analysis, use_formula=True):
     lines.append("这种\"我命由我不由人\"的劲儿，特别容易代入。")
     lines.append("")
 
-    lines.append("🔹 人设不扁平，关系有拉扯感")
-    lines.append(f"- 女主：{_compact_mobile(analysis['人物设定']['女主'], 40)}")
-    lines.append(f"- 男主：{_compact_mobile(analysis['人物设定']['男主'], 40)}")
-    lines.append(f"- 配角：{_compact_mobile(analysis['人物设定']['亮点配角'], 40)}")
-    lines.append("")
-
-    lines.append("🔹 冲突是递进的，不是单点吵架")
-    lines.append(f"- 第一层：{_compact_mobile(analysis['冲突设计']['第一层'], 42)}")
-    lines.append(f"- 第二层：{_compact_mobile(analysis['冲突设计']['第二层'], 42)}")
-    lines.append(f"- 第三层：{_compact_mobile(analysis['冲突设计']['第三层'], 42)}")
-    lines.append("")
-
-    lines.append("🔹 情绪反馈稳定，容易追更")
-    lines.append(f"- 情绪关键词：{_compact_mobile(' / '.join(analysis['情绪触发']), 44)}")
-    lines.append(f"- 结构节奏：{_compact_mobile(p.get('正文结构建议', ''), 48)}")
-    lines.append("")
-    lines.append("🔹 我个人最吃的一点")
-    lines.append("不是\"她有多强\"，而是她每次做选择都很清醒。")
-    lines.append("这种\"我命由我不由人\"的劲儿，特别容易代入。")
-    lines.append("")
-
     lines.append("📝 可抄作业句子（收藏版）")
     for item in analysis["金句"][:3]:
-        lines.append(f"- {_compact_mobile(item, 44)}")
+        lines.append(f"- {_compact_mobile(item, 90)}")
     lines.append("")
 
     lines.append("📖 阅读建议")
@@ -492,7 +471,7 @@ def build_xhs_note(work, analysis, use_formula=True):
     
     # CTA行动号召（参考xhs-writer-skill：点赞/收藏/关注）
     lines.append("👇 你来选")
-    lines.append(_compact_mobile(p.get("互动话术模板", "你最吃哪类开篇？评论区告诉我"), 56))
+    lines.append(_compact_mobile(p.get("互动话术模板", "你最吃哪类开篇？评论区告诉我"), 120))
     lines.append("我也想抄你们的书单，评论区互相投喂！")
     lines.append("")
     

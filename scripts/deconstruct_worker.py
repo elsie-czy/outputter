@@ -116,6 +116,10 @@ def _lock_pid():
 def _acquire_worker_lock():
     if _acquire_lock():
         return True
+    if _lock_pid() == os.getpid():
+        _log("worker", f"发现当前 PID 的残留队列锁，清理后重新获取 pid={os.getpid()}")
+        _release_lock()
+        return _acquire_lock()
     return False
 
 

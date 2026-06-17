@@ -652,16 +652,18 @@ const PAGE_SIZE = 10;
       showToast("success", "✓ 成功提交 " + json.data.enqueued + " 篇作品");
       selectedIds.clear();
       
-      // 2秒后跳转到生产中心
+      // 保持 loading 过渡直到跳转，避免提交成功后页面突然静止。
+      overlay.querySelector("div:last-child").textContent = "提交成功，正在进入生产中心...";
       setTimeout(() => {
         window.location.href = "/production-center";
       }, 1500);
     } catch (e) {
       showToast("error", "✕ 提交失败：" + e.message);
-    } finally {
       if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
       if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = "确认提交"; }
       if (cancelBtn) cancelBtn.disabled = false;
+    } finally {
+      // 成功路径会跳转，不在这里移除遮罩；失败路径已恢复按钮。
     }
   }
 

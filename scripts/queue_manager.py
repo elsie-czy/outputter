@@ -119,10 +119,21 @@ def _release_lock():
 def enqueue_works(works):
     """批量入队。works 是 list[dict]，每个 dict 含 作品名称/作者/平台/分类 等"""
     ensure_dirs()
+    existing = read_jsonl(QUEUE_FILE)
+    existing_ids = {
+        str(i.get("record_id") or "").strip()
+        for i in existing
+        if str(i.get("record_id") or "").strip()
+    }
+    seen_ids = set()
     entries = []
     for w in works:
+        rid = str(w.get("record_id") or "").strip()
+        if not rid or rid in existing_ids or rid in seen_ids:
+            continue
+        seen_ids.add(rid)
         entries.append({
-            "record_id": w.get("record_id", ""),
+            "record_id": rid,
             "work_name": str(w.get("作品名称", "")),
             "author": str(w.get("作者", "")),
             "platform": str(w.get("平台", "")),
@@ -219,7 +230,6 @@ def update_status(record_id, status, error=None, deconstruct_result=None,
             if status in (STATUS_DONE, STATUS_FAILED, STATUS_CANCELLED):
                 i["completed_at"] = _now()
             updated = True
-            break
     if updated:
         write_jsonl(QUEUE_FILE, items)
     return updated
@@ -248,7 +258,6 @@ def update_task_fields(record_id, **fields):
             item.update(patch)
             item["updated_at"] = _now()
             updated = True
-            break
     if updated:
         write_jsonl(QUEUE_FILE, items)
     return updated
@@ -419,7 +428,15 @@ def get_stats():
 def get_next_pending():
     """获取下一个待处理任务"""
     items = read_jsonl(QUEUE_FILE)
+    blocked_ids = {
+        i.get("record_id")
+        for i in items
+        if i.get("record_id") and normalize_status(i.get("status")) in ("processing", "completed")
+    }
     for i in items:
+        rid = i.get("record_id")
+        if rid in blocked_ids:
+            continue
         if normalize_status(i.get("status")) == "pending":
             return i
     return None
