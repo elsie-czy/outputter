@@ -32,6 +32,21 @@
   - 本次不改页面、不改队列/飞书数据结构、不触发真实模型费用
   - 飞书字段名仍按现有候选字段兼容读取；若线上表字段不同，需要后续补充字段映射
 
+## 2026-06-17（Docker 拆文 worker 常驻化）
+- 变更摘要：将 Docker `deconstruct-runner` 从一次性主流程入口改为常驻队列消费入口。
+- 影响范围：Docker / Worker / 运维文档
+- 行为变化：
+  - `deconstruct-runner` 执行 `python scripts/deconstruct_worker.py`，默认随 compose 启动并 `restart: unless-stopped`
+  - 空队列下 worker 保持运行，每 60 秒输出一次等待日志；有 pending 任务时进入现有 `process_one()` 消费流程
+  - worker 日志补充启动信息、任务 ID、状态变更和异常原因，并继续写入 `logs/deconstruct_worker.log`
+  - Docker Web 暴露端口调整为宿主机 `8080` 转发到容器内 `8101`，匹配验收命令
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：将 `docker-compose.yml` 的 `deconstruct-runner` command 改回旧入口，并恢复 `restart: "no"` / run-once profile；回退 worker 日志与锁等待改动
+- 风险与注意事项：
+  - 本次不引入 Redis/RabbitMQ，不改 JSONL 队列结构，不改 Web 页面和模型 prompt
+  - 如已有其他 worker 正在运行，新 runner 会等待队列锁释放
+
 ## 2026-06-16（任务详情页密度压实优化）
 - 变更摘要：执行任务详情页第二轮视觉压实，提升首屏信息密度并减少无效留白。
 - 影响范围：Web / 任务详情页

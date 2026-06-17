@@ -93,9 +93,35 @@ def _log(rid, msg):
         f.write(f"[{ts}] [{rid}] {msg}\n")
 
 
+def _set_status(rid, status, **kwargs):
+    update_status(rid, status, **kwargs)
+    if kwargs.get("error"):
+        _log(rid, f"状态变更 -> {status}, error={kwargs.get('error')}")
+    else:
+        _log(rid, f"状态变更 -> {status}")
+
+
+def _lock_path():
+    return os.path.join(PATHS["queue"], "deconstruct_queue.lock")
+
+
+def _lock_pid():
+    try:
+        with open(_lock_path(), "r", encoding="utf-8") as f:
+            return int((f.read() or "").strip())
+    except Exception:
+        return None
+
+
+def _acquire_worker_lock():
+    if _acquire_lock():
+        return True
+    return False
+
+
 def _score_note_for_task(rid, note_text, step_times):
     t_score = time.perf_counter()
-    update_status(rid, "ai_scoring")
+    _set_status(rid, "ai_scoring")
     try:
         score = score_note(note_text)
         _log(rid, f"AI评分完成: {score.get('total', 0)}")
@@ -144,7 +170,7 @@ def process_one(task, dry=False):
         }
 
         # 标记处理中
-        update_status(rid, "processing")
+        _set_status(rid, "processing")
         step_times["waiting"] = {"done": _now(), "duration": 0}
 
         # 1. 搜索补全
@@ -195,7 +221,7 @@ def process_one(task, dry=False):
             if os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
                 try:
                     from scripts.image_provider import generate_images_for_task
-                    update_status(rid, "generating_image")
+                    _set_status(rid, "generating_image")
                     img_result = generate_images_for_task(cached_xhs)
                     if img_result["ok"]:
                         images = img_result["images"]
@@ -204,18 +230,18 @@ def process_one(task, dry=False):
                         _log(rid, f"图片补生成失败: {img_result.get('error','未知')}")
                 except Exception as e:
                     _log(rid, f"图片补生成异常: {e}")
-            update_status(rid, "done",
-                          deconstruct_result=analysis,
-                          note_content=note_content,
-                          quality_score=quality_score,
-                          step_times=step_times,
-                          images=images)
+            _set_status(rid, "done",
+                        deconstruct_result=analysis,
+                        note_content=note_content,
+                        quality_score=quality_score,
+                        step_times=step_times,
+                        images=images)
             result["ok"] = True
             return result
 
         # 2. 调用模型拆解
         t_deconstruct = time.perf_counter()
-        update_status(rid, "deconstructing")
+        _set_status(rid, "deconstructing")
         generation_context = build_generation_context(task)
         counts = context_counts(generation_context)
         _log(
@@ -233,7 +259,7 @@ def process_one(task, dry=False):
 
         # 3. 生成报告文件
         t_note = time.perf_counter()
-        update_status(rid, "generating_note")
+        _set_status(rid, "generating_note")
         run_date = get_run_date()
         safe_name = f"{work.get('作品名称', '未知作品')}_{work.get('作者', '未知作者')}"
         report = build_report(work, search_info, analysis)
@@ -296,11 +322,11 @@ def process_one(task, dry=False):
 
         # 8. 标记完成
         step_times["done"] = {"done": _now(), "duration": 0}
-        update_status(rid, "done",
-                       deconstruct_result=analysis,
-                       note_content=xhs_note,
-                       quality_score=quality_score,
-                       step_times=step_times)
+        _set_status(rid, "done",
+                    deconstruct_result=analysis,
+                    note_content=xhs_note,
+                    quality_score=quality_score,
+                    step_times=step_times)
         update_task_fields(rid, main_record_id=record_id, xhs_record_id=xhs_record_id)
 
         # 9. 生成图片（如果启用）
@@ -310,7 +336,7 @@ def process_one(task, dry=False):
             _log(rid, "开始生成图片...")
             try:
                 from scripts.image_provider import generate_images_for_task
-                update_status(rid, "generating_image")
+                _set_status(rid, "generating_image")
                 img_result = generate_images_for_task(analysis)
                 if img_result["ok"]:
                     images = img_result["images"]
@@ -320,12 +346,12 @@ def process_one(task, dry=False):
                 step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
                 # 更新完成状态（包含完整的 step_times）
                 step_times["done"] = {"done": _now(), "duration": 0}
-                update_status(rid, "done", images=images, step_times=step_times)
+                _set_status(rid, "done", images=images, step_times=step_times)
             except Exception as e:
                 _log(rid, f"图片生成异常: {e}")
                 step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
                 step_times["done"] = {"done": _now(), "duration": 0}
-                update_status(rid, "done", images=images, step_times=step_times)
+                _set_status(rid, "done", images=images, step_times=step_times)
         else:
             _log(rid, "图片生成未启用，跳过")
             step_times["generating_image"] = {"done": _now(), "duration": 0}
@@ -353,7 +379,7 @@ def process_one(task, dry=False):
     except Exception as e:
         error_msg = str(e)[:500]
         _log(rid, f"失败: {error_msg}")
-        update_status(rid, "failed", error=error_msg)
+        _set_status(rid, "failed", error=error_msg)
         result["error"] = error_msg
 
     return result
@@ -366,9 +392,15 @@ def run_loop(limit=0, sleep_sec=5.0, dry=False, stay_alive=True):
     stay_alive=True 时，队列为空也会继续等待（常驻模式）。
     """
     ensure_dirs()
-    if not _acquire_lock():
-        print("另一个 worker 实例正在运行，已跳过")
-        return
+    _log("worker", f"启动队列消费: stay_alive={stay_alive}, limit={limit}, sleep_sec={sleep_sec}, dry={dry}")
+    while not _acquire_worker_lock():
+        if not stay_alive:
+            _log("worker", "另一个 worker 实例正在运行，已跳过")
+            return
+        pid = _lock_pid()
+        suffix = f" pid={pid}" if pid else ""
+        _log("worker", f"另一个 worker 实例正在运行，等待队列锁释放{suffix}")
+        time.sleep(30)
 
     try:
         processed = 0
@@ -377,12 +409,12 @@ def run_loop(limit=0, sleep_sec=5.0, dry=False, stay_alive=True):
             task = get_next_pending()
             if not task:
                 if not stay_alive:
-                    print("队列为空，退出")
+                    _log("worker", "队列为空，退出")
                     break
                 # 常驻模式：等待新任务
                 idle_count += 1
                 if idle_count % 12 == 0:  # 每60秒打印一次
-                    print(f"等待新任务中... (已空闲 {idle_count * sleep_sec}s)")
+                    _log("worker", f"等待新任务中... (已空闲 {idle_count * sleep_sec}s)")
                 time.sleep(sleep_sec)
                 continue
             
@@ -396,12 +428,12 @@ def run_loop(limit=0, sleep_sec=5.0, dry=False, stay_alive=True):
                     retry_task(task["record_id"])
 
             if limit > 0 and processed >= limit:
-                print(f"已达到处理上限 {limit}，退出")
+                _log("worker", f"已达到处理上限 {limit}，退出")
                 break
 
             time.sleep(sleep_sec)
 
-        print(f"结束，共处理 {processed} 个任务")
+        _log("worker", f"结束，共处理 {processed} 个任务")
 
     finally:
         _release_lock()

@@ -258,7 +258,7 @@ V1:
   python scripts/web_app.py           # Flask 单进程
 
 V2:
-  scripts/deconstruct_worker.py       # 队列消费（常驻或 cron 触发）
+  scripts/deconstruct_worker.py       # 队列消费（Docker 常驻，本地也可手动常驻运行）
   scripts/quality_scorer.py           # 质量评分模块（新）
   scripts/web_app.py                  # 不变，加新路由
   model_adapter.py                    # 加 few-shot + feedback + video 参数
@@ -612,7 +612,7 @@ V2 页面树
 |---|------|--------|------|------|------|
 | 9.1 | 端到端流程验证 | P0 | ☑ | 选题入队 → worker 消费 → 拆文 → 笔记 → 评分 → 前端展示 | 2h |
 | 9.2 | 边界情况处理 | P1 | ☐ | 队列为空/全部失败/网络超时/飞书 API 限流/LLM 超时重试 | 1h |
-| 9.3 | Docker 适配 | P2 | ☐ | `deconstruct-runner` 容器改为常驻队列消费模式 | 1h |
+| 9.3 | Docker 适配 | P2 | ☑ | `deconstruct-runner` 容器已改为常驻队列消费模式，空队列等待，pending 任务进入现有 worker 流程 | 1h |
 
 ---
 

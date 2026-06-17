@@ -115,7 +115,7 @@ docker compose ps
 
 访问：
 ```text
-http://<你的云服务器公网IP>:8101/?tab=overview
+http://<你的云服务器公网IP>:8080/?tab=overview
 ```
 
 ### 4.3 启动生图 worker（可选）
@@ -123,14 +123,17 @@ http://<你的云服务器公网IP>:8101/?tab=overview
 docker compose --profile worker up -d image-worker
 ```
 
-### 4.4 单次执行主流程（可选）
+### 4.4 启动拆文 worker（常驻）
 ```bash
-docker compose --profile run-once run --rm deconstruct-runner
+docker compose up -d deconstruct-runner
 ```
+
+`deconstruct-runner` 会常驻消费 `data/queue/deconstruct_queue.jsonl`；队列为空时等待，不会执行完即退出。
 
 ### 4.5 查看日志
 ```bash
 docker compose logs -f web
+docker compose logs -f deconstruct-runner
 docker compose logs -f image-worker
 ```
 
@@ -139,7 +142,7 @@ docker compose logs -f image-worker
 docker compose down
 git pull
 docker compose build
-docker compose up -d web
+docker compose up -d web deconstruct-runner
 ```
 
 持久化说明（已在 compose 挂载）：
@@ -233,12 +236,12 @@ sudo systemctl reload nginx
 
 ## 7. 主流程/worker（按需运行）
 
-### 6.1 主流程（手动或定时任务）
+### 6.1 拆文 worker（本地手动常驻运行）
 ```bash
 cd /opt/personal-supertool
 export PYTHONDONTWRITEBYTECODE=1
 source .env
-./.venv/bin/python scripts/deconstruct_daily.py
+./.venv/bin/python scripts/deconstruct_worker.py
 ```
 
 ### 6.2 生图 worker（异步回填，建议常驻）
