@@ -281,7 +281,7 @@ V2:
 
 ```
 ☐ 批量拆文队列
-☐ 笔记参考样本注入（few-shot）
+☑ 笔记参考样本注入（few-shot，后端生成链路已自动注入）
 ☐ 拆文结果缓存
 ```
 
@@ -291,7 +291,7 @@ V2:
 
 ```
 ☐ AI 质量评分
-☐ 人工反馈闭环
+☑ 人工反馈闭环（修改日志/近期反馈已注入重新生成与 worker 生成链路）
 ☐ 笔记库 Web 增强（筛选/导出）
 ```
 
@@ -489,6 +489,7 @@ V2 页面树
 | D | `docs/guides/SCREENSHOT_HANDOFF_TEMPLATE.md` | workflow | P0 | ☑ | 固化截图/设计图交付模板，供后续页面开发使用 |
 | E | 任务详情页工作台优化 | UI | P0 | ☑ | 重排顶部概览、进度轴、笔记三栏和 5 秒自动刷新，不改后端 API |
 | F | 任务详情页密度压实优化 | UI | P0 | ☑ | 压实顶部概览、进度轴、Tab 工作区和笔记三栏，提高首屏信息密度 |
+| G | 参考笔记 + 修改反馈闭环接入 | feature | P0 | ☑ | worker、任务详情重新生成、note API 重新生成自动注入高分参考笔记和近期修改反馈 |
 
 ### 8.0 前端架构优化
 
@@ -567,8 +568,8 @@ V2 页面树
 
 | # | 任务 | 优先级 | 状态 | 描述 | 预估 |
 |---|------|--------|------|------|------|
-| 5.1 | `analyze_work()` 增加 `reference_notes` 参数 | P0 | ☐ | prompt 末尾追加 few-shot 样本，降级处理空参考 | 1h |
-| 5.2 | `analyze_work()` 增加 `recent_feedback` 参数 | P1 | ☐ | prompt 追加历史修改偏好 | 30min |
+| 5.1 | `analyze_work()` 增加 `reference_notes` 参数 | P0 | ☑ | prompt 末尾追加 few-shot 样本，worker/重新生成入口降级处理空参考 | 1h |
+| 5.2 | `analyze_work()` 增加 `recent_feedback` 参数 | P1 | ☑ | prompt 追加当前任务修改日志和飞书近期修改偏好 | 30min |
 | 5.3 | `quality_scorer.py` 评分模块 | P1 | ☑ | 独立 LLM 调用，六维评分（标题/情绪/收藏/互动/风格/AI痕迹），输出 0-100 | 2h |
 | 5.4 | `generate_video_script()` 视频脚本生成 | P2 | ☐ | 输入拆文结果 + 笔记，输出口播稿 + 分镜脚本 | 2h |
 | 5.5 | 拆文结果缓存 | P1 | ☑ | `deconstruct_worker.py` 调 LLM 前查飞书主表，作品+作者已存在则复用 | 30min |

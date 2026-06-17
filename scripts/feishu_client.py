@@ -339,7 +339,9 @@ class FeishuClient:
             if likes + collects <= 0:
                 continue
             scored.append({
-                "标题": str(f.get("笔记标题", "")),
+                "标题": self._first_text(f, ["笔记标题", "标题", "小红书标题模板"]),
+                "正文": self._first_text(f, ["笔记正文", "正文", "正文开头模板", "笔记内容"]),
+                "标签": self._first_text(f, ["标签", "热门标签推荐", "话题标签"]),
                 "点赞": likes,
                 "收藏": collects,
                 "账号名": str(f.get("账号名", "")),
@@ -357,6 +359,20 @@ class FeishuClient:
             return float(str(v).strip().replace(",", ""))
         except Exception:
             return 0.0
+
+    @staticmethod
+    def _first_text(fields, keys):
+        for key in keys:
+            value = fields.get(key)
+            if value is None:
+                continue
+            if isinstance(value, list):
+                text = ", ".join(str(i) for i in value if str(i).strip())
+            else:
+                text = str(value).strip()
+            if text:
+                return text
+        return ""
 
     def get_recent_modifications(self, limit=5):
         """读取笔记库最近的修改日志"""

@@ -16,6 +16,22 @@
 - 回滚方式：
 - 风险与注意事项：
 
+## 2026-06-17（参考笔记与反馈闭环接入）
+- 变更摘要：将历史高分参考笔记和近期修改反馈接入后端生成链路。
+- 影响范围：Worker / Web API / 飞书读取 / 模型提示词上下文
+- 行为变化：
+  - 新增 `scripts/generation_context.py`，统一收集可选生成上下文；飞书不可用或无数据时降级为空上下文，不阻断生成
+  - `deconstruct_worker.py` 调用 `analyze_work()` 前自动注入参考笔记和近期反馈，并记录上下文条数
+  - `POST /api/task/<task_id>/regenerate-note` 和 `POST /api/note/<rid>/regenerate` 重新生成时注入当前任务修改日志、飞书近期修改记录和高分参考笔记
+  - `feishu_client.get_top_notes()` 补充读取正文与标签字段，提升 few-shot 样本完整度
+  - 重新生成接口返回 `generation_context` 计数，便于验收确认上下文已进入模型层
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/generation_context.py`、worker、任务详情 API、note API、`feishu_client.py`、相关测试和本条记录
+- 风险与注意事项：
+  - 本次不改页面、不改队列/飞书数据结构、不触发真实模型费用
+  - 飞书字段名仍按现有候选字段兼容读取；若线上表字段不同，需要后续补充字段映射
+
 ## 2026-06-16（任务详情页密度压实优化）
 - 变更摘要：执行任务详情页第二轮视觉压实，提升首屏信息密度并减少无效留白。
 - 影响范围：Web / 任务详情页

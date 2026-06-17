@@ -22,6 +22,7 @@ from scripts.queue_manager import (
 )
 from scripts.quality_scorer import score_note
 from scripts.data_normalizer import normalize_feishu_record, normalize_feishu_value
+from scripts.generation_context import build_generation_context, context_counts
 
 # Import from deconstruct_daily
 from scripts.deconstruct_daily import (
@@ -215,7 +216,15 @@ def process_one(task, dry=False):
         # 2. 调用模型拆解
         t_deconstruct = time.perf_counter()
         update_status(rid, "deconstructing")
-        analysis = analyze_work(work)
+        generation_context = build_generation_context(task)
+        counts = context_counts(generation_context)
+        _log(
+            rid,
+            "模型上下文: "
+            f"参考笔记 {counts['reference_notes']} 条, "
+            f"近期反馈 {counts['recent_feedback']} 条",
+        )
+        analysis = analyze_work(work, **generation_context)
         source = (analysis.get("元信息", {}) or {}).get("来源", "")
         if "openai_parse_fallback" in str(source):
             raise RuntimeError(f"模型解析失败: {source}")

@@ -14,6 +14,7 @@ from scripts.queue_manager import (
 )
 from scripts.data_normalizer import normalize_feishu_record, normalize_for_frontend
 from scripts.deconstruct_daily import build_xhs_note
+from scripts.generation_context import build_generation_context, context_counts
 from scripts.model_adapter import analyze_work
 from scripts.quality_scorer import score_note
 
@@ -244,7 +245,8 @@ def regenerate_note(task_id):
             "平台": task.get("platform", ""),
             "分类": task.get("category", ""),
         }
-        analysis = analyze_work(work)
+        generation_context = build_generation_context(task)
+        analysis = analyze_work(work, **generation_context)
         note_text = build_xhs_note(work, analysis)
         score = score_note(note_text)
         updated = update_task_fields(
@@ -255,7 +257,14 @@ def regenerate_note(task_id):
         )
         if not updated:
             return jsonify({"ok": False, "error": "任务不存在"}), 404
-        return jsonify({"ok": True, "data": {"note_content": note_text, "quality_score": score}})
+        return jsonify({
+            "ok": True,
+            "data": {
+                "note_content": note_text,
+                "quality_score": score,
+                "generation_context": context_counts(generation_context),
+            },
+        })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
