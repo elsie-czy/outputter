@@ -26,6 +26,12 @@
 ] %}
 
 <aside class="app-sidebar" id="appSidebar">
+  <div class="app-sidebar-brand">
+    <div class="app-sidebar-brand-icon">
+      <i data-lucide="book-open-check"></i>
+    </div>
+    <span class="app-sidebar-brand-text">超级工具</span>
+  </div>
   <nav class="app-sidebar-nav">
     {% for group in nav_groups %}
     <div class="app-sidebar-group">
@@ -44,4 +50,24 @@
     </div>
     {% endfor %}
   </nav>
+  <div class="app-sidebar-upgrade">
+    <div class="app-sidebar-upgrade-visual">
+      <i data-lucide="book-open"></i>
+    </div>
+    <div class="app-sidebar-upgrade-title">拆书 / 拆文内容生产</div>
+    <div class="app-sidebar-upgrade-desc">高效创作，智能生产</div>
+    <div class="app-sidebar-usage">
+      <div class="app-sidebar-usage-head">
+        <span>资源使用率</span>
+        <strong>32%</strong>
+      </div>
+      <div class="app-sidebar-usage-track">
+        <span class="app-sidebar-usage-fill"></span>
+      </div>
+    </div>
+    <a class="app-sidebar-upgrade-btn" href="/production-center">
+      <i data-lucide="sparkles"></i>
+      <span>升级套餐</span>
+    </a>
+  </div>
 </aside>
