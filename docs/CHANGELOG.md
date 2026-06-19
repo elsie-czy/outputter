@@ -16,6 +16,22 @@
 - 回滚方式：
 - 风险与注意事项：
 
+## 2026-06-20（Dashboard 首页数据总览）
+- 变更摘要：新增真正可用的 `/dashboard` 运营工作台首页和 `/api/dashboard/overview` 聚合接口。
+- 影响范围：Web / Dashboard / 公共侧栏 / 文档
+- 行为变化：
+  - `/dashboard` 不再返回 `landing.html`，改为渲染 `dashboard.html`
+  - 新增首页 KPI、近 7 日趋势、热门选题 TOP5、账号任务指标、内容状态和快捷操作区
+  - 聚合接口复用现有队列、本地选题和统计能力，不改现有 API、不改队列结构、不新增数据库
+  - 阅读量、粉丝增长等尚未接入真实来源的指标返回空状态，不展示伪造数据
+  - 左侧侧栏新增可用的“工作台”入口并支持 dashboard 高亮
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/web/routes/dashboard_page.py`、`scripts/web/routes/__init__.py`、`scripts/web/routes/landing_page.py`、`scripts/web/templates/dashboard.html`、`scripts/web/templates/_sidebar.html`、`scripts/static/css/dashboard.css`、`scripts/static/js/dashboard.js`、`scripts/static/img/dashboard-hero.png` 和本条记录
+- 风险与注意事项：
+  - 热门选题排序依赖当前已有的评分、收藏、点赞、评论与创建时间字段；字段缺失时只按已有真实信息展示
+  - 发布状态字段尚未统一接入，待发布笔记当前按“已完成且有笔记内容但未标记发布”的待处理口径估算
+
 ## 2026-06-20（选题池列表与侧栏按钮对齐）
 - 变更摘要：将侧栏收起按钮移回左侧菜单栏，并按生产中心任务列表风格优化选题池主列表。
 - 影响范围：Web / 公共 AppShell / 选题池

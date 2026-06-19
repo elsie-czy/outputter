@@ -15,12 +15,6 @@ def deconstruct_page():
     return render_template("deconstruct_center.html", active_page="deconstruct")
 
 
-@bp.get("/dashboard")
-def dashboard_page():
-    """工作台 — V2.0（占位）"""
-    return render_template("landing.html", active_page="dashboard")
-
-
 @bp.get("/notes")
 def notes_page():
     """笔记生成 — V2.0（占位）"""

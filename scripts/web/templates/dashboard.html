@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}数据总览 - 超级工具{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-page" data-dashboard-page>
+  <section class="dashboard-titlebar">
+    <div>
+      <p class="dashboard-eyebrow">运营工作台</p>
+      <h1>数据总览</h1>
+    </div>
+    <div class="dashboard-title-actions">
+      <button class="dashboard-icon-button" type="button" aria-label="通知">
+        <i data-lucide="bell"></i>
+        <span></span>
+      </button>
+      <div class="dashboard-date-chip">
+        <i data-lucide="calendar-days"></i>
+        <span id="dashboardDateRange">近 7 日</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="dashboard-hero">
+    <div class="dashboard-hero-copy">
+      <p class="dashboard-hero-kicker">今日工作节奏</p>
+      <h2>早安，天选牛马！</h2>
+      <p id="heroSubtitle">今天是内容创作的第 - 天，继续保持创作热情</p>
+      <p id="heroGoal">今日目标：拆解 - 本书，生成 - 篇优质小红书图文笔记</p>
+      <div class="dashboard-hero-actions">
+        <a class="dashboard-btn dashboard-btn--primary" href="/topic-pool">
+          <i data-lucide="zap"></i>
+          <span>开始拆解</span>
+        </a>
+        <a class="dashboard-btn dashboard-btn--secondary" href="/production-center">
+          <i data-lucide="bar-chart-3"></i>
+          <span>查看数据</span>
+        </a>
+      </div>
+    </div>
+    <img class="dashboard-hero-img" src="{{ url_for('static', filename='img/dashboard-hero.png') }}" alt="" />
+  </section>
+
+  <section class="dashboard-kpis" aria-label="关键指标">
+    <article class="dashboard-kpi">
+      <div class="dashboard-kpi-icon dashboard-kpi-icon--purple"><i data-lucide="clipboard-list"></i></div>
+      <div>
+        <p>笔记总数</p>
+        <strong id="kpiNotes">-</strong>
+        <span>已完成且有笔记内容</span>
+      </div>
+    </article>
+    <article class="dashboard-kpi">
+      <div class="dashboard-kpi-icon dashboard-kpi-icon--blue"><i data-lucide="eye"></i></div>
+      <div>
+        <p>总阅读量</p>
+        <strong id="kpiReads">-</strong>
+        <span>未接入真实阅读数据</span>
+      </div>
+    </article>
+    <article class="dashboard-kpi">
+      <div class="dashboard-kpi-icon dashboard-kpi-icon--green"><i data-lucide="check-circle-2"></i></div>
+      <div>
+        <p>拆解任务</p>
+        <strong id="kpiTasks">-</strong>
+        <span id="kpiTasksSub">队列总任务</span>
+      </div>
+    </article>
+    <article class="dashboard-kpi">
+      <div class="dashboard-kpi-icon dashboard-kpi-icon--orange"><i data-lucide="send"></i></div>
+      <div>
+        <p>待发布笔记</p>
+        <strong id="kpiPendingPublish">-</strong>
+        <span>按待处理估算</span>
+      </div>
+    </article>
+  </section>
+
+  <section class="dashboard-grid dashboard-grid--main">
+    <article class="dashboard-card dashboard-card--trend">
+      <div class="dashboard-card-head">
+        <div>
+          <h2>数据趋势</h2>
+          <p>近 7 日创建与完成趋势</p>
+        </div>
+        <div class="dashboard-segment">
+          <span class="active">完成</span>
+          <span>创建</span>
+        </div>
+      </div>
+      <div class="dashboard-chart" id="dashboardTrend"></div>
+    </article>
+
+    <article class="dashboard-card">
+      <div class="dashboard-card-head">
+        <div>
+          <h2>热门选题 TOP5</h2>
+          <p>按评分、收藏、点赞和时间排序</p>
+        </div>
+        <a href="/topic-pool">查看更多</a>
+      </div>
+      <div class="dashboard-topic-list" id="dashboardTopTopics"></div>
+    </article>
+  </section>
+
+  <section class="dashboard-grid dashboard-grid--secondary">
+    <article class="dashboard-card">
+      <div class="dashboard-card-head">
+        <div>
+          <h2>账号表现</h2>
+          <p>当前仅展示任务侧真实指标</p>
+        </div>
+        <span class="dashboard-muted">待接入账号数据</span>
+      </div>
+      <div class="dashboard-account" id="dashboardAccount"></div>
+    </article>
+
+    <article class="dashboard-card">
+      <div class="dashboard-card-head">
+        <div>
+          <h2>内容状态</h2>
+          <p>队列标准状态分布</p>
+        </div>
+      </div>
+      <div class="dashboard-status-list" id="dashboardStatus"></div>
+    </article>
+
+    <article class="dashboard-card dashboard-card--actions">
+      <div class="dashboard-card-head">
+        <div>
+          <h2>快捷操作</h2>
+          <p>常用生产入口</p>
+        </div>
+      </div>
+      <div class="dashboard-actions" id="dashboardActions">
+        <a href="/topic-pool"><i data-lucide="plus-square"></i><span>新建选题</span></a>
+        <a href="/production-center"><i data-lucide="zap"></i><span>开始拆解</span></a>
+        <a href="/production-center"><i data-lucide="file-plus-2"></i><span>笔记生成</span></a>
+        <a href="/production-center"><i data-lucide="send"></i><span>发布内容</span></a>
+        <a href="/dashboard"><i data-lucide="layout-dashboard"></i><span>数据看板</span></a>
+        <span class="is-disabled"><i data-lucide="image"></i><span>素材管理</span></span>
+        <span class="is-disabled"><i data-lucide="users"></i><span>账号管理</span></span>
+      </div>
+    </article>
+  </section>
+
+  <div class="dashboard-error" id="dashboardError" hidden></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}
