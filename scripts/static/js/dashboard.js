@@ -8,7 +8,6 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     if (!$("[data-dashboard-page]")) return;
-    setDateRange();
     loadDashboard();
     timer = setInterval(loadDashboard, POLL_MS);
     window.addEventListener("pagehide", stop);
@@ -130,12 +129,43 @@
     const total = Number(status.completed || 0) + Number(status.pending || 0) + Number(status.processing || 0) + Number(status.review || 0) + Number(status.failed || 0);
     const rate = total > 0 ? Math.round((Number(status.completed || 0) / total) * 100) : 0;
     const metrics = account.metrics || [];
+    const segments = accountSegments(status, metrics);
     el.innerHTML =
-      '<div class="dashboard-donut" style="--p:' + (rate * 3.6) + 'deg"><div class="dashboard-donut-inner"><div><strong>' + rate + '%</strong><div class="dashboard-account-note">完成率</div></div></div></div>' +
+      '<div class="dashboard-account-body">' +
+      '<div class="dashboard-donut" style="' + donutStyle(segments) + '">' +
+      '<div class="dashboard-donut-inner"><div><span>任务完成率</span><strong>' + rate + '%</strong></div></div></div>' +
+      '<div class="dashboard-account-list">' + segments.map((m) =>
+        '<div class="dashboard-account-line"><span class="dashboard-account-dot" style="--dot:' + m.color + '"></span><span>' + esc(m.label) + '</span><strong>' + fmt(m.value) + '</strong><em>' + m.percent + '%</em></div>'
+      ).join("") + "</div></div>" +
       '<div class="dashboard-account-note">粉丝、阅读增长暂未接入真实账号数据</div>' +
       '<div class="dashboard-account-grid">' + metrics.map((m) =>
         '<div class="dashboard-account-metric"><span>' + esc(m.label) + '</span><strong>' + fmt(m.value) + "</strong></div>"
       ).join("") + "</div>";
+  }
+
+  function accountSegments(status, metrics) {
+    const total = Math.max(1, Number(metrics.find((m) => m.label === "总任务数")?.value || 0));
+    const rows = [
+      { label: "已完成", value: Number(status.completed || 0), color: "#5B3BFF" },
+      { label: "待处理", value: Number(status.pending || 0) + Number(status.review || 0), color: "#7B61FF" },
+      { label: "生产中", value: Number(status.processing || 0), color: "#A78BFA" },
+      { label: "失败", value: Number(status.failed || 0), color: "#69D4C7" },
+    ];
+    return rows.map((row) => ({ ...row, percent: Math.round((row.value / total) * 1000) / 10 }));
+  }
+
+  function donutStyle(rows) {
+    let cursor = 0;
+    const gap = 3;
+    const parts = rows.map((row) => {
+      const span = Math.max(row.value > 0 ? 3 : 0, row.percent * 3.6);
+      const start = cursor;
+      const end = Math.min(360, cursor + span);
+      cursor = Math.min(360, end + gap);
+      return row.color + " " + start + "deg " + end + "deg, transparent " + end + "deg " + cursor + "deg";
+    });
+    parts.push("#EEF2FF " + cursor + "deg 360deg");
+    return "--donut:" + parts.join(",") + ";";
   }
 
   function renderStatus(status) {
@@ -152,13 +182,6 @@
     el.innerHTML = rows.map((row) =>
       '<div class="dashboard-status-row"><span>' + row[0] + '</span><div class="dashboard-status-bar"><span style="--w:' + Math.round((row[1] / max) * 100) + '%"></span></div><strong>' + row[1] + "</strong></div>"
     ).join("");
-  }
-
-  function setDateRange() {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(end.getDate() - 6);
-    setText("#dashboardDateRange", dateLabel(start) + " ~ " + dateLabel(end));
   }
 
   function scoreText(item) {
@@ -183,10 +206,6 @@
     if (value == null || value === "") return "—";
     if (typeof value === "number" && Number.isFinite(value)) return value.toLocaleString("zh-CN");
     return String(value);
-  }
-
-  function dateLabel(date) {
-    return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
   }
 
   function esc(value) {

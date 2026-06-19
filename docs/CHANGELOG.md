@@ -16,6 +16,20 @@
 - 回滚方式：
 - 风险与注意事项：
 
+## 2026-06-20（Dashboard 视觉反馈修正）
+- 变更摘要：按截图反馈修正 Dashboard Hero 插画、快捷操作卡片和账号表现环形图。
+- 影响范围：Web / Dashboard
+- 行为变化：
+  - Hero 插画改为透明背景 PNG，并允许在 banner 右侧和底部轻微外溢
+  - 移除 Dashboard 内容标题区右侧通知按钮和日期范围
+  - 修复快捷操作入口内部文字被误当卡片导致的溢出问题，入口图标继续使用 lucide
+  - 账号表现环形图改为分段环与右侧指标列表样式
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/web/templates/dashboard.html`、`scripts/static/css/dashboard.css`、`scripts/static/js/dashboard.js`、`scripts/static/img/dashboard-hero.png` 和本条记录
+- 风险与注意事项：
+  - 账号表现仍只展示任务侧真实指标，粉丝、阅读增长继续保持未接入空态
+
 ## 2026-06-20（Dashboard 首页数据总览）
 - 变更摘要：新增真正可用的 `/dashboard` 运营工作台首页和 `/api/dashboard/overview` 聚合接口。
 - 影响范围：Web / Dashboard / 公共侧栏 / 文档
