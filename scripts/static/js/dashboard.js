@@ -132,8 +132,8 @@
     const segments = accountSegments(status, metrics);
     el.innerHTML =
       '<div class="dashboard-account-body">' +
-      '<div class="dashboard-donut" style="' + donutStyle(segments) + '">' +
-      '<div class="dashboard-donut-inner"><div><span>任务完成率</span><strong>' + rate + '%</strong></div></div></div>' +
+      '<div class="dashboard-donut">' + donutSvg(segments) +
+      '<div class="dashboard-donut-center"><div><span>任务完成率</span><strong>' + rate + '%</strong></div></div></div>' +
       '<div class="dashboard-account-list">' + segments.map((m) =>
         '<div class="dashboard-account-line"><span class="dashboard-account-dot" style="--dot:' + m.color + '"></span><span>' + esc(m.label) + '</span><strong>' + fmt(m.value) + '</strong><em>' + m.percent + '%</em></div>'
       ).join("") + "</div></div>" +
@@ -154,18 +154,24 @@
     return rows.map((row) => ({ ...row, percent: Math.round((row.value / total) * 1000) / 10 }));
   }
 
-  function donutStyle(rows) {
-    let cursor = 0;
-    const gap = 3;
-    const parts = rows.map((row) => {
-      const span = Math.max(row.value > 0 ? 3 : 0, row.percent * 3.6);
-      const start = cursor;
-      const end = Math.min(360, cursor + span);
-      cursor = Math.min(360, end + gap);
-      return row.color + " " + start + "deg " + end + "deg, transparent " + end + "deg " + cursor + "deg";
-    });
-    parts.push("#EEF2FF " + cursor + "deg 360deg");
-    return "--donut:" + parts.join(",") + ";";
+  function donutSvg(rows) {
+    const visible = rows.filter((row) => row.value > 0);
+    const radius = 103;
+    const circumference = 2 * Math.PI * radius;
+    const gapAngle = 4;
+    const gap = circumference * gapAngle / 360;
+    const usable = circumference - (visible.length * gap);
+    let offset = 0;
+    const total = visible.reduce((sum, row) => sum + row.value, 0) || 1;
+    const rings = visible.map((row) => {
+      const len = Math.max(0, (row.value / total) * usable);
+      const dashOffset = -offset;
+      offset += len + gap;
+      const dash = ' stroke-dasharray="' + len.toFixed(2) + ' ' + circumference.toFixed(2) + '" stroke-dashoffset="' + dashOffset.toFixed(2) + '" transform="rotate(-90 130 130)"';
+      return '<circle class="dashboard-donut-ring" cx="130" cy="130" r="' + radius + '" stroke="#FFFFFF" stroke-width="38"' + dash + ' />' +
+        '<circle class="dashboard-donut-ring" cx="130" cy="130" r="' + radius + '" stroke="' + row.color + '" stroke-width="30"' + dash + ' />';
+    }).join("");
+    return '<svg viewBox="0 0 260 260" aria-hidden="true"><circle cx="130" cy="130" r="' + radius + '" fill="none" stroke="#EEF2FF" stroke-width="30" />' + rings + "</svg>";
   }
 
   function renderStatus(status) {

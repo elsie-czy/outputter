@@ -16,6 +16,19 @@
 - 回滚方式：
 - 风险与注意事项：
 
+## 2026-06-20（Dashboard Banner 与环形图二次修正）
+- 变更摘要：继续按反馈优化 Dashboard banner 背景铺色和账号表现环形图实现。
+- 影响范围：Web / Dashboard
+- 行为变化：
+  - Banner 取消外边框，浅紫背景铺满到右侧插画区域
+  - 账号表现从 CSS conic-gradient 改为自定义 SVG 分段圆环，模拟 Pie 的内外半径、分段间距、圆角断点和白色描边
+  - 中心文字和图例继续使用自定义 DOM，便于后续接入真实账号指标
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/static/css/dashboard.css`、`scripts/static/js/dashboard.js` 和本条记录
+- 风险与注意事项：
+  - 本次不新增 Recharts 依赖，仍保持 Vanilla JS 实现
+
 ## 2026-06-20（Dashboard 视觉反馈修正）
 - 变更摘要：按截图反馈修正 Dashboard Hero 插画、快捷操作卡片和账号表现环形图。
 - 影响范围：Web / Dashboard

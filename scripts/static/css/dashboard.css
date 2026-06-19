@@ -40,9 +40,10 @@
   position: relative;
   min-height: 260px;
   overflow: visible;
-  border: 1px solid #E9E2FF;
+  border: none;
   border-radius: var(--radius);
-  background: linear-gradient(100deg, #F3EFFF 0%, #F8F7FF 50%, #FFFFFF 100%);
+  background: radial-gradient(circle at 80% 44%, rgba(255,255,255,0.72) 0 20%, rgba(255,255,255,0.26) 42%, transparent 66%), linear-gradient(100deg, #F0EAFF 0%, #F4EEFF 48%, #F2EAFE 100%);
+  box-shadow: inset 0 0 0 1px rgba(108, 78, 255, 0.05);
 }
 
 .dashboard-hero-copy {
@@ -284,34 +285,35 @@
 }
 
 .dashboard-donut {
-  display: grid;
+  position: relative;
   width: 166px;
   height: 166px;
   margin: 4px auto;
-  place-items: center;
-  border-radius: 50%;
-  background: conic-gradient(var(--donut));
   filter: drop-shadow(0 14px 24px rgba(108, 78, 255, 0.14));
 }
 
-.dashboard-donut-inner {
+.dashboard-donut svg { display: block; width: 100%; height: 100%; overflow: visible; }
+
+.dashboard-donut-ring { fill: none; stroke-linecap: round; }
+
+.dashboard-donut-center {
+  position: absolute;
+  inset: 41px;
   display: grid;
-  width: 98px;
-  height: 98px;
   place-items: center;
   border-radius: 50%;
   background: #FFFFFF;
   text-align: center;
 }
 
-.dashboard-donut-inner strong {
+.dashboard-donut-center strong {
   display: block;
   color: var(--text-primary);
   font-size: 26px;
   line-height: 1.1;
 }
 
-.dashboard-donut-inner span {
+.dashboard-donut-center span {
   display: block;
   margin-bottom: 4px;
   color: var(--text-secondary);
