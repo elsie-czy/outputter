@@ -673,6 +673,16 @@ a:hover { text-decoration: underline; }
   background: var(--bg-hover);
 }
 
+.app-sidebar-toggle--in-sidebar {
+  margin-left: auto;
+  color: #DDE3FF;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.app-sidebar-toggle--in-sidebar:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
 /* ===== Sidebar ===== */
 .app-sidebar {
   width: 252px;
@@ -727,12 +737,21 @@ a:hover { text-decoration: underline; }
 }
 
 .app-sidebar.collapsed .app-sidebar-brand {
+  flex-direction: column;
   justify-content: center;
+  gap: 8px;
+  height: 92px;
   padding: 0;
 }
 
 .app-sidebar.collapsed .app-sidebar-brand-text {
   display: none;
+}
+
+.app-sidebar.collapsed .app-sidebar-toggle--in-sidebar {
+  margin-left: 0;
+  width: 32px;
+  height: 32px;
 }
 
 .app-sidebar-nav {

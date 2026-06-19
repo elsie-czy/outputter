@@ -189,33 +189,48 @@ const PAGE_SIZE = 10;
       const scoreInfo = getScoreInfo(score);
       const catClass = getCategoryClass(item.category);
       const catIcon = getCategoryIcon(item.category);
+      const potential = getPotentialInfo(item);
 
       html +=
-        '<div class="tp-card' + sel + '" data-rid="' + esc(rid) + '">' +
-        '<div class="tp-card-checkbox">' + (sel ? "✓" : "") + "</div>" +
-        '<div class="tp-card-cover">' + catIcon + '</div>' +
-        '<div class="tp-card-content">' +
-        '<div class="tp-card-name">' + esc(item.work_name || "未知作品") + "</div>" +
-        '<div class="tp-card-author">' + esc(item.author || "未知作者") + "</div>" +
-        '<div class="tp-card-meta">' +
-        '<span class="tp-card-tag">' + esc(item.platform || "-") + "</span>" +
-        '<span class="tp-card-tag ' + catClass + '">' + esc(item.category || "-") + "</span>" +
-        (item.word_count ? '<span class="tp-card-tag">' + fmtWordCount(item.word_count) + "</span>" : "") +
+        '<div class="tp-row' + sel + '" data-rid="' + esc(rid) + '">' +
+        '<div class="tp-cell tp-cell-select"><div class="tp-card-checkbox" aria-hidden="true">' + (sel ? "✓" : "") + "</div></div>" +
+        '<div class="tp-cell tp-cell-work">' +
+          '<div class="tp-card-cover">' + catIcon + '</div>' +
+          '<div class="tp-card-content">' +
+            '<div class="tp-card-name">' + esc(item.work_name || "未知作品") + "</div>" +
+            '<div class="tp-card-author">' + esc(item.author || "未知作者") + "</div>" +
+            '<div class="tp-card-meta">' +
+              '<span class="tp-card-tag tp-card-tag--platform">' + esc(item.platform || "-") + "</span>" +
+              '<span class="tp-card-tag ' + catClass + '">' + esc(item.category || "-") + "</span>" +
+              (item.word_count ? '<span class="tp-card-tag">' + fmtWordCount(item.word_count) + "</span>" : "") +
+            "</div>" +
+          "</div>" +
         "</div>" +
-        '<div class="tp-card-metrics">' +
-        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.favorites) + '</span><span class="tp-card-metric-label">收藏</span></div>' +
-        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.likes) + '</span><span class="tp-card-metric-label">点赞</span></div>' +
-        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.monthly_votes) + '</span><span class="tp-card-metric-label">月票</span></div>' +
-        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.recommend_votes) + '</span><span class="tp-card-metric-label">推荐</span></div>' +
-        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.comments) + '</span><span class="tp-card-metric-label">评论</span></div>' +
-        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + (item.rank ? "#" + item.rank : "暂无") + '</span><span class="tp-card-metric-label">排名</span></div>' +
+        '<div class="tp-cell tp-cell-score">' +
+          '<div class="tp-score-pill tp-score-' + scoreInfo.level + '">' +
+            '<strong>' + (score || "—") + "</strong>" +
+            '<span>' + (scoreInfo.label || "待评分") + "</span>" +
+          "</div>" +
+          '<div class="tp-card-score-stars">' + scoreInfo.stars + "</div>" +
         "</div>" +
+        '<div class="tp-cell tp-cell-metrics">' +
+          '<div class="tp-metric-strip">' +
+            '<span><strong>' + fmtNum(item.favorites) + "</strong>收藏</span>" +
+            '<span><strong>' + fmtNum(item.likes) + "</strong>点赞</span>" +
+            '<span><strong>' + fmtNum(item.comments) + "</strong>评论</span>" +
+          "</div>" +
+          '<div class="tp-metric-strip tp-metric-strip--muted">' +
+            '<span><strong>' + fmtNum(item.monthly_votes) + "</strong>月票</span>" +
+            '<span><strong>' + fmtNum(item.recommend_votes) + "</strong>推荐</span>" +
+            '<span><strong>' + (item.rank ? "#" + item.rank : "—") + "</strong>排名</span>" +
+          "</div>" +
         "</div>" +
-        '<div class="tp-card-score tp-score-' + scoreInfo.level + '">' +
-        '<div class="tp-card-score-label">综合评分</div>' +
-        '<div class="tp-card-score-value">' + (score || "暂无") + "</div>" +
-        '<div class="tp-card-score-level">' + (scoreInfo.label || "待评分") + "</div>" +
-        '<div class="tp-card-score-stars">' + scoreInfo.stars + "</div>" +
+        '<div class="tp-cell tp-cell-potential">' +
+          '<span class="tp-potential-badge tp-potential-' + potential.level + '">' + potential.label + "</span>" +
+          '<span class="tp-potential-desc">' + potential.desc + "</span>" +
+        "</div>" +
+        '<div class="tp-cell tp-cell-action">' +
+          '<button class="tp-row-action" type="button" data-action="toggle">' + (sel ? "移出" : "加入生产") + "</button>" +
         "</div>" +
         "</div>";
     }
@@ -223,20 +238,17 @@ const PAGE_SIZE = 10;
     grid.innerHTML = html;
     renderPagination(totalPages);
 
-    grid.querySelectorAll(".tp-card").forEach((card) => {
+    grid.querySelectorAll(".tp-row").forEach((card) => {
       card.addEventListener("click", () => {
         const rid = card.dataset.rid;
         if (!rid) return;
         if (selectedIds.has(rid)) {
           selectedIds.delete(rid);
           card.classList.remove("selected");
-          card.querySelector(".tp-card-checkbox").innerHTML = "";
         } else {
           selectedIds.add(rid);
-          card.classList.add("selected");
-          card.querySelector(".tp-card-checkbox").innerHTML = "✓";
         }
-        updateSidebar();
+        renderGrid();
       });
     });
 
@@ -250,6 +262,22 @@ const PAGE_SIZE = 10;
     if (score >= 70) return { cls: "tp-score-b", label: "较高", level: "b", stars: "★★★☆☆" };
     if (score >= 60) return { cls: "tp-score-c", label: "一般", level: "c", stars: "★★☆☆☆" };
     return { cls: "tp-score-d", label: "较低", level: "d", stars: "★☆☆☆☆" };
+  }
+
+  function getPotentialInfo(item) {
+    const score = item.quality_score || 0;
+    const favorites = item.favorites || 0;
+    const comments = item.comments || 0;
+    if (score >= 90 || favorites >= 80000) {
+      return { level: "hot", label: "优先生产", desc: "高分或高收藏" };
+    }
+    if (score >= 80 || comments >= 5000) {
+      return { level: "good", label: "建议生产", desc: "互动基础较好" };
+    }
+    if (score >= 70) {
+      return { level: "watch", label: "观察", desc: "可补充评估" };
+    }
+    return { level: "low", label: "低优先", desc: "等待复核" };
   }
 
   function getCategoryClass(category) {
