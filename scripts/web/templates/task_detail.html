@@ -26,36 +26,50 @@
         </div>
       </div>
     </div>
-    <div class="td-header-middle">
-      <div class="td-meta-lines">
-        <div class="td-meta-line">
-          <span>创建 <strong id="taskCreated">—</strong></span>
-          <span>耗时 <strong id="taskDuration">—</strong></span>
-          <span>重试 <strong id="summaryRetries">0</strong></span>
-          <span>阶段 <strong id="summaryStage">—</strong></span>
+    <div class="td-header-middle" aria-label="任务基础信息">
+      <div class="td-task-meta-grid">
+        <div class="td-meta-item">
+          <span class="td-meta-label">任务ID</span>
+          <code class="td-meta-value td-meta-code" id="taskId">{{ task_id }}</code>
         </div>
-        <div class="td-meta-line">
-          <span>效率 <strong id="summarySpeed">—</strong></span>
-          <span>模型 <strong id="taskModel">—</strong></span>
-          <span>任务 <code id="taskId">{{ task_id }}</code></span>
+        <div class="td-meta-item">
+          <span class="td-meta-label">创建时间</span>
+          <strong class="td-meta-value" id="taskCreated">—</strong>
+        </div>
+        <div class="td-meta-item">
+          <span class="td-meta-label">当前阶段</span>
+          <strong class="td-meta-value" id="summaryStage">—</strong>
+        </div>
+        <div class="td-meta-item">
+          <span class="td-meta-label">处理耗时</span>
+          <strong class="td-meta-value" id="taskDuration">—</strong>
+        </div>
+        <div class="td-meta-item">
+          <span class="td-meta-label">内容效率</span>
+          <strong class="td-meta-value" id="summarySpeed">—</strong>
+        </div>
+        <div class="td-meta-item">
+          <span class="td-meta-label">生成模型</span>
+          <strong class="td-meta-value" id="taskModel">—</strong>
         </div>
       </div>
       <div class="td-refresh-meta">
         <span id="autoRefreshStatus">自动刷新中</span>
         <span>最近刷新: <span id="lastRefresh">—</span></span>
+        <span>重试 <strong id="summaryRetries">0</strong></span>
       </div>
     </div>
-    <div class="td-header-right">
-      <div class="td-summary-card">
-        <div class="td-summary-topline">
-          <div class="td-summary-status" id="summaryStatus">加载中</div>
-          <div class="td-summary-progress"><span id="summaryProgress">0</span>%</div>
-        </div>
-        <div class="td-summary-actions">
-          <button class="td-btn td-btn--secondary td-btn--small" id="btnRefresh">手动刷新</button>
-          <button class="td-btn td-btn--secondary td-btn--small" id="btnRegenerate">重新生成</button>
-          <button class="td-btn td-btn--secondary td-btn--small" id="btnRescore">重新评分</button>
-        </div>
+    <div class="td-header-progress" aria-label="任务进度">
+      <div class="td-summary-status" id="summaryStatus">加载中</div>
+      <div class="td-summary-progress"><span id="summaryProgress">0</span>%</div>
+      <div class="td-progress-caption">预计剩余时间 <span id="summaryRemaining">—</span></div>
+      <div class="td-progress-track"><div class="td-progress-fill" id="summaryProgressBar"></div></div>
+    </div>
+    <div class="td-header-right" aria-label="任务操作">
+      <div class="td-summary-actions">
+        <button class="td-btn td-btn--secondary td-btn--small" id="btnRefresh"><i data-lucide="refresh-cw"></i><span>手动刷新</span></button>
+        <button class="td-btn td-btn--secondary td-btn--small" id="btnRegenerate"><i data-lucide="file-pen-line"></i><span>重新生成笔记</span></button>
+        <button class="td-btn td-btn--secondary td-btn--small" id="btnRescore"><i data-lucide="badge-check"></i><span>重新评分</span></button>
       </div>
     </div>
   </div>

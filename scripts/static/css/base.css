@@ -391,6 +391,7 @@ a:hover { text-decoration: underline; }
   display: flex;
   align-items: center;
   gap: var(--space-md);
+  min-width: 0;
 }
 
 .app-header-logo {
@@ -431,6 +432,63 @@ a:hover { text-decoration: underline; }
   font-size: 16px;
   font-weight: 500;
   color: var(--text-primary);
+}
+
+.app-header--contextual {
+  gap: var(--space-lg);
+}
+
+.app-header--contextual .app-header-left {
+  flex: 1;
+  gap: var(--space-md);
+}
+
+.app-header--contextual .app-header-center {
+  display: none;
+}
+
+.app-header-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.app-header-back:hover {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.app-header-back svg {
+  width: 16px;
+  height: 16px;
+}
+
+.app-header-context-title {
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.app-header-context-badge {
+  min-width: 0;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  font-weight: 600;
 }
 
 .app-header-right {

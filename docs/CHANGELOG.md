@@ -16,6 +16,20 @@
 - 回滚方式：
 - 风险与注意事项：
 
+## 2026-06-19（任务详情页红框问题修正）
+- 变更摘要：按参考图修正任务详情页顶部导航、任务概览信息栏、右侧操作按钮和底部操作栏覆盖范围。
+- 影响范围：Web / 任务详情 / 公共 Header 条件态
+- 行为变化：
+  - 任务详情页顶部 Header 新增“返回生产中心”入口，并将页面标题与任务 ID 胶囊左对齐展示
+  - 顶部任务信息栏调整为作品身份、静态任务信息、进度状态、右侧操作按钮四区布局
+  - 右侧操作按钮改为纵向动作栈，保留手动刷新、重新生成笔记、重新评分接口绑定
+  - 底部保存/审核操作栏限制在右侧内容区，不再横跨左侧菜单栏
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/web/routes/task_detail_page.py`、`scripts/web/templates/_header.html`、`scripts/web/templates/task_detail.html`、`scripts/static/css/base.css`、`scripts/static/css/task_detail.css`、`scripts/static/js/task_detail.js` 和本条记录
+- 风险与注意事项：
+  - 公共 Header 仅在传入 `header_back_href` 时启用上下文态；其它页面保持原 Header 结构
+
 ## 2026-06-18（生产中心任务列表页优化）
 - 变更摘要：按参考设计优化生产中心任务列表页，提升 KPI、筛选区、状态进度、任务信息和操作区的扫读效率。
 - 影响范围：Web / 生产中心

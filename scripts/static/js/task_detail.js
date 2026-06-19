@@ -129,7 +129,13 @@
     setText("#taskModel", "Qwen-Plus");
     setText("#taskCreated", taskData.created_at || "—");
     setText("#taskId", taskData.record_id || "—");
-    setText("#summaryProgress", taskData.progress_percent != null ? taskData.progress_percent : 0);
+    var progress = taskData.progress_percent != null ? Number(taskData.progress_percent) : 0;
+    if (!Number.isFinite(progress)) progress = 0;
+    progress = Math.max(0, Math.min(100, Math.round(progress)));
+    setText("#summaryProgress", progress);
+    setText("#summaryRemaining", estimateRemaining(progress, taskData));
+    var progressBar = $("#summaryProgressBar");
+    if (progressBar) progressBar.style.width = progress + "%";
     setText("#summaryStage", taskData.stage_label || "—");
 
     // 生产摘要卡
@@ -182,6 +188,19 @@
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return minutes + "分" + secs + "秒";
+  }
+
+  function estimateRemaining(progress, task) {
+    if (progress >= 100 || (task && normalizeDisplayStatus(task.display_status || task.status) === "done")) return "0 分钟";
+    if (!task || !task.processing_start || progress <= 0) return "—";
+    var start = new Date(task.processing_start);
+    var elapsed = Math.max(0, Math.round((new Date() - start) / 1000));
+    if (!Number.isFinite(elapsed) || elapsed <= 0) return "—";
+    var total = elapsed / (progress / 100);
+    var remaining = Math.max(0, Math.round(total - elapsed));
+    if (!Number.isFinite(remaining)) return "—";
+    if (remaining < 60) return "1 分钟内";
+    return Math.ceil(remaining / 60) + " 分钟";
   }
 
   /* ===== 渲染进度轴 ===== */

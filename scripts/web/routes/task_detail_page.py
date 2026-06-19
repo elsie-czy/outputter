@@ -24,7 +24,14 @@ bp = Blueprint("web_task_detail", __name__)
 @bp.get("/task/<task_id>")
 def task_detail_page(task_id):
     """任务详情页面"""
-    return render_template("task_detail.html", task_id=task_id, page_title="任务详情")
+    return render_template(
+        "task_detail.html",
+        task_id=task_id,
+        page_title="任务详情",
+        header_back_href="/production-center",
+        header_back_text="返回生产中心",
+        header_badge="ID: " + task_id,
+    )
 
 
 @bp.get("/api/task/<task_id>")

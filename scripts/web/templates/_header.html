@@ -1,5 +1,5 @@
 {# Header 组件 — 固定顶部 64px #}
-<header class="app-header">
+<header class="app-header{% if header_back_href %} app-header--contextual{% endif %}">
   <div class="app-header-left">
     <button class="app-sidebar-toggle" id="sidebarToggle" aria-label="切换侧边栏">
       <i data-lucide="panel-left"></i>
@@ -8,10 +8,22 @@
       <i data-lucide="file-text" class="app-header-logo-icon"></i>
       <span class="app-header-logo-text">超级工具</span>
     </a>
+    {% if header_back_href %}
+    <a href="{{ header_back_href }}" class="app-header-back">
+      <i data-lucide="arrow-left"></i>
+      <span>{{ header_back_text|default("返回") }}</span>
+    </a>
+    <span class="app-header-context-title">{{ page_title|default("") }}</span>
+    {% if header_badge %}
+    <span class="app-header-context-badge">{{ header_badge }}</span>
+    {% endif %}
+    {% endif %}
   </div>
 
   <div class="app-header-center">
+    {% if not header_back_href %}
     <span class="app-header-page-title">{{ page_title|default("") }}</span>
+    {% endif %}
   </div>
 
   <div class="app-header-right">
