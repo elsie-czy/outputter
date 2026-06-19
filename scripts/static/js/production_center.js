@@ -197,16 +197,17 @@
 
   function renderActions(status, rid) {
     const safeRid = esc(rid);
-    let html = '<a class="pc-action-link pc-action-link--primary" href="/task/' + safeRid + '" target="_blank" rel="noopener" data-action="view" data-rid="' + safeRid + '" title="查看详情"><i data-lucide="external-link"></i>查看</a>';
+    let html = "";
     if (!["done", "cancelled", "failed"].includes(status)) {
-      html += '<a class="pc-action-link" data-action="pause" data-rid="' + safeRid + '" title="暂停任务"><i data-lucide="pause"></i></a>';
+      html += '<a class="pc-action-link" data-action="pause" data-rid="' + safeRid + '" data-tooltip="暂停任务"><i data-lucide="pause"></i></a>';
     }
     if (status === "failed") {
-      html += '<a class="pc-action-link" data-action="retry" data-rid="' + safeRid + '" title="重试任务"><i data-lucide="rotate-cw"></i></a>';
+      html += '<a class="pc-action-link" data-action="retry" data-rid="' + safeRid + '" data-tooltip="重试任务"><i data-lucide="rotate-cw"></i></a>';
     }
     if (status !== "done") {
-      html += '<a class="pc-action-link pc-action-link--danger" data-action="cancel" data-rid="' + safeRid + '" title="终止任务"><i data-lucide="square"></i></a>';
+      html += '<a class="pc-action-link pc-action-link--danger" data-action="cancel" data-rid="' + safeRid + '" data-tooltip="终止任务"><i data-lucide="octagon-x"></i></a>';
     }
+    html += '<a class="pc-action-link pc-action-link--primary" href="/task/' + safeRid + '" target="_blank" rel="noopener" data-action="view" data-rid="' + safeRid + '" data-tooltip="查看详情"><i data-lucide="external-link"></i><span>查看</span></a>';
     return html;
   }
 

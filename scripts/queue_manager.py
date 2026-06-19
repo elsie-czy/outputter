@@ -187,6 +187,12 @@ def get_queue(status=None, platform=None, category=None, q=None, page=1, per_pag
                      if q_lower in str(i.get("work_name", "")).lower()
                      or q_lower in str(i.get("author", "")).lower()]
 
+    filtered = sorted(
+        filtered,
+        key=lambda i: str(i.get("created_at") or ""),
+        reverse=True,
+    )
+
     total = len(filtered)
     start = (page - 1) * per_page
     end = start + per_page

@@ -276,7 +276,7 @@
 .pc-th-stage { width: 128px; }
 .pc-th-model { width: 150px; }
 .pc-th-time { width: 170px; }
-.pc-th-actions { width: 128px; text-align: right; }
+.pc-th-actions { width: 164px; text-align: right; }
 .pc-table td:last-child,
 .pc-table th:last-child { text-align: right; }
 
@@ -433,6 +433,7 @@
   gap: 6px;
 }
 .pc-action-link {
+  position: relative;
   min-width: 34px;
   height: 30px;
   display: inline-flex;
@@ -453,10 +454,33 @@
   border-color: var(--color-primary);
   text-decoration: none;
 }
-.pc-action-link--primary { color: var(--color-primary); background: #F5F3FF; border-color: #DDD6FE; }
+.pc-action-link--primary { min-width: 68px; color: var(--color-primary); background: #F5F3FF; border-color: #DDD6FE; }
 .pc-action-link--danger { color: var(--color-error); }
 .pc-action-link--danger:hover { color: #B91C1C; border-color: #FCA5A5; }
 .pc-action-link svg { width: 14px; height: 14px; }
+.pc-action-link::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: 50%;
+  bottom: calc(100% + 8px);
+  z-index: 10;
+  padding: 5px 8px;
+  border-radius: 6px;
+  color: #fff;
+  background: rgba(17, 24, 39, 0.92);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(50%, 4px);
+  transition: opacity 0.08s ease, transform 0.08s ease;
+}
+.pc-action-link:hover::after {
+  opacity: 1;
+  transform: translate(50%, 0);
+}
 
 .pc-loading td,
 .pc-empty-row td,
