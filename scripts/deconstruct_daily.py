@@ -989,10 +989,16 @@ def run():
         search_info = search_work_info(work)
         summary["durations_sec"]["select_and_search"] = round(time.perf_counter() - t, 3)
 
-        # Merge search info into work if missing
+        # Merge search info into work if missing; prefer search for 简介 if more detailed
         for k in ["作品名称", "作者", "平台", "分类", "评分", "字数（万）", "完结状态", "简介", "取向"]:
             if not work.get(k) and search_info.get(k):
                 work[k] = search_info.get(k)
+        # 简介优先用搜索到的版本（通常更详细准确）
+        if search_info.get("简介") and len(str(search_info.get("简介"))) > len(str(work.get("简介", ""))):
+            work["简介"] = search_info["简介"]
+            # 同时标记来源
+            if search_info.get("搜索来源链接"):
+                work["简介来源"] = search_info["搜索来源链接"]
 
         # Normalize word count from alternate field names
         if not work.get("字数（万）"):
