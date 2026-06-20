@@ -138,6 +138,8 @@ def enqueue_works(works):
             "author": str(w.get("作者", "")),
             "platform": str(w.get("平台", "")),
             "category": str(w.get("分类", "")),
+            "synopsis": str(w.get("简介", "")),
+            "orientation": str(w.get("取向", "")),
             "word_count": w.get("字数", 0),
             "favorites": w.get("收藏", 0),
             "likes": w.get("点赞", 0),

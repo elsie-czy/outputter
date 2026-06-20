@@ -171,6 +171,8 @@ def process_one(task, dry=False):
             "作者": task.get("author", ""),
             "平台": task.get("platform", ""),
             "分类": task.get("category", ""),
+            "简介": task.get("synopsis", ""),
+            "取向": task.get("orientation", ""),
         }
 
         # 标记处理中
@@ -185,7 +187,7 @@ def process_one(task, dry=False):
         
         # 确保必填字段有默认值
         if not work.get("简介"):
-            work["简介"] = f"{work.get('作品名称', '')} - {work.get('分类', '')}类小说"
+            work["简介"] = ""
 
         if dry:
             _log(rid, "dry=True，跳过模型调用")
@@ -269,6 +271,25 @@ def process_one(task, dry=False):
         report = build_report(work, search_info, analysis)
         xhs_note = build_xhs_note(work, analysis)
         quality_score = _score_note_for_task(rid, xhs_note, step_times)
+
+        # 评分闭环：grade=retry 且非降级分数时，重试一次
+        if (
+            not quality_score.get("_fallback")
+            and quality_score.get("grade") == "retry"
+            and os.getenv("QUALITY_AUTO_RETRY", "1").strip().lower() in ("1", "true", "yes")
+        ):
+            _log(rid, f"评分 {quality_score['total']} < 75，按建议重试: {quality_score.get('suggestion', '')}")
+            retry_feedback = [{"time": _now(), "field": "整体", "reason": quality_score.get("suggestion", "")}]
+            retry_ctx = {
+                "reference_notes": generation_context.get("reference_notes"),
+                "recent_feedback": retry_feedback,
+            }
+            analysis = analyze_work(work, **retry_ctx)
+            analysis["配图提示词"] = _build_image_prompts(work, analysis)
+            report = build_report(work, search_info, analysis)
+            xhs_note = build_xhs_note(work, analysis)
+            quality_score = _score_note_for_task(rid, xhs_note, step_times)
+            _log(rid, f"重试后评分: {quality_score.get('total', 0)} ({quality_score.get('grade', '')})")
 
         report_path = os.path.join(PATHS["outputs"], "拆解报告", f"{run_date}_{safe_name}_拆解报告.md")
         os.makedirs(os.path.dirname(report_path), exist_ok=True)

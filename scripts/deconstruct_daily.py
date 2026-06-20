@@ -391,17 +391,20 @@ def build_xhs_note(work, analysis, use_formula=True):
     lines.append(f"✨ {_compact_mobile(p.get('正文开头模板', ''), 120)}")
     lines.append("")
     
-    # 情绪钩子（使用情绪词库）
-    emotion_hooks = [
-        "这本真的好看哭了😭",
-        "我后悔没早知道这本！",
-        "刷到就是缘分，这本绝了",
-        "我不是最后一个知道的吧！",
-    ]
+    # 情绪钩子（从 analysis 情绪词动态生成）
     import random
-    lines.append(random.choice(emotion_hooks))
+    emotion_words = [e for e in analysis.get("情绪触发", []) if e and str(e).strip()]
+    if emotion_words:
+        ew = _compact_mobile(emotion_words[0], 20)
+        lines.append(f"这本真的{ew}😭 刷到就是缘分")
+    else:
+        lines.append("刷到就是缘分，这本绝了")
     lines.append("")
-    lines.append("这本不是靠设定噱头撑着走的，是真有阅读粘性的那种。")
+    structure = _compact_mobile(p.get('正文结构建议', ''), 80)
+    if structure:
+        lines.append(structure)
+    else:
+        lines.append("这本不是靠设定噱头撑着走的，是真有阅读粘性的那种。")
     lines.append("我本来只想看几章，结果直接连着刷下去。")
     lines.append("")
     lines.append("📚 作品速览")
@@ -448,10 +451,17 @@ def build_xhs_note(work, analysis, use_formula=True):
     lines.append(f"- 结构节奏：{_compact_mobile(p.get('正文结构建议', ''), 120)}")
     lines.append("")
     
-    # 个人推荐点（增加真实感）
+    # 个人推荐点（从卖点分析动态生成）
     lines.append("🔹 我个人最吃的一点")
-    lines.append("不是\"她有多强\"，而是她每次做选择都很清醒。")
-    lines.append("这种\"我命由我不由人\"的劲儿，特别容易代入。")
+    sell_point = analysis.get("卖点分析", {})
+    core_sell = _compact_mobile(sell_point.get("核心卖点", ""), 120)
+    if core_sell:
+        lines.append(core_sell)
+    else:
+        lines.append(_compact_mobile(p.get("正文开头模板", ""), 120))
+    aux_sells = sell_point.get("辅助卖点", [])
+    if isinstance(aux_sells, list) and aux_sells:
+        lines.append(f"辅助亮点：{_compact_mobile('、'.join(str(s) for s in aux_sells[:2]), 100)}")
     lines.append("")
 
     lines.append("📝 可抄作业句子（收藏版）")
@@ -460,13 +470,34 @@ def build_xhs_note(work, analysis, use_formula=True):
     lines.append("")
 
     lines.append("📖 阅读建议")
-    lines.append("- 适合：想看剧情推进 + 人物成长 + 冲突反转")
-    lines.append("- 避雷：如果只想看极速爽点，可能会觉得铺垫稍多")
+    audience = p.get("受众画像关键词", [])
+    if not isinstance(audience, list):
+        audience = [str(audience)] if audience else []
+    audience_str = _compact_mobile("、".join(str(a) for a in audience[:3]), 60)
+    category = _compact_mobile(work.get("分类", ""), 20)
+    if audience_str:
+        lines.append(f"- 适合：{audience_str}")
+    else:
+        lines.append(f"- 适合：喜欢{category}题材的读者")
+    expand = _compact_mobile(p.get("内容扩展方向", ""), 80)
+    if expand:
+        lines.append(f"- 如果你喜欢{expand}，这本也值得看")
+    else:
+        lines.append("- 避雷：如果只想看极速爽点，可能会觉得铺垫稍多")
     lines.append("")
 
     lines.append("💬 我的结论")
-    lines.append("如果你最近想看\"有爽点但不空心\"的文，这本真的可以试。")
-    lines.append("它不是喊口号式的大女主，而是一步步把命运拿回来的过程。")
+    core_sell = _compact_mobile(analysis.get("卖点分析", {}).get("核心卖点", ""), 100)
+    potential = _compact_mobile(p.get("爆款潜力评分", ""), 10)
+    if core_sell:
+        lines.append(f"如果你最近想找一本{core_sell}的文，这本真的可以试。")
+    else:
+        lines.append("如果你最近书荒想找一本有阅读粘性的文，这本真的可以试。")
+    emotion_tail = _compact_mobile('、'.join(analysis.get("情绪触发", [])[:2]), 30)
+    if emotion_tail:
+        lines.append(f"它不只是爽，更靠{emotion_tail}把人留住。")
+    else:
+        lines.append("它不是喊口号式的，而是一步步把命运拿回来的过程。")
     lines.append("")
     
     # CTA行动号召（参考xhs-writer-skill：点赞/收藏/关注）
