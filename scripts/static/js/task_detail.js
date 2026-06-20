@@ -361,6 +361,7 @@
     if (!taskData || !taskData.note_content) {
       if (titleInput) titleInput.value = "";
       if (contentArea) contentArea.value = "";
+      renderTitleOptions();
       return;
     }
 
@@ -387,7 +388,52 @@
         tagsList.innerHTML = '<span class="td-empty-inline">暂无标签</span>';
       }
     }
+    renderTitleOptions();
     updateSideStats();
+  }
+
+  /* ===== 备选标题选择器 ===== */
+  function renderTitleOptions() {
+    var box = document.getElementById("titleOptionsBox");
+    var list = document.getElementById("titleOptionsList");
+    if (!box || !list) return;
+
+    var titles = [];
+    if (taskData && taskData.note_content && taskData.note_content.title_options) {
+      titles = taskData.note_content.title_options;
+    }
+
+    if (!titles || !titles.length) {
+      box.style.display = "none";
+      return;
+    }
+
+    box.style.display = "block";
+    list.textContent = "";
+
+    var currentTitle = (document.getElementById("noteTitle") || {}).value || "";
+    titles.forEach(function(t) {
+      var chip = document.createElement("span");
+      chip.className = "td-option-chip";
+      if (t === currentTitle) {
+        chip.classList.add("td-option-active");
+      }
+      chip.textContent = t;
+      chip.title = t;
+      chip.addEventListener("click", function() {
+        var titleInput = document.getElementById("noteTitle");
+        if (titleInput) {
+          titleInput.value = t;
+          updateTitleCount();
+          isDraftDirty = true;
+          // 更新 active 状态
+          var allChips = list.querySelectorAll(".td-option-chip");
+          allChips.forEach(function(c) { c.classList.remove("td-option-active"); });
+          chip.classList.add("td-option-active");
+        }
+      });
+      list.appendChild(chip);
+    });
   }
 
   /* ===== 渲染拆文结果 ===== */

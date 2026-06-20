@@ -254,6 +254,7 @@ def update_task_fields(record_id, **fields):
         "deconstruct_result",
         "images",
         "step_times",
+        "title_options",
     }
     patch = {k: v for k, v in fields.items() if k in allowed}
     if not patch:

@@ -26,7 +26,7 @@ from scripts.generation_context import build_generation_context, context_counts
 
 # Import from deconstruct_daily
 from scripts.deconstruct_daily import (
-    build_report, build_xhs_note, build_experiment_log,
+    build_report, build_xhs_note, build_experiment_log, get_title_options,
     sync_to_feishu, sync_xhs_note_table, _build_image_prompts,
 )
 
@@ -279,6 +279,7 @@ def process_one(task, dry=False):
                         quality_score=quality_score,
                         step_times=step_times,
                         images=images)
+            update_task_fields(rid, title_options=get_title_options(work, analysis))
             result["ok"] = True
             return result
 
@@ -327,6 +328,8 @@ def process_one(task, dry=False):
             xhs_note = build_xhs_note(work, analysis)
             quality_score = _score_note_for_task(rid, xhs_note, step_times)
             _log(rid, f"重试后评分: {quality_score.get('total', 0)} ({quality_score.get('grade', '')})")
+
+        title_options = get_title_options(work, analysis)
 
         report_path = os.path.join(PATHS["outputs"], "拆解报告", f"{run_date}_{safe_name}_拆解报告.md")
         os.makedirs(os.path.dirname(report_path), exist_ok=True)
@@ -389,7 +392,7 @@ def process_one(task, dry=False):
                     note_content=xhs_note,
                     quality_score=quality_score,
                     step_times=step_times)
-        update_task_fields(rid, main_record_id=record_id, xhs_record_id=xhs_record_id)
+        update_task_fields(rid, main_record_id=record_id, xhs_record_id=xhs_record_id, title_options=title_options)
 
         # 9. 生成图片（如果启用）
         images = {}

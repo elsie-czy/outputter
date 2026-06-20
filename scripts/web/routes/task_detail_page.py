@@ -1,4 +1,5 @@
 from datetime import datetime
+import re
 
 from flask import Blueprint, jsonify, render_template, request
 
@@ -77,6 +78,7 @@ def task_detail_api(task_id):
         
         # 处理笔记内容
         note_content = task.get("note_content", "")
+        title_options = task.get("title_options", [])  # 新增：独立的备选标题字段
         if not note_content or note_content.startswith("（缓存") or len(str(note_content).strip()) < 10:
             # 从拆文结果中提取笔记内容
             dr = task.get("deconstruct_result") or {}
@@ -91,6 +93,7 @@ def task_detail_api(task_id):
                 "content": body,
                 "tags": [],
                 "score": _format_score(task.get("quality_score")),
+                "title_options": title_options if title_options else [],
             }
         else:
             # 笔记内容是 markdown 字符串
@@ -100,6 +103,7 @@ def task_detail_api(task_id):
                 "content": _extract_body(note_text),
                 "tags": _extract_tags(note_text),
                 "score": _format_score(task.get("quality_score")),
+                "title_options": title_options if title_options else _extract_title_options(note_text),
             }
         task["modification_log"] = task.get("modification_log", "")
         
@@ -129,15 +133,48 @@ def _extract_title(note_content):
 
 
 def _extract_body(note_content):
-    """去掉单独标题行，避免正文编辑框重复出现“标题：”。"""
+    """去掉【标题】行和【备选标题】区块，避免正文编辑框重复出现。"""
     if not note_content:
         return ""
     lines = str(note_content).splitlines()
-    if lines:
-        first = lines[0].strip()
-        if first.startswith("# ") or first.startswith("【标题】") or first.startswith("标题：") or first.startswith("标题:"):
-            return "\n".join(lines[1:]).lstrip()
-    return str(note_content)
+    result = []
+    skip_titles = False
+    for line in lines:
+        stripped = line.strip()
+        # 跳过【标题】行
+        if not result and (stripped.startswith("# ") or stripped.startswith("【标题】") or stripped.startswith("标题：") or stripped.startswith("标题:")):
+            continue
+        # 跳过【备选标题】区块
+        if stripped.startswith("【备选标题】"):
+            skip_titles = True
+            continue
+        if skip_titles and (stripped.startswith("  ") or re.match(r'^\d+\.\s', stripped)):
+            continue
+        skip_titles = False
+        result.append(line)
+    return "\n".join(result).lstrip()
+
+
+def _extract_title_options(note_content):
+    """从笔记内容提取备选标题列表（向后兼容旧数据）"""
+    if not note_content:
+        return []
+    lines = str(note_content).splitlines()
+    titles = []
+    in_section = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("【备选标题】"):
+            in_section = True
+            continue
+        if in_section:
+            if not stripped or stripped.startswith("【") or (not re.match(r'^\d+\.\s', stripped) and not stripped.startswith("  ")):
+                break
+            # 去除编号前缀
+            title = re.sub(r'^\d+\.\s*', '', stripped.lstrip())
+            if title:
+                titles.append(title)
+    return titles
 
 
 def _extract_tags(note_content):
@@ -145,7 +182,6 @@ def _extract_tags(note_content):
     if not note_content:
         return []
     tags = []
-    import re
     # 查找 # 标签
     matches = re.findall(r'#(\w+)', note_content)
     tags.extend(matches[:5])

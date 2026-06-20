@@ -383,6 +383,16 @@ def _select_best_title(titles, work):
     return titles[0] if titles else ""
 
 
+def get_title_options(work, analysis):
+    """返回备选标题列表（不含最佳标题），供前端选择器使用"""
+    try:
+        title_options = generate_title_options(work, analysis)
+        best_title = _select_best_title(title_options, work)
+        return [t for t in title_options if t != best_title][:5]
+    except Exception:
+        return []
+
+
 def build_xhs_note(work, analysis, use_formula=True):
     p = analysis["小红书包装"]
     tags = p.get("热门标签推荐", [])
@@ -399,10 +409,6 @@ def build_xhs_note(work, analysis, use_formula=True):
         title_options = generate_title_options(work, analysis)
         best_title = _select_best_title(title_options, work)
         lines.append(f"【标题】{best_title}")
-        lines.append(f"【备选标题】")
-        for i, t in enumerate(title_options[:5], 1):
-            if t != best_title:
-                lines.append(f"  {i}. {t}")
     else:
         lines.append(f"【标题】{p.get('小红书标题模板', '')}")
     lines.append("")

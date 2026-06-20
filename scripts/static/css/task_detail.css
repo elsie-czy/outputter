@@ -2309,3 +2309,53 @@
     flex-direction: column;
   }
 }
+
+/* ===== 备选标题选择器 ===== */
+.td-title-options {
+  margin-top: 10px;
+  border-top: 1px solid var(--line, #E8E8E8);
+  padding-top: 10px;
+}
+
+.td-options-header {
+  font-size: 12px;
+  color: var(--text-secondary, #888);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.td-options-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.td-option-chip {
+  display: inline-block;
+  padding: 4px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  border-radius: 16px;
+  background: var(--bg-tertiary, #F5F5F5);
+  border: 1px solid var(--line, #E8E8E8);
+  cursor: pointer;
+  color: var(--text-primary, #333);
+  transition: all 0.15s ease;
+  max-width: 320px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.td-option-chip:hover {
+  background: var(--bg-hover, #EBEBFF);
+  border-color: var(--accent, #5B6CFF);
+}
+
+.td-option-chip.td-option-active {
+  background: var(--accent, #5B6CFF);
+  color: #fff;
+  border-color: var(--accent, #5B6CFF);
+}
