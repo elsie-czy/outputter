@@ -11,10 +11,9 @@ HEARTBEAT_TIMEOUT = 60  # 心跳超时秒数
 
 def _check_worker_heartbeat():
     """通过心跳文件判断 worker 是否在线"""
-    heartbeat_file = os.path.join(
-        os.path.dirname(__file__), "..", "..", "data", "queue", "worker_heartbeat.txt"
-    )
-    heartbeat_file = os.path.abspath(heartbeat_file)
+    # scripts/web/routes/ -> .. -> scripts/web -> .. -> scripts -> .. -> project_root
+    base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    heartbeat_file = os.path.join(base, "data", "queue", "worker_heartbeat.txt")
     if not os.path.exists(heartbeat_file):
         return False, False, None
     try:
