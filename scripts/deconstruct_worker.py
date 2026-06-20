@@ -113,11 +113,41 @@ def _lock_pid():
         return None
 
 
+def _write_heartbeat():
+    """写入心跳文件，供 web 状态灯读取"""
+    try:
+        hb_path = os.path.join(PATHS["queue"], "worker_heartbeat.txt")
+        with open(hb_path, "w", encoding="utf-8") as f:
+            f.write(str(int(time.time())))
+    except Exception:
+        pass
+
+
+def _is_pid_alive(pid):
+    """检查指定 PID 的进程是否还在运行"""
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except Exception:
+        return True
+
+
 def _acquire_worker_lock():
     if _acquire_lock():
         return True
+    # 当前进程自己的残留锁
     if _lock_pid() == os.getpid():
         _log("worker", f"发现当前 PID 的残留队列锁，清理后重新获取 pid={os.getpid()}")
+        _release_lock()
+        return _acquire_lock()
+    # 其他进程的残留锁（进程已退出但锁未清理）
+    locked_pid = _lock_pid()
+    if locked_pid and not _is_pid_alive(locked_pid):
+        _log("worker", f"发现残留队列锁 (pid={locked_pid} 已退出)，自动清理")
         _release_lock()
         return _acquire_lock()
     return False
@@ -428,9 +458,27 @@ def run_loop(limit=0, sleep_sec=5.0, dry=False, stay_alive=True):
         time.sleep(30)
 
     try:
+        _write_heartbeat()  # 启动时立即写心跳
         processed = 0
         idle_count = 0
+        last_heartbeat = 0
         while True:
+            # 检查停止信号
+            stop_file = os.path.join(PATHS["queue"], "worker_stop_signal.txt")
+            if os.path.exists(stop_file):
+                _log("worker", "收到停止信号，准备退出")
+                try:
+                    os.remove(stop_file)
+                except Exception:
+                    pass
+                break
+
+            # 每30秒写一次心跳
+            now_ts = time.time()
+            if now_ts - last_heartbeat >= 30:
+                _write_heartbeat()
+                last_heartbeat = now_ts
+
             task = get_next_pending()
             if not task:
                 if not stay_alive:
@@ -461,6 +509,13 @@ def run_loop(limit=0, sleep_sec=5.0, dry=False, stay_alive=True):
         _log("worker", f"结束，共处理 {processed} 个任务")
 
     finally:
+        # 清理心跳文件（停止时标记为离线）
+        try:
+            hb_path = os.path.join(PATHS["queue"], "worker_heartbeat.txt")
+            if os.path.exists(hb_path):
+                os.remove(hb_path)
+        except Exception:
+            pass
         _release_lock()
 
 

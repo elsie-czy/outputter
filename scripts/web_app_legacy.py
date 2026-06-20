@@ -60,6 +60,9 @@ from scripts.web.services.xhs_preview_data import (
 )
 
 app = Flask(__name__)
+app.template_folder = os.path.join(os.path.dirname(__file__), "web", "templates")
+app.static_folder = os.path.join(os.path.dirname(__file__), "static")
+app.static_url_path = "/static"
 
 _XHS_STATS_CACHE = {"ts": 0.0, "data": None, "err": None}
 _XHS_STATS_CACHE_SEC = 60
@@ -2871,8 +2874,9 @@ def xhs_publish():
 
 if __name__ == "__main__":
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    # Allow command-line environment variables (e.g. WEB_PORT) to override .env.
     load_dotenv(os.path.join(base_dir, ".env"), override=False)
+    from scripts.web.routes import register_routes
+    register_routes(app)
     host = os.getenv("WEB_HOST", "127.0.0.1").strip() or "127.0.0.1"
     port = int(os.getenv("WEB_PORT", "8080"))
     app.run(host=host, port=port, debug=False)

@@ -1,9 +1,29 @@
 import os
+import time
 import subprocess
 import signal
 from flask import Blueprint, jsonify, send_file
 
 bp = Blueprint("web_health", __name__, url_prefix="/_health")
+
+HEARTBEAT_TIMEOUT = 60  # 心跳超时秒数
+
+
+def _check_worker_heartbeat():
+    """通过心跳文件判断 worker 是否在线"""
+    heartbeat_file = os.path.join(
+        os.path.dirname(__file__), "..", "..", "data", "queue", "worker_heartbeat.txt"
+    )
+    heartbeat_file = os.path.abspath(heartbeat_file)
+    if not os.path.exists(heartbeat_file):
+        return False, False, None
+    try:
+        with open(heartbeat_file, "r", encoding="utf-8") as f:
+            ts = int((f.read() or "").strip())
+        age = int(time.time()) - ts
+        return True, age <= HEARTBEAT_TIMEOUT, age
+    except Exception:
+        return False, False, None
 
 
 @bp.get("/images/<path:filepath>")
@@ -30,26 +50,18 @@ def health():
 
 @bp.get("/worker-status")
 def worker_status():
-    """检查 Worker 运行状态"""
+    """检查 Worker 运行状态（通过心跳文件，不依赖 ps/pgrep）"""
     try:
         # 检查锁文件
         lock_file = os.path.join(os.path.dirname(__file__), "..", "..", "data", "queue", "deconstruct_queue.lock")
+        lock_file = os.path.abspath(lock_file)
         lock_exists = os.path.exists(lock_file)
         
-        # 检查进程
-        worker_running = False
-        try:
-            result = subprocess.run(
-                ["pgrep", "-f", "deconstruct_worker"],
-                capture_output=True,
-                text=True
-            )
-            worker_running = result.returncode == 0
-        except:
-            pass
+        # 检查心跳文件
+        hb_exists, hb_fresh, hb_age = _check_worker_heartbeat()
         
-        # 综合判断
-        is_running = lock_exists or worker_running
+        # 综合判断：锁存在 或 心跳新鲜 → 认为在跑
+        is_running = lock_exists or (hb_exists and hb_fresh)
         
         return jsonify({
             "ok": True,
@@ -58,7 +70,9 @@ def worker_status():
                 "status": "running" if is_running else "stopped",
                 "healthy": is_running,
                 "lock_exists": lock_exists,
-                "process_exists": worker_running,
+                "heartbeat_exists": hb_exists,
+                "heartbeat_fresh": hb_fresh,
+                "heartbeat_age_sec": hb_age,
             }
         })
     except Exception as e:
@@ -77,21 +91,23 @@ def worker_status():
 def worker_restart():
     """重启 Worker"""
     try:
-        # 获取项目根目录（绝对路径）
         project_root = "/Users/lalalaba/Desktop/personal-supertool"
         
-        # 1. 停止现有 Worker
-        try:
-            subprocess.run(["pkill", "-f", "deconstruct_worker"], capture_output=True)
-            import time
-            time.sleep(1)
-        except:
-            pass
+        # 1. 写停止信号文件（如果 worker 在跑，让它自己退出）
+        stop_signal = os.path.join(project_root, "data", "queue", "worker_stop_signal.txt")
+        with open(stop_signal, "w") as f:
+            f.write("stop")
         
-        # 2. 删除锁文件
+        # 2. 等待并清理
+        import time
+        time.sleep(2)
+        
+        # 删除锁文件和心跳文件
         lock_file = os.path.join(project_root, "data", "queue", "deconstruct_queue.lock")
-        if os.path.exists(lock_file):
-            os.remove(lock_file)
+        heartbeat_file = os.path.join(project_root, "data", "queue", "worker_heartbeat.txt")
+        for f in [lock_file, heartbeat_file, stop_signal]:
+            if os.path.exists(f):
+                os.remove(f)
         
         # 3. 启动新 Worker
         log_file = os.path.join(project_root, "logs", "worker_restart.log")
@@ -99,30 +115,22 @@ def worker_restart():
         
         with open(log_file, "a") as f:
             subprocess.Popen(
-                ["python", "scripts/deconstruct_worker.py"],
+                [".venv/bin/python", "scripts/deconstruct_worker.py"],
                 cwd=project_root,
                 stdout=f,
                 stderr=f,
                 start_new_session=True
             )
         
-        # 4. 等待一下检查是否启动成功
-        import time
-        time.sleep(2)
-        
-        # 检查进程
-        result = subprocess.run(
-            ["pgrep", "-f", "deconstruct_worker"],
-            capture_output=True,
-            text=True
-        )
-        started = result.returncode == 0
+        # 4. 等待一下检查心跳文件
+        time.sleep(3)
+        hb_exists, hb_fresh, hb_age = _check_worker_heartbeat()
         
         return jsonify({
             "ok": True,
             "data": {
-                "started": started,
-                "message": "Worker 已重启" if started else "Worker 启动中..."
+                "started": hb_fresh,
+                "message": "Worker 已重启" if hb_fresh else "Worker 启动中..."
             }
         })
     except Exception as e:

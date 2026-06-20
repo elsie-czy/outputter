@@ -6,6 +6,8 @@ from scripts.local_data_manager import (
     get_local_results, get_pending_archive_count, archive_to_feishu,
     save_result_to_local
 )
+from scripts.feishu_reader import _is_deconstructed
+pass  # module loaded
 
 bp = Blueprint("web_topic_pool", __name__)
 
@@ -62,8 +64,28 @@ def topic_pool_list():
         mode = get_work_mode()
         
         if mode == "owner":
-            # owner 模式：从本地读取
+            # owner 模式：从本地读取，过滤已拆解
             items = get_local_topics()
+            # 从本地结果文件判断拆解状态
+            deconstructed_names = set()
+            try:
+                results = get_local_results()
+                for r in results:
+                    n = (r.get("work_name") or "").strip()
+                    if n:
+                        deconstructed_names.add(n)
+            except Exception:
+                pass
+            # 补充拆解状态字段
+            for item in items:
+                raw = item.get("是否拆解", "")
+                if not raw and item.get("work_name", "") in deconstructed_names:
+                    raw = "已拆解"
+                item["is_deconstructed"] = _is_deconstructed(raw) or (item.get("work_name", "") in deconstructed_names)
+                item["deconstruct_status_label"] = raw or ("已拆解" if item.get("work_name", "") in deconstructed_names else "")
+            # 默认过滤已拆解；?show_all=1 可查看全部
+            if request.args.get("show_all") != "1":
+                items = [i for i in items if not i.get("is_deconstructed")]
             source = "local"
         else:
             # client 模式：从飞书读取
@@ -82,10 +104,15 @@ def topic_pool_list():
                 return jsonify({"ok": False, "error": "选题库表ID未配置"}), 500
             
             records = client.list_records(topic_table_id, page_size=500)
+            pass  # client mode: got records from feishu
             
             items = []
             for r in records:
                 fields = r.get("fields", {}) or {}
+                is_deconstructed = _is_deconstructed(fields.get("是否拆解"))
+                # 默认过滤已拆解作品；?show_all=1 可查看全部
+                if is_deconstructed and request.args.get("show_all") != "1":
+                    continue
                 item = {
                     "record_id": r.get("record_id", ""),
                     "work_name": fields.get("作品名称", ""),
@@ -101,6 +128,8 @@ def topic_pool_list():
                     "rank": fields.get("排名", 0),
                     "quality_score": fields.get("评分", 0),
                     "status": fields.get("状态", "pending"),
+                    "is_deconstructed": is_deconstructed,
+                    "deconstruct_status_label": fields.get("是否拆解", ""),
                 }
                 items.append(item)
             source = "feishu"

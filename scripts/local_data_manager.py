@@ -68,6 +68,7 @@ def sync_topics_from_feishu():
                 "comments": fields.get("评论", 0),
                 "rank": fields.get("排名", 0),
                 "quality_score": fields.get("评分", 0),
+                "是否拆解": fields.get("是否拆解", ""),
                 "synced_at": _now(),
                 "feishu_record_id": r.get("record_id", ""),
             }

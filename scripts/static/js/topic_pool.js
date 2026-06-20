@@ -50,6 +50,8 @@ const PAGE_SIZE = 10;
       allItems = json.data.items || [];
       currentPage = 1;
       renderGrid();
+      // 更新待拆作品 KPI（基于选题库实际拆解状态）
+      setText("#kpiPending", allItems.filter(i => !i.is_deconstructed).length);
     } catch (e) {
       grid.innerHTML =
         '<div class="tp-empty"><div class="tp-empty-icon">✕</div><div class="tp-empty-title">加载失败</div><div class="tp-empty-desc">' +
@@ -64,7 +66,7 @@ const PAGE_SIZE = 10;
       const json = await res.json();
       if (!json.ok) return;
       const d = json.data;
-      setText("#kpiPending", d.pending_topics);
+      // kpiPending 由 loadTopics() 根据选题库实际状态更新，此处不再覆盖
       setText("#kpiToday", d.today_added);
       setText("#kpiHighPot", d.high_potential);
       
@@ -100,8 +102,16 @@ const PAGE_SIZE = 10;
     const category = $("#tpCategory")?.value || "";
     const wordCount = $("#tpWordCount")?.value || "";
     const scoreLevel = $("#tpScoreLevel")?.value || "";
+    const decStatus = $("#tpDeconstructStatus")?.value || "pending";
 
     let list = allItems.slice();
+
+    if (decStatus === "pending") {
+      list = list.filter((i) => !i.is_deconstructed);
+    } else if (decStatus === "done") {
+      list = list.filter((i) => i.is_deconstructed);
+    }
+    // "all" 不过滤
 
     if (q) {
       list = list.filter(
@@ -198,6 +208,9 @@ const PAGE_SIZE = 10;
           '<div class="tp-card-cover">' + catIcon + '</div>' +
           '<div class="tp-card-content">' +
             '<div class="tp-card-name">' + esc(item.work_name || "未知作品") + "</div>" +
+            (item.is_deconstructed
+              ? '<span class="tp-badge tp-badge--muted">已拆解</span>'
+              : '<span class="tp-badge tp-badge--green">待拆解</span>') +
             '<div class="tp-card-author">' + esc(item.author || "未知作者") + "</div>" +
             '<div class="tp-card-meta">' +
               '<span class="tp-card-tag tp-card-tag--platform">' + esc(item.platform || "-") + "</span>" +
@@ -348,7 +361,7 @@ const PAGE_SIZE = 10;
       });
     }
 
-    ["#tpPlatform", "#tpCategory", "#tpWordCount", "#tpScoreLevel"].forEach((sel) => {
+    ["#tpPlatform", "#tpCategory", "#tpWordCount", "#tpScoreLevel", "#tpDeconstructStatus"].forEach((sel) => {
       const el = $(sel);
       if (el) el.addEventListener("change", () => { currentPage = 1; renderGrid(); });
     });
