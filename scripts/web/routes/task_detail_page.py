@@ -414,3 +414,52 @@ def retry_task_api(task_id):
         return jsonify({"ok": False, "error": "任务未找到"}), 404
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ── 图片生成策略 API ────────────────────────────────────────────────────
+import os as _os
+from pathlib import Path as _Path
+
+_STRATEGY_CONFIG_DIR = _Path(__file__).resolve().parent.parent.parent.parent / "data" / "config"
+_STRATEGY_CONFIG_FILE = _STRATEGY_CONFIG_DIR / "image_strategy.json"
+
+def _read_strategy_config():
+    if not _STRATEGY_CONFIG_FILE.exists():
+        return {"strategy": "ai", "style": "warm", "count": 3}
+    import json as _json
+    with open(_STRATEGY_CONFIG_FILE, "r", encoding="utf-8") as _f:
+        return _json.load(_f)
+
+def _write_strategy_config(data: dict):
+    _STRATEGY_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    import json as _json
+    with open(_STRATEGY_CONFIG_FILE, "w", encoding="utf-8") as _f:
+        _json.dump(data, _f, ensure_ascii=False, indent=2)
+
+
+@bp.get("/api/config/image_strategy")
+def get_image_strategy():
+    """获取当前图片生成策略"""
+    try:
+        return jsonify(_read_strategy_config())
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@bp.post("/api/config/image_strategy")
+def set_image_strategy():
+    """更新图片生成策略（需重启 worker 生效）"""
+    try:
+        data = request.get_json(force=True) or {}
+        strategy = data.get("strategy", "ai").strip().lower()
+        if strategy not in ("ai", "html_card"):
+            return jsonify({"ok": False, "error": "strategy must be ai or html_card"}), 400
+        config = {
+            "strategy": strategy,
+            "style": data.get("style", "warm").strip(),
+            "count": int(data.get("count", 3) or 3),
+        }
+        _write_strategy_config(config)
+        return jsonify({"ok": True, "data": config, "warning": "需重启 jimeng_worker 生效"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500

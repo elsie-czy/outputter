@@ -1,0 +1,56 @@
+/* 小红书卡片本地字体声明
+ *
+ * 用法：把本文件内容整段拷进每个卡片 HTML 的 <style> 顶部，并把所有
+ * {SKILL_ROOT} 替换为本 skill 根目录的绝对路径（包含 SKILL.md 的目录）。
+ * 例如 file:///home/user/.claude/skills/xhs-image-gen/assets/fonts/NotoSansSC-400.woff2
+ *
+ * 为什么用本地 file:// 而不是 Google Fonts：渲染用的无头 Chromium 在很多环境
+ * （CI / 沙箱 / 离线 / TLS 拦截）无法加载 CDN 字体，会回落成文泉驿黑体。本地
+ * woff2 一定可用，且 Latin 字形自动回落到字体栈里的 Georgia/系统字体（符合设计）。
+ */
+
+@font-face {
+  font-family: "Noto Sans SC"; font-style: normal; font-weight: 300; font-display: swap;
+  src: url("file://{SKILL_ROOT}/assets/fonts/NotoSansSC-300.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Noto Sans SC"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("file://{SKILL_ROOT}/assets/fonts/NotoSansSC-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Noto Sans SC"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("file://{SKILL_ROOT}/assets/fonts/NotoSansSC-500.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Noto Sans SC"; font-style: normal; font-weight: 700; font-display: swap;
+  src: url("file://{SKILL_ROOT}/assets/fonts/NotoSansSC-700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Noto Serif SC"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("file://{SKILL_ROOT}/assets/fonts/NotoSerifSC-500.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Noto Serif SC"; font-style: normal; font-weight: 700; font-display: swap;
+  src: url("file://{SKILL_ROOT}/assets/fonts/NotoSerifSC-700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Noto Serif SC"; font-style: normal; font-weight: 900; font-display: swap;
+  src: url("file://{SKILL_ROOT}/assets/fonts/NotoSerifSC-900.woff2") format("woff2");
+}
+@font-face {
+  font-family: "ZCOOL KuaiLe"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("file://{SKILL_ROOT}/assets/fonts/ZCOOLKuaiLe-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "ZCOOL XiaoWei"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("file://{SKILL_ROOT}/assets/fonts/ZCOOLXiaoWei-400.woff2") format("woff2");
+}
+/* 彩色 emoji —— 必须本地嵌入。渲染机（CI / 沙箱 / 某些云环境如 openclaw）
+ * 不一定装了 Noto Color Emoji，缺了 emoji 会渲染成空心方块 □（俗称豆腐块/方括号）。
+ * 这是一个 COLRv1 矢量彩色字体，Chromium 原生支持，只含 emoji 字形，
+ * 放进任意 font-family 栈都只会用于 emoji，不影响中英文。
+ * 用法：在每个文字 font-family 栈末尾追加 "Noto Color Emoji"。 */
+@font-face {
+  font-family: "Noto Color Emoji"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("file://{SKILL_ROOT}/assets/fonts/NotoColorEmoji.woff2") format("woff2");
+}

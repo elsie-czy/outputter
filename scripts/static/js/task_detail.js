@@ -30,6 +30,7 @@
     const taskId = container.dataset.taskId;
     currentTaskId = taskId;
     loadTaskDetail(taskId);
+    loadImageStrategy();
     bindTabs();
     bindActions();
     bindCollapses();
@@ -768,6 +769,76 @@
   function esc(str) {
     if (str == null) return "";
     return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  /* ===== 图片生成策略切换 ===== */
+  let currentStrategy = 'ai';
+  let currentStyle = 'warm';
+
+  async function loadImageStrategy() {
+    try {
+      const res = await fetch('/api/config/image_strategy');
+      const data = await res.json();
+      currentStrategy = data.strategy || 'ai';
+      currentStyle = data.style || 'warm';
+      renderStrategySelector();
+    } catch (e) {
+      console.warn('加载策略失败:', e);
+    }
+  }
+
+  function renderStrategySelector() {
+    let container = document.getElementById('strategySelector');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'strategySelector';
+      container.style.cssText = 'margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;';
+      const right = document.querySelector('.td-header-right .td-summary-actions');
+      if (right && right.parentElement) {
+        right.parentElement.appendChild(container);
+      }
+    }
+    const safe = (s) => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    container.innerHTML =
+      '<label style="font-size:13px;color:var(--text-secondary,#666);">生图策略:</label>' +
+      '<select id="imageStrategy" style="padding:4px 8px;border-radius:6px;font-size:13px;border:1px solid var(--border,#e0e0e0);background:var(--bg-surface,#fff);">' +
+        '<option value="ai"' + (currentStrategy==='ai'?' selected':'') + '>AI 即梦生图</option>' +
+        '<option value="html_card"' + (currentStrategy==='html_card'?' selected':'') + '>HTML 卡片截图</option>' +
+      '</select>' +
+      '<select id="imageStyle" style="padding:4px 8px;border-radius:6px;font-size:13px;border:1px solid var(--border,#e0e0e0);background:var(--bg-surface,#fff);' + (currentStrategy==='html_card'?'':'display:none;') + '">' +
+        '<option value="warm"' + (currentStyle==='warm'?' selected':'') + '>暖色生活(Warm)</option>' +
+        '<option value="anthropic"' + (currentStyle==='anthropic'?' selected':'') + '>杂志风(Anthropic)</option>' +
+        '<option value="notion"' + (currentStyle==='notion'?' selected':'') + '>笔记风(Notion)</option>' +
+        '<option value="minimal"' + (currentStyle==='minimal'?' selected':'') + '>极简(Minimal)</option>' +
+        '<option value="morandi"' + (currentStyle==='morandi'?' selected':'') + '>莫兰迪(Morandi)</option>' +
+      '</select>' +
+      '<span id="strategyStatus" style="font-size:12px;color:var(--text-muted,#999);"></span>';
+    document.getElementById('imageStrategy').addEventListener('change', onStrategyChange);
+    document.getElementById('imageStyle').addEventListener('change', onStrategyChange);
+  }
+
+  async function onStrategyChange() {
+    const strategy = document.getElementById('imageStrategy').value;
+    const style = document.getElementById('imageStyle').value;
+    document.getElementById('imageStyle').style.display = strategy === 'html_card' ? '' : 'none';
+    const status = document.getElementById('strategyStatus');
+    status.textContent = '保存中...';
+    try {
+      const res = await fetch('/api/config/image_strategy', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({strategy, style})
+      });
+      const data = await res.json();
+      if (data.ok) {
+        status.textContent = '已保存，重启 worker 后生效';
+        setTimeout(function(){ status.textContent = ''; }, 3000);
+      } else {
+        status.textContent = '保存失败: ' + (data.error || '');
+      }
+    } catch (e) {
+      status.textContent = '保存失败: ' + e.message;
+    }
   }
 
   function fmtWordCount(n) {

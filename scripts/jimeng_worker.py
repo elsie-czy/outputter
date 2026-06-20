@@ -9,6 +9,7 @@ from scripts.feishu_client import FeishuClient
 from scripts.feishu_config import get_feishu_config
 from scripts.image_generator import generate_images_from_prompt, is_image_generation_enabled
 from scripts.deconstruct_daily import _sanitize_image_prompt_for_jimeng, _sanitize_prompt_for_image_gen
+from scripts.html_card_generator import generate_cards_from_note, parse_note_content
 
 
 def _now():
@@ -75,6 +76,19 @@ def _backfill_one_record(client, table_id, record, per_field_images=2, sleep_sec
     fields = record.get("fields", {}) or {}
     work_name = str(fields.get("作品名称", "")).strip()
 
+    # ── 策略切换：读 IMAGE_GEN_STRATEGY 环境变量 ────────────────────
+    strategy = (os.getenv("IMAGE_GEN_STRATEGY") or "ai").strip().lower()
+    html_card_style = (os.getenv("HTML_CARD_STYLE") or "warm").strip()
+    html_card_count = int((os.getenv("HTML_CARD_COUNT") or "3").strip() or "3")
+
+    if strategy == "html_card":
+        return _backfill_html_card(
+            client, table_id, record,
+            style=html_card_style,
+            n=html_card_count,
+        )
+
+    # ── 原有 AI 即梦生图逻辑（strategy == "ai"）────────────────────
     prompts = _get_prompts(fields)
     if not any(prompts):
         return {"record_id": rid, "work_name": work_name, "status": "skipped_no_prompts"}
@@ -286,6 +300,62 @@ def run(mode="missing", limit=0, max_retries=2, sleep_sec=0.0):
     with open(out, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
     return out
+
+
+def _backfill_html_card(client, table_id, record, style="warm", n=3):
+    """
+    HTML 卡片策略：读笔记正文 → 生成 HTML 卡片 → 截图 → 上传飞书。
+    结果写入「即梦生图1-5」字段（与 AI 生图策略共用同字段，方便前端展示）。
+    """
+    rid = record.get("record_id")
+    fields = record.get("fields", {}) or {}
+    work_name = str(fields.get("作品名称", "")).strip()
+
+    # 1. 读笔记正文
+    note_raw = str(fields.get("笔记正文", "")).strip()
+    if not note_raw:
+        return {"record_id": rid, "work_name": work_name, "status": "skipped_no_note"}
+
+    # 2. 解析为结构化内容
+    note_content = parse_note_content(note_raw)
+
+    # 3. 生成 HTML 卡片并截图
+    try:
+        png_paths = generate_cards_from_note(
+            note_content,
+            style=style,
+            n=n,
+            output_dir=None,   # 默认 temp/html_cards/
+        )
+    except Exception as e:
+        return {"record_id": rid, "work_name": work_name, "status": "failed", "error": f"html_card gen: {e}"}
+
+    if not png_paths:
+        return {"record_id": rid, "work_name": work_name, "status": "skipped_empty_cards"}
+
+    # 4. 上传到飞书（写入即梦生图1、即梦生图2...）
+    patch = {}
+    errors = []
+    for idx, png_path in enumerate(png_paths[:5]):
+        target_field = f"即梦生图{idx + 1}"
+        try:
+            tok = client.upload_file_to_bitable(png_path)
+            patch[target_field] = [{"file_token": tok}]
+        except Exception as e:
+            errors.append(f"upload {target_field}: {e}")
+
+    if not patch:
+        return {"record_id": rid, "work_name": work_name, "status": "failed", "errors": errors}
+
+    client.update_record_in_table(table_id, rid, patch)
+    return {
+        "record_id": rid,
+        "work_name": work_name,
+        "status": "updated",
+        "patched_fields": list(patch.keys()),
+        "strategy": "html_card",
+        "errors": errors,
+    }
 
 
 if __name__ == "__main__":
