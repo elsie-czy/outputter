@@ -20,8 +20,8 @@
 .tp-kpi-card {
   height: 112px;
   background: var(--bg-card);
-  border-radius: 16px;
-  padding: 24px;
+  border-radius: var(--radius);
+  padding: 18px;
   display: flex;
   align-items: center;
   gap: var(--space-md);
@@ -53,9 +53,9 @@
 }
 
 .tp-kpi-value {
-  font-size: 40px;
+  font-size: 24px;
   font-weight: 700;
-  line-height: 48px;
+  line-height: 1.2;
   color: var(--text-primary);
 }
 
@@ -70,23 +70,40 @@
   color: #94A3B8;
 }
 
-/* ===== 筛选器区域 ===== */
-.tp-filter-bar {
+/* ===== 筛选 / 快捷操作 / 批量选择 ===== */
+.tp-toolbar {
   display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  height: 64px;
-  padding: 0 var(--space-md);
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
   background: var(--bg-card);
   border-radius: var(--radius);
   margin-bottom: var(--gap);
   box-shadow: var(--shadow-sm);
 }
 
+.tp-toolbar-main,
+.tp-toolbar-secondary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.tp-toolbar-main {
+  flex-wrap: nowrap;
+}
+
+.tp-toolbar-secondary {
+  justify-content: space-between;
+  border-top: 1px solid var(--border-light);
+  padding-top: 10px;
+}
+
 .tp-search-input {
-  width: 320px;
-  height: 40px;
-  padding: 0 var(--space-md);
+  width: 280px;
+  height: 36px;
+  padding: 0 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
   font-size: var(--fs-body);
@@ -106,8 +123,9 @@
 }
 
 .tp-select {
-  height: 40px;
-  padding: 0 var(--space-md);
+  height: 36px;
+  min-width: 104px;
+  padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 10px;
   font-size: var(--fs-body);
@@ -123,8 +141,8 @@
 }
 
 .tp-filter-btn {
-  height: 40px;
-  padding: 0 var(--space-md);
+  height: 36px;
+  padding: 0 12px;
   border: none;
   border-radius: 10px;
   font-size: var(--fs-body);
@@ -144,15 +162,15 @@
 }
 
 .tp-filter-right {
-  margin-left: auto;
   display: flex;
   gap: var(--space-sm);
+  flex-shrink: 0;
 }
 
 .tp-sync-btn,
 .tp-archive-btn {
-  height: 36px;
-  padding: 0 var(--space-md);
+  height: 32px;
+  padding: 0 10px;
   border: none;
   border-radius: 8px;
   font-size: var(--fs-body);
@@ -189,16 +207,11 @@
   height: 14px;
 }
 
-/* ===== 快捷筛选栏 ===== */
 .tp-quick-filter {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-card);
-  border-radius: var(--radius);
-  margin-bottom: var(--gap);
-  box-shadow: var(--shadow-sm);
+  min-width: 0;
 }
 
 .tp-quick-filter-label {
@@ -208,8 +221,8 @@
 }
 
 .tp-quick-btn {
-  height: 32px;
-  padding: 0 var(--space-md);
+  height: 30px;
+  padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 999px;
   font-size: var(--fs-meta);
@@ -232,16 +245,11 @@
   background: #6C4EFF;
 }
 
-/* ===== 批量操作栏 ===== */
 .tp-batch-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-card);
-  border-radius: var(--radius);
-  margin-bottom: var(--gap);
-  box-shadow: var(--shadow-sm);
+  gap: var(--space-xs);
+  min-width: 0;
 }
 
 .tp-batch-left {
@@ -250,8 +258,8 @@
 }
 
 .tp-batch-btn {
-  height: 32px;
-  padding: 0 var(--space-md);
+  height: 30px;
+  padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-size: var(--fs-meta);
@@ -268,8 +276,10 @@
 }
 
 .tp-batch-info {
+  margin-left: 4px;
   font-size: var(--fs-body);
   color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .tp-batch-info strong {
@@ -281,7 +291,7 @@
 .tp-layout {
   display: flex;
   gap: var(--gap);
-  height: calc(100vh - 200px);
+  height: calc(100vh - 184px);
 }
 
 .tp-main {
@@ -988,8 +998,8 @@
 }
 
 .tp-kpi-value {
-  font-size: 30px;
-  line-height: 1.1;
+  font-size: 24px;
+  line-height: 1.2;
 }
 
 .tp-kpi-label {
@@ -997,9 +1007,6 @@
   font-weight: 600;
 }
 
-.tp-filter-bar,
-.tp-quick-filter,
-.tp-batch-bar,
 .tp-list-panel,
 .tp-sidebar-card {
   border: 1px solid var(--border);
@@ -1039,8 +1046,8 @@
 
 .tp-quick-filter,
 .tp-batch-bar {
-  padding: 9px 12px;
-  margin-bottom: var(--space-sm);
+  padding: 0;
+  margin-bottom: 0;
   box-shadow: none;
 }
 

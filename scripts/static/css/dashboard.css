@@ -6,15 +6,6 @@
   margin: 0 auto;
 }
 
-.dashboard-titlebar { justify-content: flex-start; }
-
-.dashboard-titlebar h1 {
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.dashboard-eyebrow,
 .dashboard-card-head p,
 .dashboard-kpi p,
 .dashboard-kpi span,

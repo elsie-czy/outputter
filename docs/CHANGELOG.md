@@ -16,6 +16,21 @@
 - 回滚方式：
 - 风险与注意事项：
 
+## 2026-06-20（Dashboard 与选题池布局精简）
+- 变更摘要：统一顶部页面标题靠左，精简 Dashboard 与选题池重复/冗余区域。
+- 影响范围：Web / 公共 Header / Dashboard / 选题池
+- 行为变化：
+  - 公共顶部菜单栏页面标题改为靠左展示，普通页面统一生效
+  - Dashboard 主内容区删除重复的“运营工作台 / 数据总览”标题
+  - Dashboard 数据趋势图按卡片容器宽度绘制，减少居中留白
+  - 选题池搜索、筛选、快捷筛选、批量选择与同步入口合并为一块紧凑工具栏
+  - 选题池 KPI 数字字号调整为 24px，与生产中心 KPI 规格保持一致
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/web/templates/_header.html`、`scripts/static/css/base.css`、`scripts/web/templates/dashboard.html`、`scripts/static/css/dashboard.css`、`scripts/static/js/dashboard.js`、`scripts/web/templates/topic_pool.html`、`scripts/static/css/topic_pool.css` 和本条记录
+- 风险与注意事项：
+  - 本次只调整布局与样式，不改选题池筛选/批量选择业务逻辑
+
 ## 2026-06-20（Dashboard Banner 与环形图二次修正）
 - 变更摘要：继续按反馈优化 Dashboard banner 背景铺色和账号表现环形图实现。
 - 影响范围：Web / Dashboard

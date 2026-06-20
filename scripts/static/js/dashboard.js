@@ -50,7 +50,7 @@
       el.innerHTML = '<div class="dashboard-empty">近 7 日暂无创建或完成记录</div>';
       return;
     }
-    const width = 720;
+    const width = Math.max(720, Math.round(el.getBoundingClientRect().width || 720));
     const height = 260;
     const pad = { left: 34, right: 18, top: 18, bottom: 32 };
     const max = Math.max(1, ...rows.map((row) => Math.max(row.completed || 0, row.created || 0)));
@@ -62,7 +62,7 @@
     const completed = points("completed");
     const created = points("created");
     el.innerHTML =
-      '<svg viewBox="0 0 ' + width + " " + height + '" role="img" aria-label="近7日任务趋势">' +
+      '<svg viewBox="0 0 ' + width + " " + height + '" preserveAspectRatio="none" role="img" aria-label="近7日任务趋势">' +
       '<defs><linearGradient id="dashTrendFill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#6C4EFF" stop-opacity="0.24"/><stop offset="1" stop-color="#6C4EFF" stop-opacity="0"/></linearGradient></defs>' +
       grid(width, height, pad, max) +
       area(completed, height - pad.bottom) +

@@ -14,14 +14,12 @@
     {% if header_badge %}
     <span class="app-header-context-badge">{{ header_badge }}</span>
     {% endif %}
+    {% elif page_title %}
+    <span class="app-header-page-title">{{ page_title }}</span>
     {% endif %}
   </div>
 
-  <div class="app-header-center">
-    {% if not header_back_href %}
-    <span class="app-header-page-title">{{ page_title|default("") }}</span>
-    {% endif %}
-  </div>
+  <div class="app-header-center"></div>
 
   <div class="app-header-right">
     <!-- Worker 状态指示器 -->

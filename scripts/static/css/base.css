@@ -392,6 +392,7 @@ a:hover { text-decoration: underline; }
   align-items: center;
   gap: var(--space-md);
   min-width: 0;
+  flex: 1;
 }
 
 .app-header-logo {
@@ -423,15 +424,16 @@ a:hover { text-decoration: underline; }
 }
 
 .app-header-center {
-  display: flex;
+  display: none;
   align-items: center;
   gap: var(--space-sm);
 }
 
 .app-header-page-title {
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 18px;
+  font-weight: 700;
   color: var(--text-primary);
+  white-space: nowrap;
 }
 
 .app-header--contextual {
