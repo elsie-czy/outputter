@@ -131,9 +131,11 @@ def _is_pid_alive(pid):
     except ProcessLookupError:
         return False
     except PermissionError:
-        return True
+        # 沙箱环境无法发送信号，无法判断，假定已死
+        return False
     except Exception:
-        return True
+        # 其他异常也无法判断，假定已死
+        return False
 
 
 def _acquire_worker_lock():

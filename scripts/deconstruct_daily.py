@@ -179,7 +179,7 @@ def _sanitize_prompt_for_image_gen(prompt):
     p = re.sub(r'["「」【】『』][^"\「」【】『』]{0,60}["」」】【』]', '', p)
     p = re.sub(r"'[^']{0,30}'", '', p)
     # 去除完整的中文句子（10字以上连续中文，大概率是剧情描述/台词）
-    p = re.sub(r'[\u4e00-\u9fa5，。！？、；：""''（）《》\s]{12,}', lambda m: m.group()[:8] + '...' if len(m.group()) > 15 else m.group(), p)
+    p = re.sub(r'[\u4e00-\u9fa5，。！？、；：""''（）《》 \t\n\r\f\v]{12,}', lambda m: m.group()[:8] + '...' if len(m.group()) > 15 else m.group(), p)
     # 末尾强追加禁止文字（放在最后确保图片模型优先处理）
     no_text_suffix = (
         ". NO text, NO words, NO Chinese characters, NO letters, NO subtitles, "
