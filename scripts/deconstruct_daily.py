@@ -172,6 +172,26 @@ def _extract_keywords(texts, limit=8):
     return out
 
 
+def _sanitize_prompt_for_image_gen(prompt):
+    """发送给图片生成API前，强制净化prompt：去除可能引导出文字的中文句子，末尾追加禁止文字指令"""
+    p = str(prompt or "")
+    # 去除中文引号包裹的文字（模型常输出"xxx"这类句子片段，图片模型会渲染成文字）
+    p = re.sub(r'["「」【】『』][^"\「」【】『』]{0,60}["」」】【』]', '', p)
+    p = re.sub(r"'[^']{0,30}'", '', p)
+    # 去除完整的中文句子（10字以上连续中文，大概率是剧情描述/台词）
+    p = re.sub(r'[\u4e00-\u9fa5，。！？、；：""''（）《》\s]{12,}', lambda m: m.group()[:8] + '...' if len(m.group()) > 15 else m.group(), p)
+    # 末尾强追加禁止文字（放在最后确保图片模型优先处理）
+    no_text_suffix = (
+        ". NO text, NO words, NO Chinese characters, NO letters, NO subtitles, "
+        "NO quotes, NO sentences, NO handwriting, NO calligraphy in the image. "
+        "Completely text-free image only."
+    )
+    # 避免重复追加
+    if 'text-free' not in p.lower() and 'NO text' not in p:
+        p = p + no_text_suffix
+    return p.strip()
+
+
 def _build_image_prompts(work, analysis):
     category = str(work.get("分类", "") or "")
     intro = str(work.get("简介", "") or "")
@@ -200,8 +220,9 @@ def _build_image_prompts(work, analysis):
         f"supporting role ({support_desc or 'key trigger character'}). "
         "Ground only to official synopsis and listed genre; avoid adding new names or settings. "
         "Gender must stay consistent. Wardrobe and props must match one era only. "
-        "No text, no Chinese characters, no letters, no subtitle, no logo, no watermark. "
-        "Image must be text-free."
+        "CRITICAL: absolutely NO text, NO Chinese characters, NO letters, NO subtitle, NO words, "
+        "NO sentences, NO quotes, NO watermark, NO logo, NO handwriting, NO calligraphy anywhere in the image. "
+        "The image must be completely text-free. Do NOT render any readable text under any circumstance."
     )
 
     p1 = (
@@ -866,6 +887,8 @@ def sync_xhs_note_table(main_record_id, work, analysis, xhs_path):
         if not isinstance(prompts, list):
             prompts = []
         prompts = [str(x).strip() for x in prompts if str(x).strip()][:5]
+        # 净化所有prompt：强制去除可能引导出文字的内容，末尾追加禁止文字指令
+        prompts = [_sanitize_prompt_for_image_gen(p) for p in prompts]
         if prompts:
             prompt_images = []
             for p in prompts:
@@ -874,13 +897,15 @@ def sync_xhs_note_table(main_record_id, work, analysis, xhs_path):
                 except Exception as e:
                     if "50413" in str(e) or "Post Text Risk Not Pass" in str(e):
                         safe_p = _sanitize_image_prompt_for_jimeng(p)
+                        safe_p = _sanitize_prompt_for_image_gen(safe_p)  # 二次净化
                         paths = generate_images_from_prompt(safe_p, n=2)
                     else:
                         raise
                 # Ensure each prompt has 2 candidates.
                 if len(paths) < 2:
                     try:
-                        extra = generate_images_from_prompt(p, n=2 - len(paths))
+                        extra_p = _sanitize_prompt_for_image_gen(p)
+                        extra = generate_images_from_prompt(extra_p, n=2 - len(paths))
                     except Exception:
                         extra = []
                     paths = (paths + extra)[:2]

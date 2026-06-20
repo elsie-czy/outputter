@@ -8,7 +8,7 @@ from scripts.env_loader import load_dotenv
 from scripts.feishu_client import FeishuClient
 from scripts.feishu_config import get_feishu_config
 from scripts.image_generator import generate_images_from_prompt, is_image_generation_enabled
-from scripts.deconstruct_daily import _sanitize_image_prompt_for_jimeng
+from scripts.deconstruct_daily import _sanitize_image_prompt_for_jimeng, _sanitize_prompt_for_image_gen
 
 
 def _now():
@@ -91,7 +91,9 @@ def _backfill_one_record(client, table_id, record, per_field_images=2, sleep_sec
             continue
 
         prompt = prompts[i - 1]
-        tries = [t for t in [prompt, _sanitize_image_prompt_for_jimeng(prompt), safe_en] if t]
+        # 先净化prompt（去除文字引导 + 追加禁止文字），再尝试生成
+        clean_prompt = _sanitize_prompt_for_image_gen(prompt)
+        tries = [t for t in [clean_prompt, _sanitize_image_prompt_for_jimeng(prompt), safe_en] if t]
         tokens = []
         for tp in tries:
             if len(tokens) >= need:
