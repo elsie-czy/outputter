@@ -410,7 +410,6 @@ def build_xhs_note(work, analysis, use_formula=True):
     lines.append("📚 作品速览")
     lines.append(f"- 书名：{work.get('作品名称','')}")
     lines.append(f"- 作者：{work.get('作者','')}")
-    lines.append(f"- 平台：{work.get('平台','')}")
     if words:
         lines.append(f"- 字数：{words}")
     if score:

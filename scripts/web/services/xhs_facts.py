@@ -128,8 +128,6 @@ def facts_to_text(facts):
     lines.append(f"作品：{main.get('作品名称') or facts.get('work_name', '')}")
     if main.get("作者"):
         lines.append(f"作者：{main.get('作者')}")
-    if main.get("平台"):
-        lines.append(f"平台：{main.get('平台')}")
     if main.get("分类"):
         lines.append(f"分类：{main.get('分类')}")
     if main.get("简介"):

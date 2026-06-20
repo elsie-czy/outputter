@@ -1400,7 +1400,6 @@ def _build_xhs_note_unclipped(work, analysis):
     lines.append("📚 作品速览")
     lines.append(f"- 书名：{work.get('作品名称', '')}")
     lines.append(f"- 作者：{work.get('作者', '')}")
-    lines.append(f"- 平台：{work.get('平台', '')}")
     if str(work.get("分类", "")).strip():
         lines.append(f"- 标签：{work.get('分类', '')}")
     lines.append("")
