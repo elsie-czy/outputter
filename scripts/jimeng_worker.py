@@ -79,7 +79,7 @@ def _backfill_one_record(client, table_id, record, per_field_images=2, sleep_sec
     if not any(prompts):
         return {"record_id": rid, "work_name": work_name, "status": "skipped_no_prompts"}
 
-    safe_en = "anime style portrait, vertical 3:4, clean background, no text, no logo, no watermark"
+    safe_en = "anime manga illustration style, 2D cel-shaded art, Japanese anime aesthetic. Vertical 3:4 portrait, vibrant colors, soft shading. NOT realistic photo, NOT photographic. NO text, NO words, NO letters, NO watermark, NO logo anywhere in image. Completely text-free."
     patch = {}
     errors = []
     for i in range(1, 6):

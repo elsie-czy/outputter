@@ -172,90 +172,124 @@ def _extract_keywords(texts, limit=8):
     return out
 
 
+def _chinese_to_english_desc(text):
+    """将中文片段替换为英文视觉描述占位符，避免图片模型渲染中文文字"""
+    s = str(text or "").strip()
+    if not s:
+        return ""
+    chinese_chars = sum(1 for c in s if '\u4e00' <= c <= '\u9fff')
+    if chinese_chars >= len(s) * 0.5:
+        return "[visual scene description]"
+    return s
+
+
+def _strip_all_cjk(text):
+    """彻底移除文本中所有CJK字符（中日韩），只保留英文/数字/标点"""
+    p = str(text or "")
+    p = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]', '', p)
+    p = re.sub(r'[\u3040-\u309f\u30a0-\u30ff]', '', p)
+    p = re.sub(r'[\uac00-\ud7af]', '', p)
+    p = re.sub(r'\s+', ' ', p).strip()
+    return p
+
+
 def _sanitize_prompt_for_image_gen(prompt):
-    """发送给图片生成API前，强制净化prompt：去除可能引导出文字的中文句子，末尾追加禁止文字指令"""
+    """发送给图片生成API前强制净化：
+    1. 彻底清除所有CJK字符（核心修复：之前只截断长句，现在全删）
+    2. 强制统一 anime/manga 插画风格
+    3. 末尾追加强制无文字指令
+    """
     p = str(prompt or "")
-    # 去除中文引号包裹的文字（模型常输出"xxx"这类句子片段，图片模型会渲染成文字）
-    p = re.sub(r'["「」【】『』][^"\「」【】『』]{0,60}["」」】【』]', '', p)
-    p = re.sub(r"'[^']{0,30}'", '', p)
-    # 去除完整的中文句子（10字以上连续中文，大概率是剧情描述/台词）
-    p = re.sub(r'[\u4e00-\u9fa5，。！？、；：""''（）《》 \t\n\r\f\v]{12,}', lambda m: m.group()[:8] + '...' if len(m.group()) > 15 else m.group(), p)
-    # 末尾强追加禁止文字（放在最后确保图片模型优先处理）
-    no_text_suffix = (
-        ". NO text, NO words, NO Chinese characters, NO letters, NO subtitles, "
-        "NO quotes, NO sentences, NO handwriting, NO calligraphy in the image. "
-        "Completely text-free image only."
+    # 第一步：移除引号包裹的内容（用原始字符串避免转义问题）
+    quote_pattern = r'["\u201c\u201d\u300c\u300d\[\]''\u300a\u300b][^"\[\]''\u300a\u300b]{0,80}[["'']\u3001\u3002]'
+    p = re.sub(quote_pattern, "", p)
+    # 第二步：彻底移除所有CJK字符——这是消除图片上文字的关键
+    p = _strip_all_cjk(p)
+    # 第三步：清理多余空白
+    p = re.sub(r"\s+", " ", p).strip()
+    # 第四步：如果prompt被清空太短，用通用视觉描述兜底
+    if len(p) < 40:
+        p = "anime manga illustration, beautiful character portrait, emotional atmosphere"
+    # 第五步：末尾强追加 统一风格 + 禁止文字
+    suffix = (
+        ". Style: anime manga illustration, 2D cel-shaded art, consistent anime aesthetic. "
+        "NOT realistic photo, NOT 3D render, NOT photographic style. "
+        "NO text, NO words, NO letters, NO subtitles, NO handwriting, "
+        "NO watermark, NO logo, NO calligraphy, completely text-free image."
     )
-    # 避免重复追加
-    if 'text-free' not in p.lower() and 'NO text' not in p:
-        p = p + no_text_suffix
+    if "text-free" not in p.lower():
+        p = p + suffix
     return p.strip()
+
+
 
 
 def _build_image_prompts(work, analysis):
     category = str(work.get("分类", "") or "")
     intro = str(work.get("简介", "") or "")
     lead_name = _extract_lead_name_from_intro(intro)
-    # Use source-summary grounding first; avoid over-trusting hallucinated role details.
-    heroine_desc = _clip(lead_name or analysis.get("人物设定", {}).get("女主", "") or "female protagonist", 16)
-    hero_desc = _clip(analysis.get("人物设定", {}).get("男主", "") or "male lead", 16)
-    support_desc = _clip(analysis.get("人物设定", {}).get("亮点配角", "") or "sect members", 14)
+    # 角色描述：中文转英文占位符，避免图片模型渲染中文
+    heroine_desc = _chinese_to_english_desc(lead_name or analysis.get("人物设定", {}).get("女主", "") or "") or "calm and determined woman"
+    hero_desc = _chinese_to_english_desc(analysis.get("人物设定", {}).get("男主", "") or "") or "cold and restrained man"
+    support_desc = _chinese_to_english_desc(analysis.get("人物设定", {}).get("亮点配角", "") or "") or "key trigger character"
     conflict = analysis.get("冲突设计", {})
 
-    scene_text = " ".join([category, intro, heroine_desc, hero_desc, support_desc])
+    scene_text = " ".join([category, intro])
     is_action_genre = any(k in scene_text for k in ["仙侠", "玄幻", "悬疑", "科幻", "末世", "无限流", "战斗"])
     is_ancient = any(k in scene_text for k in ["仙侠", "修真", "古代", "宫廷", "侯门", "朝堂", "江湖"])
     era_hint = "ancient fantasy era" if is_ancient else "modern era"
-    world_hint = "ancient architecture, layered robes, moonlight and lantern lighting" if is_ancient else "urban interior and night city lighting, realistic props"
+    world_hint = "ancient architecture, layered silk robes, moonlight and lantern lighting" if is_ancient else "urban interior and night city lighting"
 
-    c1 = _clip(conflict.get("第一层", "high stakes conflict"), 28)
-    c2 = _clip(conflict.get("第二层", "relationship conflict"), 28)
-    c3 = _clip(conflict.get("第三层", "final confrontation"), 28)
+    # 冲突描述也用英文替代
+    c1 = _chinese_to_english_desc(conflict.get("第一层", "")) or "high stakes conflict"
+    c2 = _chinese_to_english_desc(conflict.get("第二层", "")) or "emotional tension"
+    c3 = _chinese_to_english_desc(conflict.get("第三层", "")) or "final confrontation"
 
+    # 统一风格前缀：明确的 anime/manga 插画风格，排除写实照片风
+    # 关键：所有prompt只包含英文，不含任何CJK字符
     anchor = (
-        "Xiaohongshu visual, vertical 3:4, anime illustration, cinematic lighting, high detail. "
-        f"Story era: {era_hint}. "
-        f"Fixed roles: female lead (woman, {heroine_desc or 'calm and determined'}), "
-        f"male lead (man, {hero_desc or 'cold and restrained'}), "
-        f"supporting role ({support_desc or 'key trigger character'}). "
-        "Ground only to official synopsis and listed genre; avoid adding new names or settings. "
-        "Gender must stay consistent. Wardrobe and props must match one era only. "
-        "CRITICAL: absolutely NO text, NO Chinese characters, NO letters, NO subtitle, NO words, "
-        "NO sentences, NO quotes, NO watermark, NO logo, NO handwriting, NO calligraphy anywhere in the image. "
-        "The image must be completely text-free. Do NOT render any readable text under any circumstance."
+        "anime manga illustration style, 2D cel-shaded art, Japanese anime aesthetic. "
+        "Vertical 3:4 composition, vibrant colors, soft shading. "
+        f"Era: {era_hint}. "
+        f"Female lead: {heroine_desc}. "
+        f"Male lead: {hero_desc}. "
+        "Style must be consistent across all images: anime illustration only. "
+        "NOT realistic photo, NOT 3D render, NOT photographic, NOT live-action."
     )
 
     p1 = (
-        f"{anchor} Cover shot: female lead half-body close-up, low angle camera, foreground blur, "
-        f"high contrast lighting, conflict cue: {c1}, keep top 30 percent clean composition."
+        f"{anchor} Cover shot: female lead half-body close-up portrait, low angle camera, "
+        f"foreground blur, dramatic side-lighting, emotional expression showing {c1}."
     )
     p2 = (
-        f"{anchor} Worldbuilding shot: wide shot, environmental storytelling, {world_hint}, "
-        f"prop-based tension showing {c2}, cool gray-blue palette with rim light."
+        f"{anchor} Worldbuilding shot: wide environmental scene, {world_hint}, "
+        f"atmospheric depth showing {c2}, cool color palette with rim light."
     )
     if is_action_genre:
         p3 = (
-            f"{anchor} Action shot: female lead in motion, male lead in background opposition, "
-            f"dynamic motion lines and debris, hard split lighting, conflict cue: {c1}."
+            f"{anchor} Action shot: female lead in dynamic pose, male lead in background, "
+            f"motion lines, hard split lighting, intense moment of {c1}."
         )
         p4 = (
-            f"{anchor} Emotional duel shot: female lead and male lead face-off, eye-level close-up, "
-            f"rainy atmosphere and volumetric light, conflict cue: {c3}."
+            f"{anchor} Emotional duel: female lead and male lead face-to-face, "
+            f"eye-level medium shot, rain atmosphere, volumetric light, {c3}."
         )
     else:
         p3 = (
-            f"{anchor} Relationship shot: female lead and male lead in the same frame but distant, "
-            f"medium shot, warm indoor lighting, daily-life props, conflict cue: {c1}."
+            f"{anchor} Relationship shot: female lead and male lead together but distant, "
+            f"medium shot, warm indoor lighting, quiet daily-life moment hinting {c1}."
         )
         p4 = (
-            f"{anchor} Emotional shot: single-character close-up of female lead near window light, "
-            f"soft focus and low saturation, conflict cue: {c3}."
+            f"{anchor} Emotional close-up: female lead alone near window, "
+            f"soft bokeh, gentle light on face, inner emotion of {c3}."
         )
     p5 = (
-        f"{anchor} Ending shot: group composition with female lead and allies, emotional release with residual tension, "
-        "morning warm light, shallow depth of field, particles in foreground, suitable as final carousel page."
+        f"{anchor} Group ending: female lead with allies, emotional release, "
+        "morning warm light, shallow depth of field, particles in air."
     )
     return [p1, p2, p3, p4, p5]
+
+
 
 
 def load_selected_work():
