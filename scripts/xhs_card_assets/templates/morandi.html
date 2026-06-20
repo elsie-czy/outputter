@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1080, initial-scale=1.0">
+<title>{{ title }}</title>
+<style>
+/* ===== 字体声明 ===== */
+@font-face { font-family: "Noto Serif SC"; font-style: normal; font-weight: 400; font-display: swap; src: url("file://{{ font_root }}/NotoSansSC-400.woff2") format("woff2"); }
+@font-face { font-family: "Noto Serif SC"; font-style: normal; font-weight: 700; font-display: swap; src: url("file://{{ font_root }}/NotoSansSC-700.woff2") format("woff2"); }
+@font-face { font-family: "Noto Sans SC"; font-style: normal; font-weight: 400; font-display: swap; src: url("file://{{ font_root }}/NotoSansSC-400.woff2") format("woff2"); }
+@font-face { font-family: "Noto Sans SC"; font-style: normal; font-weight: 500; font-display: swap; src: url("file://{{ font_root }}/NotoSansSC-500.woff2") format("woff2"); }
+@font-face { font-family: "ZCOOL XiaoWei"; font-style: normal; font-weight: 400; font-display: swap; src: url("file://{{ font_root }}/ZCOOLXiaoWei-400.woff2") format("woff2"); }
+@font-face { font-family: "Noto Color Emoji"; font-style: normal; font-weight: 400; font-display: swap; src: url("file://{{ font_root }}/NotoColorEmoji.woff2") format("woff2"); }
+
+/* ===== Morandi 风格变量 ===== */
+:root {
+  --bg-primary: #E8E4DD;
+  --bg-surface: #F3F0EA;
+  --bg-clay: #D9CABA;
+  --bg-sage: #C7CDBF;
+  --text-primary: #4D4843;
+  --text-secondary: #7A736B;
+  --text-muted: #A79F95;
+  --accent-terracotta: #B08068;
+  --accent-blue: #8E9BA8;
+  --accent-sage: #9CA98C;
+  --accent-mauve: #A993A0;
+  --border: #D6CFC4;
+  --divider: #CFC7BB;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  width: 1080px;
+  height: 1440px;
+  background:
+    linear-gradient(105deg, #E8E4DD 0%, #E8E4DD 55%, #D9CABA 55%, #D9CABA 100%);
+  font-family: "Noto Sans SC", "PingFang SC", "Noto Color Emoji", sans-serif;
+  color: var(--text-primary);
+  overflow: hidden;
+  position: relative;
+}
+
+/* ===== 卡片容器 ===== */
+.card {
+  position: absolute;
+  top: 72px; left: 72px; right: 72px; bottom: 72px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 56px 80px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(100,90,70,0.06);
+}
+
+/* ===== 封面卡 ===== */
+.cover .color-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, var(--accent-terracotta), var(--accent-blue), var(--accent-sage), var(--accent-mauve));
+  border-radius: 14px 14px 0 0;
+}
+
+.cover .decoration-emoji {
+  font-size: 100px;
+  position: absolute;
+  right: 56px;
+  top: 140px;
+  opacity: 0.12;
+  z-index: 0;
+}
+
+.cover .category-tag {
+  display: inline-block;
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: 2px;
+  padding: 8px 24px;
+  border-radius: 6px;
+  background: var(--bg-clay);
+  color: var(--text-primary);
+  margin-bottom: 36px;
+  z-index: 1;
+}
+
+.cover .title {
+  font-family: "Noto Serif SC", "ZCOOL XiaoWei", Georgia, serif;
+  font-size: 76px;
+  font-weight: 400;
+  line-height: 1.3;
+  color: var(--text-primary);
+  letter-spacing: 1px;
+  margin-bottom: 28px;
+  z-index: 1;
+  position: relative;
+}
+
+.cover .title em {
+  font-style: normal;
+  color: var(--accent-terracotta);
+}
+
+.cover .divider {
+  width: 72px;
+  height: 2px;
+  background: var(--accent-terracotta);
+  margin-bottom: 28px;
+  z-index: 1;
+}
+
+.cover .subtitle {
+  font-size: 36px;
+  line-height: 1.75;
+  color: var(--text-secondary);
+  z-index: 1;
+  position: relative;
+  max-height: 380px;
+  overflow: hidden;
+}
+
+.cover .color-swatches {
+  display: flex;
+  gap: 0;
+  margin-top: auto;
+  z-index: 1;
+}
+
+.cover .color-swatches .swatch {
+  width: 56px;
+  height: 56px;
+  border-radius: 4px;
+}
+
+.cover .color-swatches .swatch:nth-child(1) { background: var(--accent-terracotta); }
+.cover .color-swatches .swatch:nth-child(2) { background: var(--accent-blue); }
+.cover .color-swatches .swatch:nth-child(3) { background: var(--accent-sage); }
+.cover .color-swatches .swatch:nth-child(4) { background: var(--accent-mauve); }
+
+.cover .bottom-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 24px;
+  font-size: 26px;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+  z-index: 1;
+}
+
+/* ===== 内容卡 ===== */
+.content-card .top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 36px;
+}
+
+.content-card .section-tag {
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: 2px;
+  padding: 8px 20px;
+  border-radius: 6px;
+  background: var(--bg-sage);
+  color: var(--text-primary);
+}
+
+.content-card .page-num {
+  font-size: 26px;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+}
+
+.content-card .section-title {
+  font-family: "Noto Serif SC", "ZCOOL XiaoWei", Georgia, serif;
+  font-size: 52px;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--text-primary);
+  letter-spacing: 1px;
+  margin-bottom: 40px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.content-card .body-text {
+  flex: 1;
+  overflow: hidden;
+}
+
+.content-card .body-text .point {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  padding: 20px 24px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+.content-card .body-text .point .dot {
+  font-size: 36px;
+  line-height: 1.7;
+  flex-shrink: 0;
+  color: var(--accent-terracotta);
+}
+
+.content-card .body-text .point .text {
+  font-size: 36px;
+  line-height: 1.75;
+  color: var(--text-primary);
+}
+
+/* ===== 总结卡 ===== */
+.summary-card .top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 36px;
+}
+
+.summary-card .section-tag {
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: 2px;
+  padding: 8px 20px;
+  border-radius: 6px;
+  background: var(--bg-clay);
+  color: var(--text-primary);
+}
+
+.summary-card .page-num {
+  font-size: 26px;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+}
+
+.summary-card .summary-title {
+  font-family: "Noto Serif SC", "ZCOOL XiaoWei", Georgia, serif;
+  font-size: 52px;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--text-primary);
+  letter-spacing: 1px;
+  margin-bottom: 36px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.summary-card .takeaways {
+  flex: 1;
+  overflow: hidden;
+}
+
+.summary-card .takeaway {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  padding: 20px 28px;
+  background: transparent;
+  border-left: 3px solid var(--accent-terracotta);
+  margin-bottom: 20px;
+  border-radius: 0 10px 10px 0;
+}
+
+.summary-card .takeaway .num {
+  font-family: "Noto Serif SC", serif;
+  font-size: 32px;
+  font-weight: 400;
+  color: var(--accent-terracotta);
+  flex-shrink: 0;
+  line-height: 1.75;
+}
+
+.summary-card .takeaway .text {
+  font-size: 36px;
+  line-height: 1.75;
+  color: var(--text-primary);
+}
+
+.summary-card .cta {
+  font-size: 36px;
+  line-height: 1.75;
+  color: var(--accent-terracotta);
+  margin-top: 28px;
+  font-style: italic;
+}
+
+.summary-card .tags {
+  margin-top: auto;
+  padding-top: 24px;
+  border-top: 1px solid var(--divider);
+  font-size: 30px;
+  color: var(--text-muted);
+  line-height: 1.8;
+}
+</style>
+</head>
+<body class="{{ card_class }}">
+
+{% if card_type == "cover" %}
+<!-- 封面卡 -->
+<div class="card cover">
+  <div class="color-bar"></div>
+  <div class="decoration-emoji">{{ decoration_emoji }}</div>
+  <div class="category-tag">{{ category }}</div>
+  <div class="title">{{ title | safe }}</div>
+  <div class="divider"></div>
+  <div class="subtitle">{{ subtitle | safe }}</div>
+  <div class="color-swatches">
+    <div class="swatch"></div>
+    <div class="swatch"></div>
+    <div class="swatch"></div>
+    <div class="swatch"></div>
+  </div>
+  <div class="bottom-bar">
+    <div class="page-num">{{ page_num }} / {{ total_pages }}</div>
+    <div style="color:var(--accent-terracotta);">滑动 →</div>
+  </div>
+</div>
+{% endif %}
+
+{% if card_type == "content" %}
+<!-- 内容卡 -->
+<div class="card content-card">
+  <div class="top-bar">
+    <div class="section-tag">{{ section_tag }}</div>
+    <div class="page-num">{{ page_num }} / {{ total_pages }}</div>
+  </div>
+  <div class="section-title">{{ section_title | safe }}</div>
+  <div class="body-text">
+    {% for point in points %}
+    <div class="point">
+      <span class="dot">{{ point.emoji }}</span>
+      <span class="text">{{ point.text | safe }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if card_type == "summary" %}
+<!-- 总结卡 -->
+<div class="card summary-card">
+  <div class="top-bar">
+    <div class="section-tag">{{ section_tag }}</div>
+    <div class="page-num">{{ page_num }} / {{ total_pages }}</div>
+  </div>
+  <div class="summary-title">{{ summary_title | safe }}</div>
+  <div class="takeaways">
+    {% for item in takeaways %}
+    <div class="takeaway">
+      <div class="num">{{ loop.index }}</div>
+      <div class="text">{{ item | safe }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="cta">{{ cta | safe }}</div>
+  <div class="tags">{{ tags | safe }}</div>
+</div>
+{% endif %}
+
+</body>
+</html>

@@ -36,7 +36,7 @@ _env = Environment(
 # ── 公开入口 ──────────────────────────────────────────────────────────
 def generate_cards_from_note(
     note_content: dict,
-    style: str = "warm",
+    style: str = "auto",
     n: int = 3,
     output_dir: str = None,
 ) -> list[str]:
@@ -44,13 +44,18 @@ def generate_cards_from_note(
     从拆解笔记内容生成 HTML 卡片并截图。
 
     :param note_content: 字典，含 title / body / tags / lead
-    :param style: warm | anthropic | notion | minimal | morandi
+    :param style: warm | anthropic | notion | minimal | morandi | auto
+                    auto = 根据笔记内容自动匹配最合适风格
     :param n: 期望生成图片张数（会根据内容自动调整）
     :param output_dir: PNG 输出目录，默认 temp/html_cards/
     :return: [png_path, ...]
     """
     if not _PLAYWRIGHT_OK:
         raise RuntimeError("playwright 未安装，请运行：python -m playwright install chromium")
+
+    # style="auto" → 根据内容自动匹配
+    if style == "auto":
+        style = auto_match_style(note_content)
 
     out_dir = Path(output_dir) if output_dir else OUTPUT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -287,3 +292,81 @@ def parse_note_content(raw_note: str) -> dict:
         result["tags"] = ["好书推荐", "书评", "小红书读书"]
 
     return result
+
+
+# ── 风格自动匹配 ────────────────────────────────────────────────
+def auto_match_style(note_content: dict) -> str:
+    """
+    根据笔记内容自动匹配最合适的卡片风格。
+    优先级：关键词命中 → 默认 warm。
+    """
+    title = note_content.get('title', '')
+    body  = note_content.get('body', '')
+    tags  = note_content.get('tags', [])
+    lead  = note_content.get('lead', '')
+
+    combined = (title + lead + body).lower()
+    tag_str  = ' '.join(tags).lower()
+
+    # 优先级从高到低依次判断
+
+    # 1. 科技 / AI / 编程 / 数码 → anthropic（杂志编辑感、专业）
+    kw_anthropic = [
+        'ai', '人工智能', '大模型', 'gpt', 'claude', '编程', '代码',
+        '数码', '手机', '电脑', '产品', '科技', '互联网', '算法', '机器学习',
+        '深度学习', '数据分析', '职场干货', '效率工具', 'notion', 'obsidian',
+    ]
+    if any(kw in combined or kw in tag_str for kw in kw_anthropic):
+        return 'anthropic'
+
+    # 2. 穿搭 / 美食 / 家居 / 好物 / 护肤 / 旅行 → morandi（高级感、低饱和）
+    kw_morandi = [
+        '穿搭', '美食', '家居', '好物', '护肤', '旅行', '探店',
+        '装修', '婚礼', '情感', 'OOTD', '穿搭灵感', '日常穿搭',
+        '早午餐', '下午茶', '探店', '买手店', '周末去哪儿',
+    ]
+    if any(kw in combined or kw in tag_str for kw in kw_morandi):
+        return 'morandi'
+
+    # 3. 职场 / 成长 / 干货 / 学习 / 书评 → notion（结构化、可读性强）
+    kw_notion = [
+        '职场', '成长', '干货', '学习', '书评', '读书', '笔记',
+        '方法', '技巧', '攻略', '指南', '总结', '复盘', '计划',
+        '时间管理', '自律', '提升', '认知', '思维', '习惯',
+    ]
+    if any(kw in combined or kw in tag_str for kw in kw_notion):
+        return 'notion'
+
+    # 4. 豪门 / 虐恋 / 宫斗 / 复仇 / 强取豪夺 → morandi（质感、高级感）
+    kw_morandi_drama = [
+        '豪门', '虐恋', '宫斗', '复仇', '强取豪夺', '失忆', '替身',
+        '浪子回头', '追妻火葬场', '带球跑', '真假千金', '重生之',
+        '权谋', '宅斗', '商战',
+    ]
+    if any(kw in combined or kw in tag_str for kw in kw_morandi_drama):
+        return 'morandi'
+
+    # 5. 甜宠 / 校园 / 言情 / 日常 → warm（原生小红书感、暖色生活风）
+    kw_warm = [
+        '甜宠', '校园', '言情', '日常', '浪子回头', '宠妻',
+        '萌宝', '双向奔赴', '青梅竹马', '暗恋', '破镜重圆',
+        '先婚后爱', '契约婚姻',
+    ]
+    if any(kw in combined or kw in tag_str for kw in kw_warm):
+        return 'warm'
+
+    # 默认
+    return 'warm'
+
+
+def get_style_description(style: str) -> str:
+    """返回风格的中文描述，用于 UI 展示。"""
+    desc = {
+        'warm':     '暖色生活风 —— 原生小红书感，适合甜宠/言情/日常',
+        'notion':   '笔记学习风 —— 结构化条理清晰，适合职场/干货/书评',
+        'anthropic': '杂志编辑风 —— 专业高级感，适合科技/AI/产品',
+        'minimal':  '极简黑白风 —— 克制高级感，适合极简/设计/艺术',
+        'morandi':  '莫兰迪低饱和 —— 温柔质感，适合穿搭/美食/豪门虐恋',
+        'auto':     '自动匹配 —— 根据笔记内容智能选择最合适风格',
+    }
+    return desc.get(style, style)

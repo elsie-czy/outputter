@@ -9,7 +9,12 @@ from scripts.feishu_client import FeishuClient
 from scripts.feishu_config import get_feishu_config
 from scripts.image_generator import generate_images_from_prompt, is_image_generation_enabled
 from scripts.deconstruct_daily import _sanitize_image_prompt_for_jimeng, _sanitize_prompt_for_image_gen
-from scripts.html_card_generator import generate_cards_from_note, parse_note_content
+from scripts.html_card_generator import (
+    generate_cards_from_note,
+    parse_note_content,
+    auto_match_style,
+    get_style_description,
+)
 
 
 def _now():
@@ -78,13 +83,16 @@ def _backfill_one_record(client, table_id, record, per_field_images=2, sleep_sec
 
     # ── 策略切换：读 IMAGE_GEN_STRATEGY 环境变量 ────────────────────
     strategy = (os.getenv("IMAGE_GEN_STRATEGY") or "ai").strip().lower()
-    html_card_style = (os.getenv("HTML_CARD_STYLE") or "warm").strip()
+    html_card_style = (os.getenv("HTML_CARD_STYLE") or "auto").strip()
     html_card_count = int((os.getenv("HTML_CARD_COUNT") or "3").strip() or "3")
 
-    if strategy == "html_card":
+    if strategy in ("html_card", "auto"):
+        # auto 策略：强制 style="auto"（每张笔记自动匹配风格）
+        # html_card 策略：使用 HTML_CARD_STYLE 配置的风格
+        use_style = "auto" if strategy == "auto" else html_card_style
         return _backfill_html_card(
             client, table_id, record,
-            style=html_card_style,
+            style=use_style,
             n=html_card_count,
         )
 
@@ -302,10 +310,11 @@ def run(mode="missing", limit=0, max_retries=2, sleep_sec=0.0):
     return out
 
 
-def _backfill_html_card(client, table_id, record, style="warm", n=3):
+def _backfill_html_card(client, table_id, record, style="auto", n=3):
     """
     HTML 卡片策略：读笔记正文 → 生成 HTML 卡片 → 截图 → 上传飞书。
     结果写入「即梦生图1-5」字段（与 AI 生图策略共用同字段，方便前端展示）。
+    支持 style="auto" 自动匹配风格。
     """
     rid = record.get("record_id")
     fields = record.get("fields", {}) or {}
@@ -319,11 +328,18 @@ def _backfill_html_card(client, table_id, record, style="warm", n=3):
     # 2. 解析为结构化内容
     note_content = parse_note_content(note_raw)
 
+    # 2.5 风格解析（支持 auto 自动匹配）
+    actual_style = style
+    if style == "auto":
+        actual_style = auto_match_style(note_content)
+        desc = get_style_description(actual_style)
+        print(f"[html_card] 风格自动匹配: {actual_style} —— {desc}")
+
     # 3. 生成 HTML 卡片并截图
     try:
         png_paths = generate_cards_from_note(
             note_content,
-            style=style,
+            style=actual_style,   # 传实际风格，让 generate_cards_from_note 直接使用
             n=n,
             output_dir=None,   # 默认 temp/html_cards/
         )

@@ -452,8 +452,8 @@ def set_image_strategy():
     try:
         data = request.get_json(force=True) or {}
         strategy = data.get("strategy", "ai").strip().lower()
-        if strategy not in ("ai", "html_card"):
-            return jsonify({"ok": False, "error": "strategy must be ai or html_card"}), 400
+        if strategy not in ("ai", "html_card", "auto"):
+            return jsonify({"ok": False, "error": "strategy must be ai, html_card or auto"}), 400
         config = {
             "strategy": strategy,
             "style": data.get("style", "warm").strip(),
