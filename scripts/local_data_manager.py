@@ -60,6 +60,8 @@ def sync_topics_from_feishu():
                 "author": fields.get("作者", ""),
                 "platform": fields.get("平台", ""),
                 "category": fields.get("分类", ""),
+                "synopsis": fields.get("简介", ""),
+                "orientation": fields.get("取向", ""),
                 "word_count": fields.get("字数", 0),
                 "favorites": fields.get("收藏", 0),
                 "likes": fields.get("点赞", 0),

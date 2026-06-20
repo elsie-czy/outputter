@@ -678,6 +678,8 @@ const PAGE_SIZE = 10;
         作者: i.author,
         平台: i.platform,
         分类: i.category,
+        简介: i.synopsis || "",
+        取向: i.orientation || "",
       }));
 
       const res = await fetch("/api/deconstruct/batch-enqueue", {
