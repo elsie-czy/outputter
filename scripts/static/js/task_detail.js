@@ -671,8 +671,12 @@
 
     // 通过审核
     bindBtn("#btnApprove", async () => {
-      await apiCall("/api/task/" + taskData.record_id + "/approve", "已通过审核");
-      loadTaskDetail(taskData.record_id);
+      if (!confirm("确认通过审核？通过后任务将标记为「已完成」")) return;
+      const result = await apiCall("/api/task/" + taskData.record_id + "/approve", "已通过审核");
+      if (result && result.ok) {
+        isDraftDirty = false;
+        await loadTaskDetail(taskData.record_id);
+      }
     });
 
     // 重新生成

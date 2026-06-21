@@ -13,7 +13,7 @@ STATUS_WAITING = "waiting"
 STATUS_DECONSTRUCTING = "deconstructing"
 STATUS_GENERATING_NOTE = "generating_note"
 STATUS_AI_SCORING = "ai_scoring"
-STATUS_HUMAN_REVIEW = "human_review"
+STATUS_HUMAN_REVIEW = "human_review"  # 已废弃，向后兼容
 STATUS_GENERATING_IMAGE = "generating_image"
 STATUS_DONE = "done"
 STATUS_FAILED = "failed"
@@ -33,7 +33,7 @@ def normalize_status(status) -> str:
         "generating_note": "processing",
         "ai_scoring": "processing",
         "generating_image": "processing",
-        "human_review": "review",
+        "human_review": "review",   # 已废弃，向后兼容，映射为 review 显示
         "review": "review",
         "done": "completed",
         "completed": "completed",
