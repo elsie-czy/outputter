@@ -65,6 +65,38 @@
 - 风险与注意事项：
   - 实际 PNG 截图仍依赖 Playwright/Chromium；缺失时会保留原有失败路径，不影响 AI 生图策略
 
+## 2026-06-25（HTML 卡片真实链路验收）
+- 变更摘要：完成 `内容简报 -> card_plan.json -> HTML -> PNG` 真实截图链路验收，并修复旧正文拆段 fallback 的空标题问题。
+- 影响范围：HTML 卡片 / 测试 / 文档
+- 行为变化：
+  - 已在本地 Playwright/Chromium 环境生成 brief-driven 与 legacy fallback 两组 PNG
+  - brief-driven 卡片组生成 5 张 1080x1440 PNG，内容页角色为 problem / insight / proof
+  - legacy fallback 卡片组生成 4 张 1080x1440 PNG
+  - 旧正文拆段产生空 heading 时，内容页标题会自动回退为 `要点 N`
+  - `图文页结构` 中显式包含封面或总结项时，不再把它们重复作为内容页，避免挤掉证据页
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无；运行态验收产物输出到 `temp/e2e_card_verify/`，不纳入提交
+- 回滚方式：回退 `scripts/html_card_generator.py`、`tests/test_html_card_content_brief.py`、`docs/planning/XHS_CARD_SKILL_INTEGRATION.md` 和本条记录
+- 风险与注意事项：
+  - Playwright Python 包与 Chromium 安装在本机 `.venv`/浏览器缓存中，本次不修改依赖声明
+
+## 2026-06-25（生产链路真实效果与评分接口收口）
+- 变更摘要：停掉旧本机 worker 后用单一 `.venv` worker 验证生产链路，并修复旧缓存、短笔记和 DashScope 评分错误暴露问题。
+- 影响范围：Worker / HTML 卡片 / AI评分 / 测试 / 文档
+- 行为变化：
+  - 已停止旧 `deconstruct_worker.py` 进程，清理残留队列锁；本次验收只使用 `.venv` 单任务 worker
+  - 缓存命中但旧 analysis 缺少 `内容简报` 时，不再复用旧缓存，继续走最新分析链路
+  - `MODEL_PROVIDER=local` 时评分器直接返回可读降级分，避免本地验收误打远端评分接口
+  - Qwen/DashScope 评分支持多 endpoint，并在 HTTP 400 时保留 `Arrearage` 等响应体错误信息
+  - 重新跑 `verify_content_brief_card_20260625_1455`，`deconstruct_result` 已包含 `内容简报`
+  - 该任务生成笔记长度 1055 字，HTML 卡片输出 5 张 1080x1440 PNG，`card_plan.json` 来源为 `content_brief`
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无；运行态队列、本地结果和图片产物不纳入提交
+- 回滚方式：回退 `scripts/deconstruct_worker.py`、`scripts/quality_scorer.py`、相关测试和本条记录
+- 风险与注意事项：
+  - 当前 DashScope 账号返回 `Arrearage`，远端模型评分仍会降级；需账号恢复后才会得到真实 AI 评分
+  - 小红书笔记库同步阶段遇到余额不足的图片相关 403，但 worker 主链路和 HTML 卡片产出未中断
+
 ## 2026-06-20（Dashboard 与选题池布局精简）
 - 变更摘要：统一顶部页面标题靠左，精简 Dashboard 与选题池重复/冗余区域。
 - 影响范围：Web / 公共 Header / Dashboard / 选题池

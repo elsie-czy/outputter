@@ -39,12 +39,22 @@ class HtmlCardContentBriefTest(unittest.TestCase):
         self.assertEqual([card["page_role"] for card in plan[1:-1]], ["problem", "insight", "proof"])
         self.assertEqual(plan[1]["section_title"], "痛点提问")
 
+    def test_plan_cards_skips_brief_cover_and_summary_pages(self):
+        brief = self._brief()
+        brief["图文页结构"] = ["封面钩子", "痛点提问", "核心洞察", "证据素材", "收藏总结"]
+
+        plan = cards._plan_cards(self._note(), "warm", 5, content_brief=brief)
+
+        self.assertEqual([card["section_title"] for card in plan[1:-1]], ["痛点提问", "核心洞察", "证据素材"])
+        self.assertEqual([card["page_role"] for card in plan[1:-1]], ["problem", "insight", "proof"])
+
     def test_plan_cards_without_brief_uses_legacy_body_split(self):
         plan = cards._plan_cards(self._note(), "warm", 3, content_brief=None)
 
         self.assertEqual(plan[0]["card_type"], "cover")
         self.assertNotIn("plan_source", plan[0])
         self.assertTrue(any(card["card_type"] == "content" for card in plan))
+        self.assertEqual(cards._validate_cards(plan), [])
 
     def test_generate_cards_writes_card_plan_json(self):
         with tempfile.TemporaryDirectory() as tmp:
