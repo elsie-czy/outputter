@@ -258,7 +258,7 @@ V1:
   python scripts/web_app.py           # Flask 单进程
 
 V2:
-  scripts/deconstruct_worker.py       # 队列消费（常驻或 cron 触发）
+  scripts/deconstruct_worker.py       # 队列消费（Docker 常驻，本地也可手动常驻运行）
   scripts/quality_scorer.py           # 质量评分模块（新）
   scripts/web_app.py                  # 不变，加新路由
   model_adapter.py                    # 加 few-shot + feedback + video 参数
@@ -281,7 +281,7 @@ V2:
 
 ```
 ☐ 批量拆文队列
-☐ 笔记参考样本注入（few-shot）
+☑ 笔记参考样本注入（few-shot，后端生成链路已自动注入）
 ☐ 拆文结果缓存
 ```
 
@@ -291,7 +291,7 @@ V2:
 
 ```
 ☐ AI 质量评分
-☐ 人工反馈闭环
+☑ 人工反馈闭环（修改日志/近期反馈已注入重新生成与 worker 生成链路）
 ☐ 笔记库 Web 增强（筛选/导出）
 ```
 
@@ -330,7 +330,7 @@ V2 前端从当前单一 Flask 内嵌页面（web_app_legacy.py 2876 行）拆�
 
 | 页面 | 功能核心 | 优先级 | 理由 |
 |------|---------|--------|------|
-| 工作台 Dashboard | 任务队列概览、批量操作入口、统计面板 | P0 | 账号A每日内容生产核心入口 |
+| 工作台 Dashboard | 任务队列概览、趋势、热门选题、状态面板、快捷入口 | P0 | 账号A每日内容生产核心入口（已落地 `/dashboard` + `/api/dashboard/overview`） |
 | 拆文中心 | 拆文队列管理、拆文结果预览 | P0 | 直接影响拆文效率 |
 | 笔记生成/预览 | 小红书标题、正文、互动话术、AI评分 | P0 | 直接影响产出质量 |
 | 知识库中心 | 子库浏览、条目详情 | P1 | 可用飞书表格暂代 |
@@ -346,7 +346,7 @@ V2 前端从当前单一 Flask 内嵌页面（web_app_legacy.py 2876 行）拆�
 
 ```
 V2.0 实现：
-  工作台 Dashboard（P0）
+  工作台 Dashboard（P0，已落地数据总览首页）
   拆文中心（P0）
   笔记生成/预览（P0）
   任务中心（P1）← 基础版列表
@@ -488,6 +488,8 @@ V2 页面树
 | C | `docs/operations/planning/task-v2-legacy-migration.md` | refactor | P1 | ☐ | 逐步迁移 `web_app_legacy.py`，控制文件长度和维护成本 |
 | D | `docs/guides/SCREENSHOT_HANDOFF_TEMPLATE.md` | workflow | P0 | ☑ | 固化截图/设计图交付模板，供后续页面开发使用 |
 | E | 任务详情页工作台优化 | UI | P0 | ☑ | 重排顶部概览、进度轴、笔记三栏和 5 秒自动刷新，不改后端 API |
+| F | 任务详情页密度压实优化 | UI | P0 | ☑ | 压实顶部概览、进度轴、Tab 工作区和笔记三栏，提高首屏信息密度 |
+| G | 参考笔记 + 修改反馈闭环接入 | feature | P0 | ☑ | worker、任务详情重新生成、note API 重新生成自动注入高分参考笔记和近期修改反馈 |
 
 ### 8.0 前端架构优化
 
@@ -566,8 +568,8 @@ V2 页面树
 
 | # | 任务 | 优先级 | 状态 | 描述 | 预估 |
 |---|------|--------|------|------|------|
-| 5.1 | `analyze_work()` 增加 `reference_notes` 参数 | P0 | ☐ | prompt 末尾追加 few-shot 样本，降级处理空参考 | 1h |
-| 5.2 | `analyze_work()` 增加 `recent_feedback` 参数 | P1 | ☐ | prompt 追加历史修改偏好 | 30min |
+| 5.1 | `analyze_work()` 增加 `reference_notes` 参数 | P0 | ☑ | prompt 末尾追加 few-shot 样本，worker/重新生成入口降级处理空参考 | 1h |
+| 5.2 | `analyze_work()` 增加 `recent_feedback` 参数 | P1 | ☑ | prompt 追加当前任务修改日志和飞书近期修改偏好 | 30min |
 | 5.3 | `quality_scorer.py` 评分模块 | P1 | ☑ | 独立 LLM 调用，六维评分（标题/情绪/收藏/互动/风格/AI痕迹），输出 0-100 | 2h |
 | 5.4 | `generate_video_script()` 视频脚本生成 | P2 | ☐ | 输入拆文结果 + 笔记，输出口播稿 + 分镜脚本 | 2h |
 | 5.5 | 拆文结果缓存 | P1 | ☑ | `deconstruct_worker.py` 调 LLM 前查飞书主表，作品+作者已存在则复用 | 30min |
@@ -610,7 +612,7 @@ V2 页面树
 |---|------|--------|------|------|------|
 | 9.1 | 端到端流程验证 | P0 | ☑ | 选题入队 → worker 消费 → 拆文 → 笔记 → 评分 → 前端展示 | 2h |
 | 9.2 | 边界情况处理 | P1 | ☐ | 队列为空/全部失败/网络超时/飞书 API 限流/LLM 超时重试 | 1h |
-| 9.3 | Docker 适配 | P2 | ☐ | `deconstruct-runner` 容器改为常驻队列消费模式 | 1h |
+| 9.3 | Docker 适配 | P2 | ☑ | `deconstruct-runner` 容器已改为常驻队列消费模式，空队列等待，pending 任务进入现有 worker 流程 | 1h |
 
 ---
 

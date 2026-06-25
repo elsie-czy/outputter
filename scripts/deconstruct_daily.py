@@ -172,69 +172,124 @@ def _extract_keywords(texts, limit=8):
     return out
 
 
+def _chinese_to_english_desc(text):
+    """将中文片段替换为英文视觉描述占位符，避免图片模型渲染中文文字"""
+    s = str(text or "").strip()
+    if not s:
+        return ""
+    chinese_chars = sum(1 for c in s if '\u4e00' <= c <= '\u9fff')
+    if chinese_chars >= len(s) * 0.5:
+        return "[visual scene description]"
+    return s
+
+
+def _strip_all_cjk(text):
+    """彻底移除文本中所有CJK字符（中日韩），只保留英文/数字/标点"""
+    p = str(text or "")
+    p = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]', '', p)
+    p = re.sub(r'[\u3040-\u309f\u30a0-\u30ff]', '', p)
+    p = re.sub(r'[\uac00-\ud7af]', '', p)
+    p = re.sub(r'\s+', ' ', p).strip()
+    return p
+
+
+def _sanitize_prompt_for_image_gen(prompt):
+    """发送给图片生成API前强制净化：
+    1. 彻底清除所有CJK字符（核心修复：之前只截断长句，现在全删）
+    2. 强制统一 anime/manga 插画风格
+    3. 末尾追加强制无文字指令
+    """
+    p = str(prompt or "")
+    # 第一步：移除引号包裹的内容（用原始字符串避免转义问题）
+    quote_pattern = r'["\u201c\u201d\u300c\u300d\[\]''\u300a\u300b][^"\[\]''\u300a\u300b]{0,80}[["'']\u3001\u3002]'
+    p = re.sub(quote_pattern, "", p)
+    # 第二步：彻底移除所有CJK字符——这是消除图片上文字的关键
+    p = _strip_all_cjk(p)
+    # 第三步：清理多余空白
+    p = re.sub(r"\s+", " ", p).strip()
+    # 第四步：如果prompt被清空太短，用通用视觉描述兜底
+    if len(p) < 40:
+        p = "anime manga illustration, beautiful character portrait, emotional atmosphere"
+    # 第五步：末尾强追加 统一风格 + 禁止文字
+    suffix = (
+        ". Style: anime manga illustration, 2D cel-shaded art, consistent anime aesthetic. "
+        "NOT realistic photo, NOT 3D render, NOT photographic style. "
+        "NO text, NO words, NO letters, NO subtitles, NO handwriting, "
+        "NO watermark, NO logo, NO calligraphy, completely text-free image."
+    )
+    if "text-free" not in p.lower():
+        p = p + suffix
+    return p.strip()
+
+
+
+
 def _build_image_prompts(work, analysis):
     category = str(work.get("分类", "") or "")
     intro = str(work.get("简介", "") or "")
     lead_name = _extract_lead_name_from_intro(intro)
-    # Use source-summary grounding first; avoid over-trusting hallucinated role details.
-    heroine_desc = _clip(lead_name or analysis.get("人物设定", {}).get("女主", "") or "female protagonist", 16)
-    hero_desc = _clip(analysis.get("人物设定", {}).get("男主", "") or "male lead", 16)
-    support_desc = _clip(analysis.get("人物设定", {}).get("亮点配角", "") or "sect members", 14)
+    # 角色描述：中文转英文占位符，避免图片模型渲染中文
+    heroine_desc = _chinese_to_english_desc(lead_name or analysis.get("人物设定", {}).get("女主", "") or "") or "calm and determined woman"
+    hero_desc = _chinese_to_english_desc(analysis.get("人物设定", {}).get("男主", "") or "") or "cold and restrained man"
+    support_desc = _chinese_to_english_desc(analysis.get("人物设定", {}).get("亮点配角", "") or "") or "key trigger character"
     conflict = analysis.get("冲突设计", {})
 
-    scene_text = " ".join([category, intro, heroine_desc, hero_desc, support_desc])
+    scene_text = " ".join([category, intro])
     is_action_genre = any(k in scene_text for k in ["仙侠", "玄幻", "悬疑", "科幻", "末世", "无限流", "战斗"])
     is_ancient = any(k in scene_text for k in ["仙侠", "修真", "古代", "宫廷", "侯门", "朝堂", "江湖"])
     era_hint = "ancient fantasy era" if is_ancient else "modern era"
-    world_hint = "ancient architecture, layered robes, moonlight and lantern lighting" if is_ancient else "urban interior and night city lighting, realistic props"
+    world_hint = "ancient architecture, layered silk robes, moonlight and lantern lighting" if is_ancient else "urban interior and night city lighting"
 
-    c1 = _clip(conflict.get("第一层", "high stakes conflict"), 28)
-    c2 = _clip(conflict.get("第二层", "relationship conflict"), 28)
-    c3 = _clip(conflict.get("第三层", "final confrontation"), 28)
+    # 冲突描述也用英文替代
+    c1 = _chinese_to_english_desc(conflict.get("第一层", "")) or "high stakes conflict"
+    c2 = _chinese_to_english_desc(conflict.get("第二层", "")) or "emotional tension"
+    c3 = _chinese_to_english_desc(conflict.get("第三层", "")) or "final confrontation"
 
+    # 统一风格前缀：明确的 anime/manga 插画风格，排除写实照片风
+    # 关键：所有prompt只包含英文，不含任何CJK字符
     anchor = (
-        "Xiaohongshu visual, vertical 3:4, anime illustration, cinematic lighting, high detail. "
-        f"Story era: {era_hint}. "
-        f"Fixed roles: female lead (woman, {heroine_desc or 'calm and determined'}), "
-        f"male lead (man, {hero_desc or 'cold and restrained'}), "
-        f"supporting role ({support_desc or 'key trigger character'}). "
-        "Ground only to official synopsis and listed genre; avoid adding new names or settings. "
-        "Gender must stay consistent. Wardrobe and props must match one era only. "
-        "No text, no Chinese characters, no letters, no subtitle, no logo, no watermark. "
-        "Image must be text-free."
+        "anime manga illustration style, 2D cel-shaded art, Japanese anime aesthetic. "
+        "Vertical 3:4 composition, vibrant colors, soft shading. "
+        f"Era: {era_hint}. "
+        f"Female lead: {heroine_desc}. "
+        f"Male lead: {hero_desc}. "
+        "Style must be consistent across all images: anime illustration only. "
+        "NOT realistic photo, NOT 3D render, NOT photographic, NOT live-action."
     )
 
     p1 = (
-        f"{anchor} Cover shot: female lead half-body close-up, low angle camera, foreground blur, "
-        f"high contrast lighting, conflict cue: {c1}, keep top 30 percent clean composition."
+        f"{anchor} Cover shot: female lead half-body close-up portrait, low angle camera, "
+        f"foreground blur, dramatic side-lighting, emotional expression showing {c1}."
     )
     p2 = (
-        f"{anchor} Worldbuilding shot: wide shot, environmental storytelling, {world_hint}, "
-        f"prop-based tension showing {c2}, cool gray-blue palette with rim light."
+        f"{anchor} Worldbuilding shot: wide environmental scene, {world_hint}, "
+        f"atmospheric depth showing {c2}, cool color palette with rim light."
     )
     if is_action_genre:
         p3 = (
-            f"{anchor} Action shot: female lead in motion, male lead in background opposition, "
-            f"dynamic motion lines and debris, hard split lighting, conflict cue: {c1}."
+            f"{anchor} Action shot: female lead in dynamic pose, male lead in background, "
+            f"motion lines, hard split lighting, intense moment of {c1}."
         )
         p4 = (
-            f"{anchor} Emotional duel shot: female lead and male lead face-off, eye-level close-up, "
-            f"rainy atmosphere and volumetric light, conflict cue: {c3}."
+            f"{anchor} Emotional duel: female lead and male lead face-to-face, "
+            f"eye-level medium shot, rain atmosphere, volumetric light, {c3}."
         )
     else:
         p3 = (
-            f"{anchor} Relationship shot: female lead and male lead in the same frame but distant, "
-            f"medium shot, warm indoor lighting, daily-life props, conflict cue: {c1}."
+            f"{anchor} Relationship shot: female lead and male lead together but distant, "
+            f"medium shot, warm indoor lighting, quiet daily-life moment hinting {c1}."
         )
         p4 = (
-            f"{anchor} Emotional shot: single-character close-up of female lead near window light, "
-            f"soft focus and low saturation, conflict cue: {c3}."
+            f"{anchor} Emotional close-up: female lead alone near window, "
+            f"soft bokeh, gentle light on face, inner emotion of {c3}."
         )
     p5 = (
-        f"{anchor} Ending shot: group composition with female lead and allies, emotional release with residual tension, "
-        "morning warm light, shallow depth of field, particles in foreground, suitable as final carousel page."
+        f"{anchor} Group ending: female lead with allies, emotional release, "
+        "morning warm light, shallow depth of field, particles in air."
     )
     return [p1, p2, p3, p4, p5]
+
+
 
 
 def load_selected_work():
@@ -362,6 +417,16 @@ def _select_best_title(titles, work):
     return titles[0] if titles else ""
 
 
+def get_title_options(work, analysis):
+    """返回备选标题列表（不含最佳标题），供前端选择器使用"""
+    try:
+        title_options = generate_title_options(work, analysis)
+        best_title = _select_best_title(title_options, work)
+        return [t for t in title_options if t != best_title][:5]
+    except Exception:
+        return []
+
+
 def build_xhs_note(work, analysis, use_formula=True):
     p = analysis["小红书包装"]
     tags = p.get("热门标签推荐", [])
@@ -378,36 +443,34 @@ def build_xhs_note(work, analysis, use_formula=True):
         title_options = generate_title_options(work, analysis)
         best_title = _select_best_title(title_options, work)
         lines.append(f"【标题】{best_title}")
-        lines.append(f"【备选标题】")
-        for i, t in enumerate(title_options[:5], 1):
-            if t != best_title:
-                lines.append(f"  {i}. {t}")
     else:
         lines.append(f"【标题】{p.get('小红书标题模板', '')}")
     lines.append("")
     
     # 痛点共鸣开头（参考xhs-writer-skill方法论）
     lines.append("姐妹们我先说结论👇")
-    lines.append(f"✨ {_compact_mobile(p.get('正文开头模板', ''), 72)}")
+    lines.append(f"✨ {_compact_mobile(p.get('正文开头模板', ''), 120)}")
     lines.append("")
     
-    # 情绪钩子（使用情绪词库）
-    emotion_hooks = [
-        "这本真的好看哭了😭",
-        "我后悔没早知道这本！",
-        "刷到就是缘分，这本绝了",
-        "我不是最后一个知道的吧！",
-    ]
+    # 情绪钩子（从 analysis 情绪词动态生成）
     import random
-    lines.append(random.choice(emotion_hooks))
+    emotion_words = [e for e in analysis.get("情绪触发", []) if e and str(e).strip()]
+    if emotion_words:
+        ew = _compact_mobile(emotion_words[0], 20)
+        lines.append(f"这本真的{ew}😭 刷到就是缘分")
+    else:
+        lines.append("刷到就是缘分，这本绝了")
     lines.append("")
-    lines.append("这本不是靠设定噱头撑着走的，是真有阅读粘性的那种。")
+    structure = _compact_mobile(p.get('正文结构建议', ''), 80)
+    if structure:
+        lines.append("这本不是靠设定噱头撑着走的，是真有阅读粘性的那种。")
+    else:
+        lines.append("这本不是靠设定噱头撑着走的，是真有阅读粘性的那种。")
     lines.append("我本来只想看几章，结果直接连着刷下去。")
     lines.append("")
     lines.append("📚 作品速览")
     lines.append(f"- 书名：{work.get('作品名称','')}")
     lines.append(f"- 作者：{work.get('作者','')}")
-    lines.append(f"- 平台：{work.get('平台','')}")
     if words:
         lines.append(f"- 字数：{words}")
     if score:
@@ -428,71 +491,78 @@ def build_xhs_note(work, analysis, use_formula=True):
     # 聚焦核心卖点（参考xhs-writer-skill：只讲1-2个最稀缺的功能）
     lines.append("🔹 开篇抓人：先抛生存题，再给反转")
     for i, item in enumerate(analysis["开篇套路"][:3], 1):
-        lines.append(f"{i}. {_compact_mobile(item, 46)}")
+        lines.append(f"{i}. {_compact_mobile(item, 120)}")
     lines.append("")
 
     lines.append("🔹 人设不扁平，关系有拉扯感")
-    lines.append(f"- 女主：{_compact_mobile(analysis['人物设定']['女主'], 40)}")
-    lines.append(f"- 男主：{_compact_mobile(analysis['人物设定']['男主'], 40)}")
-    lines.append(f"- 配角：{_compact_mobile(analysis['人物设定']['亮点配角'], 40)}")
+    lines.append(f"- 女主：{_compact_mobile(analysis['人物设定']['女主'], 160)}")
+    lines.append(f"- 男主：{_compact_mobile(analysis['人物设定']['男主'], 150)}")
+    lines.append(f"- 配角：{_compact_mobile(analysis['人物设定']['亮点配角'], 140)}")
     lines.append("")
 
     lines.append("🔹 冲突是递进的，不是单点吵架")
-    lines.append(f"- 第一层：{_compact_mobile(analysis['冲突设计']['第一层'], 42)}")
-    lines.append(f"- 第二层：{_compact_mobile(analysis['冲突设计']['第二层'], 42)}")
-    lines.append(f"- 第三层：{_compact_mobile(analysis['冲突设计']['第三层'], 42)}")
+    lines.append(f"- 第一层：{_compact_mobile(analysis['冲突设计']['第一层'], 150)}")
+    lines.append(f"- 第二层：{_compact_mobile(analysis['冲突设计']['第二层'], 150)}")
+    lines.append(f"- 第三层：{_compact_mobile(analysis['冲突设计']['第三层'], 150)}")
     lines.append("")
 
     lines.append("🔹 情绪反馈稳定，容易追更")
-    lines.append(f"- 情绪关键词：{_compact_mobile(' / '.join(analysis['情绪触发']), 44)}")
-    lines.append(f"- 结构节奏：{_compact_mobile(p.get('正文结构建议', ''), 48)}")
+    lines.append(f"- 情绪关键词：{_compact_mobile(' / '.join(analysis['情绪触发']), 160)}")
+    lines.append(f"- 结构节奏：{_compact_mobile(p.get('正文结构建议', ''), 120)}")
     lines.append("")
     
-    # 个人推荐点（增加真实感）
+    # 个人推荐点（从卖点分析动态生成）
     lines.append("🔹 我个人最吃的一点")
-    lines.append("不是\"她有多强\"，而是她每次做选择都很清醒。")
-    lines.append("这种\"我命由我不由人\"的劲儿，特别容易代入。")
-    lines.append("")
-
-    lines.append("🔹 人设不扁平，关系有拉扯感")
-    lines.append(f"- 女主：{_compact_mobile(analysis['人物设定']['女主'], 40)}")
-    lines.append(f"- 男主：{_compact_mobile(analysis['人物设定']['男主'], 40)}")
-    lines.append(f"- 配角：{_compact_mobile(analysis['人物设定']['亮点配角'], 40)}")
-    lines.append("")
-
-    lines.append("🔹 冲突是递进的，不是单点吵架")
-    lines.append(f"- 第一层：{_compact_mobile(analysis['冲突设计']['第一层'], 42)}")
-    lines.append(f"- 第二层：{_compact_mobile(analysis['冲突设计']['第二层'], 42)}")
-    lines.append(f"- 第三层：{_compact_mobile(analysis['冲突设计']['第三层'], 42)}")
-    lines.append("")
-
-    lines.append("🔹 情绪反馈稳定，容易追更")
-    lines.append(f"- 情绪关键词：{_compact_mobile(' / '.join(analysis['情绪触发']), 44)}")
-    lines.append(f"- 结构节奏：{_compact_mobile(p.get('正文结构建议', ''), 48)}")
-    lines.append("")
-    lines.append("🔹 我个人最吃的一点")
-    lines.append("不是\"她有多强\"，而是她每次做选择都很清醒。")
-    lines.append("这种\"我命由我不由人\"的劲儿，特别容易代入。")
+    sell_point = analysis.get("卖点分析", {})
+    core_sell = _compact_mobile(sell_point.get("核心卖点", ""), 120)
+    if core_sell:
+        lines.append(core_sell)
+    else:
+        lines.append(_compact_mobile(p.get("正文开头模板", ""), 120))
+    aux_sells = sell_point.get("辅助卖点", [])
+    if isinstance(aux_sells, list) and aux_sells:
+        lines.append(f"辅助亮点：{_compact_mobile('、'.join(str(s) for s in aux_sells[:2]), 100)}")
     lines.append("")
 
     lines.append("📝 可抄作业句子（收藏版）")
     for item in analysis["金句"][:3]:
-        lines.append(f"- {_compact_mobile(item, 44)}")
+        lines.append(f"- {_compact_mobile(item, 90)}")
     lines.append("")
 
     lines.append("📖 阅读建议")
-    lines.append("- 适合：想看剧情推进 + 人物成长 + 冲突反转")
-    lines.append("- 避雷：如果只想看极速爽点，可能会觉得铺垫稍多")
+    audience = p.get("受众画像关键词", [])
+    if not isinstance(audience, list):
+        audience = [str(audience)] if audience else []
+    audience_str = _compact_mobile("、".join(str(a) for a in audience[:3]), 60)
+    category = _compact_mobile(work.get("分类", ""), 20)
+    if audience_str:
+        lines.append(f"- 适合：{audience_str}")
+    else:
+        lines.append(f"- 适合：喜欢{category}题材的读者")
+    expand = _compact_mobile(p.get("内容扩展方向", ""), 80)
+    if expand:
+        lines.append(f"- 如果你喜欢{expand}，这本也值得看")
+    else:
+        lines.append("- 避雷：如果只想看极速爽点，可能会觉得铺垫稍多")
     lines.append("")
 
     lines.append("💬 我的结论")
-    lines.append("如果你最近想看\"有爽点但不空心\"的文，这本真的可以试。")
-    lines.append("它不是喊口号式的大女主，而是一步步把命运拿回来的过程。")
+    core_sell = _compact_mobile(analysis.get("卖点分析", {}).get("核心卖点", ""), 100)
+    potential = _compact_mobile(p.get("爆款潜力评分", ""), 10)
+    if core_sell:
+        lines.append(f"如果你最近想找一本{core_sell}的文，这本真的可以试。")
+    else:
+        lines.append("如果你最近书荒想找一本有阅读粘性的文，这本真的可以试。")
+    emotion_tail = _compact_mobile('、'.join(analysis.get("情绪触发", [])[:2]), 30)
+    if emotion_tail:
+        lines.append(f"它不只是爽，更靠{emotion_tail}把人留住。")
+    else:
+        lines.append("它不是喊口号式的，而是一步步把命运拿回来的过程。")
     lines.append("")
     
     # CTA行动号召（参考xhs-writer-skill：点赞/收藏/关注）
     lines.append("👇 你来选")
-    lines.append(_compact_mobile(p.get("互动话术模板", "你最吃哪类开篇？评论区告诉我"), 56))
+    lines.append(_compact_mobile(p.get("互动话术模板", "你最吃哪类开篇？评论区告诉我"), 120))
     lines.append("我也想抄你们的书单，评论区互相投喂！")
     lines.append("")
     
@@ -857,6 +927,8 @@ def sync_xhs_note_table(main_record_id, work, analysis, xhs_path):
         if not isinstance(prompts, list):
             prompts = []
         prompts = [str(x).strip() for x in prompts if str(x).strip()][:5]
+        # 净化所有prompt：强制去除可能引导出文字的内容，末尾追加禁止文字指令
+        prompts = [_sanitize_prompt_for_image_gen(p) for p in prompts]
         if prompts:
             prompt_images = []
             for p in prompts:
@@ -865,13 +937,15 @@ def sync_xhs_note_table(main_record_id, work, analysis, xhs_path):
                 except Exception as e:
                     if "50413" in str(e) or "Post Text Risk Not Pass" in str(e):
                         safe_p = _sanitize_image_prompt_for_jimeng(p)
+                        safe_p = _sanitize_prompt_for_image_gen(safe_p)  # 二次净化
                         paths = generate_images_from_prompt(safe_p, n=2)
                     else:
                         raise
                 # Ensure each prompt has 2 candidates.
                 if len(paths) < 2:
                     try:
-                        extra = generate_images_from_prompt(p, n=2 - len(paths))
+                        extra_p = _sanitize_prompt_for_image_gen(p)
+                        extra = generate_images_from_prompt(extra_p, n=2 - len(paths))
                     except Exception:
                         extra = []
                     paths = (paths + extra)[:2]
@@ -955,10 +1029,16 @@ def run():
         search_info = search_work_info(work)
         summary["durations_sec"]["select_and_search"] = round(time.perf_counter() - t, 3)
 
-        # Merge search info into work if missing
+        # Merge search info into work if missing; prefer search for 简介 if more detailed
         for k in ["作品名称", "作者", "平台", "分类", "评分", "字数（万）", "完结状态", "简介", "取向"]:
             if not work.get(k) and search_info.get(k):
                 work[k] = search_info.get(k)
+        # 简介优先用搜索到的版本（通常更详细准确）
+        if search_info.get("简介") and len(str(search_info.get("简介"))) > len(str(work.get("简介", ""))):
+            work["简介"] = search_info["简介"]
+            # 同时标记来源
+            if search_info.get("搜索来源链接"):
+                work["简介来源"] = search_info["搜索来源链接"]
 
         # Normalize word count from alternate field names
         if not work.get("字数（万）"):

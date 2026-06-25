@@ -5,6 +5,7 @@
   {
     "label": "内容生产",
     "children": [
+      {"key": "dashboard",       "label": "工作台",   "icon": "layout-dashboard", "url": "/dashboard",       "available": true},
       {"key": "topic-pool",      "label": "选题池",   "icon": "library",         "url": "/topic-pool",        "available": true},
       {"key": "production",      "label": "生产中心", "icon": "workflow",        "url": "/production-center", "available": true},
       {"key": "notes",           "label": "笔记库",   "icon": "book-open",       "url": "/note-library",      "available": false},
@@ -26,6 +27,15 @@
 ] %}
 
 <aside class="app-sidebar" id="appSidebar">
+  <div class="app-sidebar-brand">
+    <div class="app-sidebar-brand-icon">
+      <i data-lucide="book-open-check"></i>
+    </div>
+    <span class="app-sidebar-brand-text">超级工具</span>
+    <button class="app-sidebar-toggle app-sidebar-toggle--in-sidebar" id="sidebarToggle" aria-label="切换侧边栏">
+      <i data-lucide="panel-left"></i>
+    </button>
+  </div>
   <nav class="app-sidebar-nav">
     {% for group in nav_groups %}
     <div class="app-sidebar-group">
@@ -44,4 +54,24 @@
     </div>
     {% endfor %}
   </nav>
+  <div class="app-sidebar-upgrade">
+    <div class="app-sidebar-upgrade-visual">
+      <i data-lucide="book-open"></i>
+    </div>
+    <div class="app-sidebar-upgrade-title">拆书 / 拆文内容生产</div>
+    <div class="app-sidebar-upgrade-desc">高效创作，智能生产</div>
+    <div class="app-sidebar-usage">
+      <div class="app-sidebar-usage-head">
+        <span>资源使用率</span>
+        <strong>32%</strong>
+      </div>
+      <div class="app-sidebar-usage-track">
+        <span class="app-sidebar-usage-fill"></span>
+      </div>
+    </div>
+    <a class="app-sidebar-upgrade-btn" href="/production-center">
+      <i data-lucide="sparkles"></i>
+      <span>升级套餐</span>
+    </a>
+  </div>
 </aside>

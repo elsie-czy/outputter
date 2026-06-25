@@ -13,7 +13,7 @@ STATUS_WAITING = "waiting"
 STATUS_DECONSTRUCTING = "deconstructing"
 STATUS_GENERATING_NOTE = "generating_note"
 STATUS_AI_SCORING = "ai_scoring"
-STATUS_HUMAN_REVIEW = "human_review"
+STATUS_HUMAN_REVIEW = "human_review"  # 已废弃，向后兼容
 STATUS_GENERATING_IMAGE = "generating_image"
 STATUS_DONE = "done"
 STATUS_FAILED = "failed"
@@ -33,7 +33,7 @@ def normalize_status(status) -> str:
         "generating_note": "processing",
         "ai_scoring": "processing",
         "generating_image": "processing",
-        "human_review": "review",
+        "human_review": "review",   # 已废弃，向后兼容，映射为 review 显示
         "review": "review",
         "done": "completed",
         "completed": "completed",
@@ -116,17 +116,30 @@ def _release_lock():
         pass
 
 
-def enqueue_works(works):
-    """批量入队。works 是 list[dict]，每个 dict 含 作品名称/作者/平台/分类 等"""
+def enqueue_works(works, image_strategy=None):
+    """批量入队。works 是 list[dict]，每个 dict 含 作品名称/作者/平台/分类 等；image_strategy 为全局策略（可选，存入每条记录）"""
     ensure_dirs()
+    existing = read_jsonl(QUEUE_FILE)
+    existing_ids = {
+        str(i.get("record_id") or "").strip()
+        for i in existing
+        if str(i.get("record_id") or "").strip()
+    }
+    seen_ids = set()
     entries = []
     for w in works:
+        rid = str(w.get("record_id") or "").strip()
+        if not rid or rid in existing_ids or rid in seen_ids:
+            continue
+        seen_ids.add(rid)
         entries.append({
-            "record_id": w.get("record_id", ""),
+            "record_id": rid,
             "work_name": str(w.get("作品名称", "")),
             "author": str(w.get("作者", "")),
             "platform": str(w.get("平台", "")),
             "category": str(w.get("分类", "")),
+            "synopsis": str(w.get("简介", "")),
+            "orientation": str(w.get("取向", "")),
             "word_count": w.get("字数", 0),
             "favorites": w.get("收藏", 0),
             "likes": w.get("点赞", 0),
@@ -134,6 +147,7 @@ def enqueue_works(works):
             "recommend_votes": w.get("推荐票", 0),
             "comments": w.get("评论", 0),
             "rank": w.get("排名", 0),
+            "image_strategy": image_strategy or None,
             "status": "pending",
             "error": None,
             "retry_count": 0,
@@ -175,6 +189,12 @@ def get_queue(status=None, platform=None, category=None, q=None, page=1, per_pag
         filtered = [i for i in filtered
                      if q_lower in str(i.get("work_name", "")).lower()
                      or q_lower in str(i.get("author", "")).lower()]
+
+    filtered = sorted(
+        filtered,
+        key=lambda i: str(i.get("created_at") or ""),
+        reverse=True,
+    )
 
     total = len(filtered)
     start = (page - 1) * per_page
@@ -219,7 +239,6 @@ def update_status(record_id, status, error=None, deconstruct_result=None,
             if status in (STATUS_DONE, STATUS_FAILED, STATUS_CANCELLED):
                 i["completed_at"] = _now()
             updated = True
-            break
     if updated:
         write_jsonl(QUEUE_FILE, items)
     return updated
@@ -236,6 +255,7 @@ def update_task_fields(record_id, **fields):
         "deconstruct_result",
         "images",
         "step_times",
+        "title_options",
     }
     patch = {k: v for k, v in fields.items() if k in allowed}
     if not patch:
@@ -248,7 +268,6 @@ def update_task_fields(record_id, **fields):
             item.update(patch)
             item["updated_at"] = _now()
             updated = True
-            break
     if updated:
         write_jsonl(QUEUE_FILE, items)
     return updated
@@ -419,7 +438,15 @@ def get_stats():
 def get_next_pending():
     """获取下一个待处理任务"""
     items = read_jsonl(QUEUE_FILE)
+    blocked_ids = {
+        i.get("record_id")
+        for i in items
+        if i.get("record_id") and normalize_status(i.get("status")) in ("processing", "completed")
+    }
     for i in items:
+        rid = i.get("record_id")
+        if rid in blocked_ids:
+            continue
         if normalize_status(i.get("status")) == "pending":
             return i
     return None

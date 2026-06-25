@@ -50,6 +50,8 @@ const PAGE_SIZE = 10;
       allItems = json.data.items || [];
       currentPage = 1;
       renderGrid();
+      // 更新待拆作品 KPI（基于选题库实际拆解状态）
+      setText("#kpiPending", allItems.filter(i => !i.is_deconstructed).length);
     } catch (e) {
       grid.innerHTML =
         '<div class="tp-empty"><div class="tp-empty-icon">✕</div><div class="tp-empty-title">加载失败</div><div class="tp-empty-desc">' +
@@ -64,7 +66,7 @@ const PAGE_SIZE = 10;
       const json = await res.json();
       if (!json.ok) return;
       const d = json.data;
-      setText("#kpiPending", d.pending_topics);
+      // kpiPending 由 loadTopics() 根据选题库实际状态更新，此处不再覆盖
       setText("#kpiToday", d.today_added);
       setText("#kpiHighPot", d.high_potential);
       
@@ -100,8 +102,16 @@ const PAGE_SIZE = 10;
     const category = $("#tpCategory")?.value || "";
     const wordCount = $("#tpWordCount")?.value || "";
     const scoreLevel = $("#tpScoreLevel")?.value || "";
+    const decStatus = $("#tpDeconstructStatus")?.value || "pending";
 
     let list = allItems.slice();
+
+    if (decStatus === "pending") {
+      list = list.filter((i) => !i.is_deconstructed);
+    } else if (decStatus === "done") {
+      list = list.filter((i) => i.is_deconstructed);
+    }
+    // "all" 不过滤
 
     if (q) {
       list = list.filter(
@@ -189,33 +199,51 @@ const PAGE_SIZE = 10;
       const scoreInfo = getScoreInfo(score);
       const catClass = getCategoryClass(item.category);
       const catIcon = getCategoryIcon(item.category);
+      const potential = getPotentialInfo(item);
 
       html +=
-        '<div class="tp-card' + sel + '" data-rid="' + esc(rid) + '">' +
-        '<div class="tp-card-checkbox">' + (sel ? "✓" : "") + "</div>" +
-        '<div class="tp-card-cover">' + catIcon + '</div>' +
-        '<div class="tp-card-content">' +
-        '<div class="tp-card-name">' + esc(item.work_name || "未知作品") + "</div>" +
-        '<div class="tp-card-author">' + esc(item.author || "未知作者") + "</div>" +
-        '<div class="tp-card-meta">' +
-        '<span class="tp-card-tag">' + esc(item.platform || "-") + "</span>" +
-        '<span class="tp-card-tag ' + catClass + '">' + esc(item.category || "-") + "</span>" +
-        (item.word_count ? '<span class="tp-card-tag">' + fmtWordCount(item.word_count) + "</span>" : "") +
+        '<div class="tp-row' + sel + '" data-rid="' + esc(rid) + '">' +
+        '<div class="tp-cell tp-cell-select"><div class="tp-card-checkbox" aria-hidden="true">' + (sel ? "✓" : "") + "</div></div>" +
+        '<div class="tp-cell tp-cell-work">' +
+          '<div class="tp-card-cover">' + catIcon + '</div>' +
+          '<div class="tp-card-content">' +
+            '<div class="tp-card-name">' + esc(item.work_name || "未知作品") + "</div>" +
+            (item.is_deconstructed
+              ? '<span class="tp-badge tp-badge--muted">已拆解</span>'
+              : '<span class="tp-badge tp-badge--green">待拆解</span>') +
+            '<div class="tp-card-author">' + esc(item.author || "未知作者") + "</div>" +
+            '<div class="tp-card-meta">' +
+              '<span class="tp-card-tag tp-card-tag--platform">' + esc(item.platform || "-") + "</span>" +
+              '<span class="tp-card-tag ' + catClass + '">' + esc(item.category || "-") + "</span>" +
+              (item.word_count ? '<span class="tp-card-tag">' + fmtWordCount(item.word_count) + "</span>" : "") +
+            "</div>" +
+          "</div>" +
         "</div>" +
-        '<div class="tp-card-metrics">' +
-        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.favorites) + '</span><span class="tp-card-metric-label">收藏</span></div>' +
-        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.likes) + '</span><span class="tp-card-metric-label">点赞</span></div>' +
-        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.monthly_votes) + '</span><span class="tp-card-metric-label">月票</span></div>' +
-        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.recommend_votes) + '</span><span class="tp-card-metric-label">推荐</span></div>' +
-        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + fmtNum(item.comments) + '</span><span class="tp-card-metric-label">评论</span></div>' +
-        '<div class="tp-card-metric"><span class="tp-card-metric-value">' + (item.rank ? "#" + item.rank : "暂无") + '</span><span class="tp-card-metric-label">排名</span></div>' +
+        '<div class="tp-cell tp-cell-score">' +
+          '<div class="tp-score-pill tp-score-' + scoreInfo.level + '">' +
+            '<strong>' + (score || "—") + "</strong>" +
+            '<span>' + (scoreInfo.label || "待评分") + "</span>" +
+          "</div>" +
+          '<div class="tp-card-score-stars">' + scoreInfo.stars + "</div>" +
         "</div>" +
+        '<div class="tp-cell tp-cell-metrics">' +
+          '<div class="tp-metric-strip">' +
+            '<span><strong>' + fmtNum(item.favorites) + "</strong>收藏</span>" +
+            '<span><strong>' + fmtNum(item.likes) + "</strong>点赞</span>" +
+            '<span><strong>' + fmtNum(item.comments) + "</strong>评论</span>" +
+          "</div>" +
+          '<div class="tp-metric-strip tp-metric-strip--muted">' +
+            '<span><strong>' + fmtNum(item.monthly_votes) + "</strong>月票</span>" +
+            '<span><strong>' + fmtNum(item.recommend_votes) + "</strong>推荐</span>" +
+            '<span><strong>' + (item.rank ? "#" + item.rank : "—") + "</strong>排名</span>" +
+          "</div>" +
         "</div>" +
-        '<div class="tp-card-score tp-score-' + scoreInfo.level + '">' +
-        '<div class="tp-card-score-label">综合评分</div>' +
-        '<div class="tp-card-score-value">' + (score || "暂无") + "</div>" +
-        '<div class="tp-card-score-level">' + (scoreInfo.label || "待评分") + "</div>" +
-        '<div class="tp-card-score-stars">' + scoreInfo.stars + "</div>" +
+        '<div class="tp-cell tp-cell-potential">' +
+          '<span class="tp-potential-badge tp-potential-' + potential.level + '">' + potential.label + "</span>" +
+          '<span class="tp-potential-desc">' + potential.desc + "</span>" +
+        "</div>" +
+        '<div class="tp-cell tp-cell-action">' +
+          '<button class="tp-row-action" type="button" data-action="toggle">' + (sel ? "移出" : "加入生产") + "</button>" +
         "</div>" +
         "</div>";
     }
@@ -223,20 +251,17 @@ const PAGE_SIZE = 10;
     grid.innerHTML = html;
     renderPagination(totalPages);
 
-    grid.querySelectorAll(".tp-card").forEach((card) => {
+    grid.querySelectorAll(".tp-row").forEach((card) => {
       card.addEventListener("click", () => {
         const rid = card.dataset.rid;
         if (!rid) return;
         if (selectedIds.has(rid)) {
           selectedIds.delete(rid);
           card.classList.remove("selected");
-          card.querySelector(".tp-card-checkbox").innerHTML = "";
         } else {
           selectedIds.add(rid);
-          card.classList.add("selected");
-          card.querySelector(".tp-card-checkbox").innerHTML = "✓";
         }
-        updateSidebar();
+        renderGrid();
       });
     });
 
@@ -250,6 +275,22 @@ const PAGE_SIZE = 10;
     if (score >= 70) return { cls: "tp-score-b", label: "较高", level: "b", stars: "★★★☆☆" };
     if (score >= 60) return { cls: "tp-score-c", label: "一般", level: "c", stars: "★★☆☆☆" };
     return { cls: "tp-score-d", label: "较低", level: "d", stars: "★☆☆☆☆" };
+  }
+
+  function getPotentialInfo(item) {
+    const score = item.quality_score || 0;
+    const favorites = item.favorites || 0;
+    const comments = item.comments || 0;
+    if (score >= 90 || favorites >= 80000) {
+      return { level: "hot", label: "优先生产", desc: "高分或高收藏" };
+    }
+    if (score >= 80 || comments >= 5000) {
+      return { level: "good", label: "建议生产", desc: "互动基础较好" };
+    }
+    if (score >= 70) {
+      return { level: "watch", label: "观察", desc: "可补充评估" };
+    }
+    return { level: "low", label: "低优先", desc: "等待复核" };
   }
 
   function getCategoryClass(category) {
@@ -320,7 +361,7 @@ const PAGE_SIZE = 10;
       });
     }
 
-    ["#tpPlatform", "#tpCategory", "#tpWordCount", "#tpScoreLevel"].forEach((sel) => {
+    ["#tpPlatform", "#tpCategory", "#tpWordCount", "#tpScoreLevel", "#tpDeconstructStatus"].forEach((sel) => {
       const el = $(sel);
       if (el) el.addEventListener("change", () => { currentPage = 1; renderGrid(); });
     });
@@ -591,7 +632,38 @@ const PAGE_SIZE = 10;
         "预计耗时：<span>~" + Math.ceil(selected.length * 0.5) + "分钟</span>";
     }
 
+    // 读取全局策略默认值
+    const strategySelect = $("#tpModalStrategy");
+    const strategyHint = $("#tpModalStrategyHint");
+    if (strategySelect) {
+      fetch("/api/config/image_strategy")
+        .then(r => r.json())
+        .then(json => {
+          if (json.ok && json.data && json.data.strategy) {
+            strategySelect.value = json.data.strategy;
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          updateStrategyHint(strategySelect, strategyHint);
+        });
+      strategySelect.addEventListener("change", () => {
+        updateStrategyHint(strategySelect, strategyHint);
+      });
+    }
+
     overlay.classList.add("visible");
+  }
+
+  function updateStrategyHint(selectEl, hintEl) {
+    if (!selectEl || !hintEl) return;
+    const v = selectEl.value;
+    const hints = {
+      "ai": "即梦 AI 生图，适合需要真实感图片的场景",
+      "html_card": "HTML 卡片截图，文字 100% 可控，适合小红书图文笔记",
+      "auto": "根据笔记内容自动匹配最佳风格",
+    };
+    hintEl.textContent = hints[v] || "";
   }
 
   function bindModal() {
@@ -637,12 +709,20 @@ const PAGE_SIZE = 10;
         作者: i.author,
         平台: i.platform,
         分类: i.category,
+        简介: i.synopsis || "",
+        取向: i.orientation || "",
       }));
+
+      const strategySelect = $("#tpModalStrategy");
+      const imageStrategy = (strategySelect ? strategySelect.value : "") || "";
 
       const res = await fetch("/api/deconstruct/batch-enqueue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ works: works }),
+        body: JSON.stringify({
+          works: works,
+          image_strategy: imageStrategy || undefined,
+        }),
       });
 
       const json = await res.json();
@@ -652,16 +732,18 @@ const PAGE_SIZE = 10;
       showToast("success", "✓ 成功提交 " + json.data.enqueued + " 篇作品");
       selectedIds.clear();
       
-      // 2秒后跳转到生产中心
+      // 保持 loading 过渡直到跳转，避免提交成功后页面突然静止。
+      overlay.querySelector("div:last-child").textContent = "提交成功，正在进入生产中心...";
       setTimeout(() => {
         window.location.href = "/production-center";
       }, 1500);
     } catch (e) {
       showToast("error", "✕ 提交失败：" + e.message);
-    } finally {
       if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
       if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = "确认提交"; }
       if (cancelBtn) cancelBtn.disabled = false;
+    } finally {
+      // 成功路径会跳转，不在这里移除遮罩；失败路径已恢复按钮。
     }
   }
 

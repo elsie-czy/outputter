@@ -1,4 +1,5 @@
 from datetime import datetime
+import re
 
 from flask import Blueprint, jsonify, render_template, request
 
@@ -14,6 +15,7 @@ from scripts.queue_manager import (
 )
 from scripts.data_normalizer import normalize_feishu_record, normalize_for_frontend
 from scripts.deconstruct_daily import build_xhs_note
+from scripts.generation_context import build_generation_context, context_counts
 from scripts.model_adapter import analyze_work
 from scripts.quality_scorer import score_note
 
@@ -23,7 +25,14 @@ bp = Blueprint("web_task_detail", __name__)
 @bp.get("/task/<task_id>")
 def task_detail_page(task_id):
     """任务详情页面"""
-    return render_template("task_detail.html", task_id=task_id, page_title="任务详情")
+    return render_template(
+        "task_detail.html",
+        task_id=task_id,
+        page_title="任务详情",
+        header_back_href="/production-center",
+        header_back_text="返回生产中心",
+        header_badge="ID: " + task_id,
+    )
 
 
 @bp.get("/api/task/<task_id>")
@@ -69,6 +78,7 @@ def task_detail_api(task_id):
         
         # 处理笔记内容
         note_content = task.get("note_content", "")
+        title_options = task.get("title_options", [])  # 新增：独立的备选标题字段
         if not note_content or note_content.startswith("（缓存") or len(str(note_content).strip()) < 10:
             # 从拆文结果中提取笔记内容
             dr = task.get("deconstruct_result") or {}
@@ -78,20 +88,22 @@ def task_detail_api(task_id):
             if not title and not body:
                 title = task.get('work_name', '') + ' 拆解笔记'
                 body = "请运行拆文任务获取笔记内容"
-            note_content = f"标题：{title}\n\n{body}"
             task["note_content"] = {
                 "title": title,
-                "content": note_content,
+                "content": body,
                 "tags": [],
                 "score": _format_score(task.get("quality_score")),
+                "title_options": title_options if title_options else [],
             }
         else:
             # 笔记内容是 markdown 字符串
+            note_text = str(note_content)
             task["note_content"] = {
-                "title": _extract_title(str(note_content)),
-                "content": str(note_content),
-                "tags": _extract_tags(str(note_content)),
+                "title": _extract_title(note_text),
+                "content": _extract_body(note_text),
+                "tags": _extract_tags(note_text),
                 "score": _format_score(task.get("quality_score")),
+                "title_options": title_options if title_options else _extract_title_options(note_text),
             }
         task["modification_log"] = task.get("modification_log", "")
         
@@ -109,9 +121,60 @@ def _extract_title(note_content):
         line = line.strip()
         if line.startswith("# "):
             return line[2:].strip()
+        if line.startswith("【标题】"):
+            return line.replace("【标题】", "", 1).strip()
+        if line.startswith("标题："):
+            return line.replace("标题：", "", 1).strip()
+        if line.startswith("标题:"):
+            return line.replace("标题:", "", 1).strip()
         if line and not line.startswith("#"):
             return line[:50]
     return ""
+
+
+def _extract_body(note_content):
+    """去掉【标题】行和【备选标题】区块，避免正文编辑框重复出现。"""
+    if not note_content:
+        return ""
+    lines = str(note_content).splitlines()
+    result = []
+    skip_titles = False
+    for line in lines:
+        stripped = line.strip()
+        # 跳过【标题】行
+        if not result and (stripped.startswith("# ") or stripped.startswith("【标题】") or stripped.startswith("标题：") or stripped.startswith("标题:")):
+            continue
+        # 跳过【备选标题】区块
+        if stripped.startswith("【备选标题】"):
+            skip_titles = True
+            continue
+        if skip_titles and (stripped.startswith("  ") or re.match(r'^\d+\.\s', stripped)):
+            continue
+        skip_titles = False
+        result.append(line)
+    return "\n".join(result).lstrip()
+
+
+def _extract_title_options(note_content):
+    """从笔记内容提取备选标题列表（向后兼容旧数据）"""
+    if not note_content:
+        return []
+    lines = str(note_content).splitlines()
+    titles = []
+    in_section = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("【备选标题】"):
+            in_section = True
+            continue
+        if in_section:
+            if not stripped or stripped.startswith("【") or (not re.match(r'^\d+\.\s', stripped) and not stripped.startswith("  ")):
+                break
+            # 去除编号前缀
+            title = re.sub(r'^\d+\.\s*', '', stripped.lstrip())
+            if title:
+                titles.append(title)
+    return titles
 
 
 def _extract_tags(note_content):
@@ -119,7 +182,6 @@ def _extract_tags(note_content):
     if not note_content:
         return []
     tags = []
-    import re
     # 查找 # 标签
     matches = re.findall(r'#(\w+)', note_content)
     tags.extend(matches[:5])
@@ -244,7 +306,8 @@ def regenerate_note(task_id):
             "平台": task.get("platform", ""),
             "分类": task.get("category", ""),
         }
-        analysis = analyze_work(work)
+        generation_context = build_generation_context(task)
+        analysis = analyze_work(work, **generation_context)
         note_text = build_xhs_note(work, analysis)
         score = score_note(note_text)
         updated = update_task_fields(
@@ -255,7 +318,14 @@ def regenerate_note(task_id):
         )
         if not updated:
             return jsonify({"ok": False, "error": "任务不存在"}), 404
-        return jsonify({"ok": True, "data": {"note_content": note_text, "quality_score": score}})
+        return jsonify({
+            "ok": True,
+            "data": {
+                "note_content": note_text,
+                "quality_score": score,
+                "generation_context": context_counts(generation_context),
+            },
+        })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -342,5 +412,54 @@ def retry_task_api(task_id):
                 write_jsonl(QUEUE_FILE, items)
                 return jsonify({"ok": True, "data": {"retried": True, "message": "已重置，worker 将重新拆文"}})
         return jsonify({"ok": False, "error": "任务未找到"}), 404
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ── 图片生成策略 API ────────────────────────────────────────────────────
+import os as _os
+from pathlib import Path as _Path
+
+_STRATEGY_CONFIG_DIR = _Path(__file__).resolve().parent.parent.parent.parent / "data" / "config"
+_STRATEGY_CONFIG_FILE = _STRATEGY_CONFIG_DIR / "image_strategy.json"
+
+def _read_strategy_config():
+    if not _STRATEGY_CONFIG_FILE.exists():
+        return {"strategy": "ai", "style": "warm", "count": 3}
+    import json as _json
+    with open(_STRATEGY_CONFIG_FILE, "r", encoding="utf-8") as _f:
+        return _json.load(_f)
+
+def _write_strategy_config(data: dict):
+    _STRATEGY_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    import json as _json
+    with open(_STRATEGY_CONFIG_FILE, "w", encoding="utf-8") as _f:
+        _json.dump(data, _f, ensure_ascii=False, indent=2)
+
+
+@bp.get("/api/config/image_strategy")
+def get_image_strategy():
+    """获取当前图片生成策略"""
+    try:
+        return jsonify(_read_strategy_config())
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@bp.post("/api/config/image_strategy")
+def set_image_strategy():
+    """更新图片生成策略（需重启 worker 生效）"""
+    try:
+        data = request.get_json(force=True) or {}
+        strategy = data.get("strategy", "ai").strip().lower()
+        if strategy not in ("ai", "html_card", "auto"):
+            return jsonify({"ok": False, "error": "strategy must be ai, html_card or auto"}), 400
+        config = {
+            "strategy": strategy,
+            "style": data.get("style", "warm").strip(),
+            "count": int(data.get("count", 3) or 3),
+        }
+        _write_strategy_config(config)
+        return jsonify({"ok": True, "data": config, "warning": "需重启 jimeng_worker 生效"})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500

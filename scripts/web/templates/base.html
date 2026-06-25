@@ -10,12 +10,14 @@
 </head>
 <body>
   <div class="app-shell">
-    {% include "_header.html" %}
     <div class="app-shell-body">
       {% include "_sidebar.html" %}
-      <main class="app-shell-content">
-        {% block content %}{% endblock %}
-      </main>
+      <div class="app-main">
+        {% include "_header.html" %}
+        <main class="app-shell-content">
+          {% block content %}{% endblock %}
+        </main>
+      </div>
     </div>
   </div>
   <script src="{{ url_for('static', filename='js/app-shell.js') }}"></script>

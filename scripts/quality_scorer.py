@@ -97,8 +97,9 @@ def score_note(note_text):
 def _calc_grade(total):
     if total >= 85:
         return "good"
+    # 75分以上直接通过，不进入待审核状态（拆解完成即 done）
     if total >= 75:
-        return "review"
+        return "good"
     return "retry"
 
 

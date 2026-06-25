@@ -21,6 +21,7 @@
 - [拆文中心设计](planning/V2_DECONSTRUCT_CENTER.md)：拆文中心页面、接口和交互设计。
 - [App Shell 规范](planning/app-shell-spec.md)：应用外壳与导航结构。
 - [笔记分析 Schema](planning/NOTE_ANALYSIS_SCHEMA.md)：笔记分析字段与结构说明。
+- [小红书内容研究与卡片生成能力集成方案](planning/XHS_CARD_SKILL_INTEGRATION.md)：吸收内容研究与 guizang 社交卡片能力的设计、技术方案和任务安排，canvas-design 作为低优先级审美补充。
 
 ## 截图与设计图交付
 

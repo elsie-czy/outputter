@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, request
 from scripts.model_adapter import analyze_work
 from scripts.quality_scorer import score_note
 from scripts.deconstruct_daily import build_xhs_note
+from scripts.generation_context import build_generation_context, context_counts
 
 bp = Blueprint("web_note_api", __name__, url_prefix="/api/note")
 
@@ -47,14 +48,14 @@ def get_note(rid):
 def regenerate_note(rid):
     try:
         data = request.get_json(force=True) or {}
-        reference_ids = data.get("reference_ids", [])
-
         # Build work dict from queue
         from scripts.queue_manager import get_queue, update_task_fields
         result = get_queue(per_page=9999)
         work = {}
+        task = None
         for item in result.get("items", []):
             if item.get("record_id") == rid:
+                task = item
                 work = {
                     "作品名称": item.get("work_name", ""),
                     "作者": item.get("author", ""),
@@ -65,14 +66,8 @@ def regenerate_note(rid):
         if not work:
             return jsonify({"ok": False, "error": "任务未找到"}), 404
 
-        # Fetch reference notes if specified
-        reference_notes = None
-        if reference_ids:
-            from scripts.feishu_client import FeishuClient
-            client = FeishuClient()
-            reference_notes = client.get_top_notes(limit=3)
-
-        analysis = analyze_work(work, reference_notes=reference_notes)
+        generation_context = build_generation_context(task)
+        analysis = analyze_work(work, **generation_context)
         note_text = build_xhs_note(work, analysis)
         score_result = score_note(note_text)
         update_task_fields(
@@ -88,6 +83,7 @@ def regenerate_note(rid):
             "body": analysis.get("小红书包装", {}).get("正文开头模板", ""),
             "tags": analysis.get("小红书包装", {}).get("热门标签推荐", []),
             "cta": analysis.get("小红书包装", {}).get("互动话术模板", ""),
+            "generation_context": context_counts(generation_context),
         }})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500

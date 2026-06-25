@@ -30,6 +30,7 @@
     const taskId = container.dataset.taskId;
     currentTaskId = taskId;
     loadTaskDetail(taskId);
+    loadImageStrategy();
     bindTabs();
     bindActions();
     bindCollapses();
@@ -91,6 +92,7 @@
 
   function updateRefreshStatus(text) {
     setText("#autoRefreshStatus", text || "自动刷新中");
+    setText("#footerRefreshStatus", text === "刷新失败" ? "异常" : "运行中");
     const last = $("#lastRefresh");
     if (last) last.textContent = new Date().toLocaleTimeString("zh-CN", { hour12: false });
   }
@@ -128,11 +130,17 @@
     setText("#taskModel", "Qwen-Plus");
     setText("#taskCreated", taskData.created_at || "—");
     setText("#taskId", taskData.record_id || "—");
-    setText("#summaryProgress", taskData.progress_percent != null ? taskData.progress_percent : 0);
+    var progress = taskData.progress_percent != null ? Number(taskData.progress_percent) : 0;
+    if (!Number.isFinite(progress)) progress = 0;
+    progress = Math.max(0, Math.min(100, Math.round(progress)));
+    setText("#summaryProgress", progress);
+    setText("#summaryRemaining", estimateRemaining(progress, taskData));
+    var progressBar = $("#summaryProgressBar");
+    if (progressBar) progressBar.style.width = progress + "%";
     setText("#summaryStage", taskData.stage_label || "—");
 
     // 生产摘要卡
-    var status = taskData.display_status || taskData.status || "pending";
+    var status = normalizeDisplayStatus(taskData.display_status || taskData.status || "pending");
     var statusLabel = getStatusLabel(status, taskData.stage_label);
     var statusEl = $("#summaryStatus");
     if (statusEl) {
@@ -164,8 +172,16 @@
     if (status === "failed") return "失败";
     if (status === "cancelled" || status === "terminated") return "已终止";
     if (status === "human_review") return "待审核";
+    if (status === "processing") return "生产中";
     if (status === "waiting" || status === "pending") return "待处理";
     return fallback || "生产中";
+  }
+
+  function normalizeDisplayStatus(status) {
+    if (status === "completed") return "done";
+    if (status === "review") return "human_review";
+    if (status === "terminated") return "cancelled";
+    return status || "pending";
   }
 
   function formatDuration(seconds) {
@@ -175,26 +191,40 @@
     return minutes + "分" + secs + "秒";
   }
 
+  function estimateRemaining(progress, task) {
+    if (progress >= 100 || (task && normalizeDisplayStatus(task.display_status || task.status) === "done")) return "0 分钟";
+    if (!task || !task.processing_start || progress <= 0) return "—";
+    var start = new Date(task.processing_start);
+    var elapsed = Math.max(0, Math.round((new Date() - start) / 1000));
+    if (!Number.isFinite(elapsed) || elapsed <= 0) return "—";
+    var total = elapsed / (progress / 100);
+    var remaining = Math.max(0, Math.round(total - elapsed));
+    if (!Number.isFinite(remaining)) return "—";
+    if (remaining < 60) return "1 分钟内";
+    return Math.ceil(remaining / 60) + " 分钟";
+  }
+
   /* ===== 渲染进度轴 ===== */
   function renderProgress() {
     if (!taskData) return;
-    const status = taskData.display_status || taskData.status;
+    const rawStatus = normalizeDisplayStatus(taskData.display_status || taskData.status);
+    const status = resolveStepStatus(rawStatus, taskData);
     const steps = ["waiting", "deconstructing", "generating_note", "ai_scoring", "human_review", "generating_image", "done"];
-    const failed = status === "failed" || status === "cancelled" || status === "terminated";
-    const currentIdx = failed ? Math.max(0, getTaskProgressIndex(taskData)) : steps.indexOf(status);
+    const failed = rawStatus === "failed" || rawStatus === "cancelled";
+    const currentIdx = failed ? Math.max(0, getTaskProgressIndex(taskData)) : Math.max(0, steps.indexOf(status));
     const stepTimes = taskData.step_times || {};
 
     $$(".td-step").forEach((step, idx) => {
-      step.classList.remove("completed", "active", "failed", "cancelled");
+      step.classList.remove("completed", "active", "failed", "cancelled", "waiting");
       const stepName = step.dataset.step;
       const timeEl = step.querySelector(".td-step-time");
       const outputEl = step.querySelector(".td-step-output");
       
       if (failed && idx === currentIdx) {
-        step.classList.add(status === "cancelled" || status === "terminated" ? "cancelled" : "failed");
-        if (timeEl) timeEl.textContent = status === "failed" ? "失败" : "已终止";
+        step.classList.add(rawStatus === "cancelled" ? "cancelled" : "failed");
+        if (timeEl) timeEl.textContent = rawStatus === "failed" ? "失败" : "已终止";
         if (outputEl) outputEl.textContent = taskData.error || "任务未完成";
-      } else if (idx < currentIdx || status === "done") {
+      } else if (idx < currentIdx || rawStatus === "done") {
         step.classList.add("completed");
         if (timeEl) {
           const stepData = stepTimes[stepName];
@@ -219,6 +249,7 @@
           }
         }
       } else {
+        step.classList.add("waiting");
         if (timeEl) {
           timeEl.textContent = "等待中";
         }
@@ -230,6 +261,16 @@
     var progress = Number(task && task.stage_progress);
     if (!Number.isFinite(progress)) return 0;
     return Math.max(0, Math.min(6, Math.floor(progress)));
+  }
+
+  function resolveStepStatus(status, task) {
+    const steps = ["waiting", "deconstructing", "generating_note", "ai_scoring", "human_review", "generating_image", "done"];
+    if (steps.indexOf(status) >= 0) return status;
+    if (status === "pending") return "waiting";
+    if (status === "processing") {
+      return steps[Math.max(1, Math.min(5, getTaskProgressIndex(task)))] || "deconstructing";
+    }
+    return steps[Math.max(0, Math.min(6, getTaskProgressIndex(task)))] || "waiting";
   }
 
   /* ===== 渲染笔记内容 ===== */
@@ -311,8 +352,8 @@
   function _toImageUrl(path) {
     if (!path) return null;
     if (path.indexOf("http") === 0) return path;
-    var p = path.replace(/^temp\/(jimeng_cache|generated_images)\//, "");
-    return "/_health/images/" + encodeURI(p);
+    // 直接拼 /_health/images/ + 完整相对路径（支持子目录）
+    return "/_health/images/" + encodeURI(path);
   }
 
   function renderNote() {
@@ -321,6 +362,7 @@
     if (!taskData || !taskData.note_content) {
       if (titleInput) titleInput.value = "";
       if (contentArea) contentArea.value = "";
+      renderTitleOptions();
       return;
     }
 
@@ -347,7 +389,52 @@
         tagsList.innerHTML = '<span class="td-empty-inline">暂无标签</span>';
       }
     }
+    renderTitleOptions();
     updateSideStats();
+  }
+
+  /* ===== 备选标题选择器 ===== */
+  function renderTitleOptions() {
+    var box = document.getElementById("titleOptionsBox");
+    var list = document.getElementById("titleOptionsList");
+    if (!box || !list) return;
+
+    var titles = [];
+    if (taskData && taskData.note_content && taskData.note_content.title_options) {
+      titles = taskData.note_content.title_options;
+    }
+
+    if (!titles || !titles.length) {
+      box.style.display = "none";
+      return;
+    }
+
+    box.style.display = "block";
+    list.textContent = "";
+
+    var currentTitle = (document.getElementById("noteTitle") || {}).value || "";
+    titles.forEach(function(t) {
+      var chip = document.createElement("span");
+      chip.className = "td-option-chip";
+      if (t === currentTitle) {
+        chip.classList.add("td-option-active");
+      }
+      chip.textContent = t;
+      chip.title = t;
+      chip.addEventListener("click", function() {
+        var titleInput = document.getElementById("noteTitle");
+        if (titleInput) {
+          titleInput.value = t;
+          updateTitleCount();
+          isDraftDirty = true;
+          // 更新 active 状态
+          var allChips = list.querySelectorAll(".td-option-chip");
+          allChips.forEach(function(c) { c.classList.remove("td-option-active"); });
+          chip.classList.add("td-option-active");
+        }
+      });
+      list.appendChild(chip);
+    });
   }
 
   /* ===== 渲染拆文结果 ===== */
@@ -574,15 +661,22 @@
   function bindActions() {
     // 保存草稿
     bindBtn("#btnSaveDraft", async () => {
-      await apiCall("/api/task/" + taskData.record_id + "/save-draft", "草稿已保存", getDraftPayload());
-      isDraftDirty = false;
+      const result = await apiCall("/api/task/" + taskData.record_id + "/save-draft", "草稿已保存", getDraftPayload());
+      if (result) {
+        isDraftDirty = false;
+        setText("#saveStatus", "已保存 " + new Date().toLocaleTimeString("zh-CN", { hour12: false }));
+      }
       loadTaskDetail(taskData.record_id);
     });
 
     // 通过审核
     bindBtn("#btnApprove", async () => {
-      await apiCall("/api/task/" + taskData.record_id + "/approve", "已通过审核");
-      loadTaskDetail(taskData.record_id);
+      if (!confirm("确认通过审核？通过后任务将标记为「已完成」")) return;
+      const result = await apiCall("/api/task/" + taskData.record_id + "/approve", "已通过审核");
+      if (result && result.ok) {
+        isDraftDirty = false;
+        await loadTaskDetail(taskData.record_id);
+      }
     });
 
     // 重新生成
@@ -630,8 +724,10 @@
       const json = await res.json();
       if (!json.ok) throw new Error(json.error);
       showToast("success", successMsg || "操作成功");
+      return json;
     } catch (e) {
       showToast("error", "操作失败: " + e.message);
+      return null;
     }
   }
 
@@ -677,6 +773,83 @@
   function esc(str) {
     if (str == null) return "";
     return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  /* ===== 图片生成策略切换 ===== */
+  let currentStrategy = 'ai';
+  let currentStyle = 'warm';
+
+  async function loadImageStrategy() {
+    try {
+      const res = await fetch('/api/config/image_strategy');
+      const data = await res.json();
+      currentStrategy = data.strategy || 'ai';
+      currentStyle = data.style || 'warm';
+      renderStrategySelector();
+    } catch (e) {
+      console.warn('加载策略失败:', e);
+    }
+  }
+
+  function renderStrategySelector() {
+    let container = document.getElementById('strategySelector');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'strategySelector';
+      container.style.cssText = 'margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;';
+      const right = document.querySelector('.td-header-right .td-summary-actions');
+      if (right && right.parentElement) {
+        right.parentElement.appendChild(container);
+      }
+    }
+    const safe = (s) => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    container.innerHTML =
+      '<label style="font-size:13px;color:var(--text-secondary,#666);">生图策略:</label>' +
+      '<select id="imageStrategy" style="padding:4px 8px;border-radius:6px;font-size:13px;border:1px solid var(--border,#e0e0e0);background:var(--bg-surface,#fff);">' +
+        '<option value="ai"' + (currentStrategy==='ai'?' selected':'') + '>AI 即梦生图</option>' +
+        '<option value="html_card"' + (currentStrategy==='html_card'?' selected':'') + '>HTML 卡片截图</option>' +
+        '<option value="auto"' + (currentStrategy==='auto'?' selected':'') + '>🤖 自动匹配</option>' +
+      '</select>' +
+      '<select id="imageStyle" style="padding:4px 8px;border-radius:6px;font-size:13px;border:1px solid var(--border,#e0e0e0);background:var(--bg-surface,#fff);' + (currentStrategy==='html_card'?'':'display:none;') + '">' +
+        '<option value="warm"' + (currentStyle==='warm'?' selected':'') + '>暖色生活(Warm)</option>' +
+        '<option value="anthropic"' + (currentStyle==='anthropic'?' selected':'') + '>杂志风(Anthropic)</option>' +
+        '<option value="notion"' + (currentStyle==='notion'?' selected':'') + '>笔记风(Notion)</option>' +
+        '<option value="minimal"' + (currentStyle==='minimal'?' selected':'') + '>极简(Minimal)</option>' +
+        '<option value="morandi"' + (currentStyle==='morandi'?' selected':'') + '>莫兰迪(Morandi)</option>' +
+        '<option value="auto"' + (currentStyle==='auto'?' selected':'') + '>🤖 自动匹配</option>' +
+      '</select>' +
+      '<span id="strategyStatus" style="font-size:12px;color:var(--text-muted,#999);"></span>';
+    document.getElementById('imageStrategy').addEventListener('change', onStrategyChange);
+    document.getElementById('imageStyle').addEventListener('change', onStrategyChange);
+  }
+
+  async function onStrategyChange() {
+    const strategy = document.getElementById('imageStrategy').value;
+    const style = document.getElementById('imageStyle').value;
+    const styleEl = document.getElementById('imageStyle');
+    // auto 或 ai 策略时隐藏风格下拉框
+    styleEl.style.display = (strategy === 'html_card') ? '' : 'none';
+    const status = document.getElementById('strategyStatus');
+    status.textContent = '保存中...';
+    // 仅 html_card 策略发送 style；auto/ai 不发送 style
+    const body = { strategy };
+    if (strategy === 'html_card') body.style = style;
+    try {
+      const res = await fetch('/api/config/image_strategy', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (data.ok) {
+        status.textContent = '已保存，重启 worker 后生效';
+        setTimeout(function(){ status.textContent = ''; }, 3000);
+      } else {
+        status.textContent = '保存失败: ' + (data.error || '');
+      }
+    } catch (e) {
+      status.textContent = '保存失败: ' + e.message;
+    }
   }
 
   function fmtWordCount(n) {

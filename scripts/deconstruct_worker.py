@@ -22,10 +22,11 @@ from scripts.queue_manager import (
 )
 from scripts.quality_scorer import score_note
 from scripts.data_normalizer import normalize_feishu_record, normalize_feishu_value
+from scripts.generation_context import build_generation_context, context_counts
 
 # Import from deconstruct_daily
 from scripts.deconstruct_daily import (
-    build_report, build_xhs_note, build_experiment_log,
+    build_report, build_xhs_note, build_experiment_log, get_title_options,
     sync_to_feishu, sync_xhs_note_table, _build_image_prompts,
 )
 
@@ -84,6 +85,34 @@ def _check_cache(work):
     return None
 
 
+def _is_feishu_id(val):
+    """判断字符串是否像飞书记录 ID（纯字母数字，不含 # / 中文 / emoji）"""
+    import re
+    val = str(val or "").strip()
+    if not val:
+        return True
+    # 正常标签：以 # 开头，或包含中文/emoji
+    if val.startswith("#") or re.search(r'[\u4e00-\u9fff\u3400-\u4dbf\U0001f300-\U0001f9ff]', val):
+        return False
+    # 纯字母数字 + 可能的下划线/连字符 → 可能是记录 ID
+    if re.match(r'^[a-zA-Z0-9_-]+$', val):
+        return True
+    return False
+
+
+def _get_task_entry(rid):
+    """从队列文件中读取指定 rid 的完整条目（含 image_strategy 字段）"""
+    try:
+        from scripts.queue_manager import get_queue as _q
+        result = _q(per_page=9999)
+        for item in result.get("items", []):
+            if item.get("record_id") == rid:
+                return item
+    except Exception:
+        pass
+    return None
+
+
 def _log(rid, msg):
     ts = datetime.now().strftime("%H:%M:%S")
     print(f"[{ts}] [{rid}] {msg}")
@@ -92,9 +121,71 @@ def _log(rid, msg):
         f.write(f"[{ts}] [{rid}] {msg}\n")
 
 
+def _set_status(rid, status, **kwargs):
+    update_status(rid, status, **kwargs)
+    if kwargs.get("error"):
+        _log(rid, f"状态变更 -> {status}, error={kwargs.get('error')}")
+    else:
+        _log(rid, f"状态变更 -> {status}")
+
+
+def _lock_path():
+    return os.path.join(PATHS["queue"], "deconstruct_queue.lock")
+
+
+def _lock_pid():
+    try:
+        with open(_lock_path(), "r", encoding="utf-8") as f:
+            return int((f.read() or "").strip())
+    except Exception:
+        return None
+
+
+def _write_heartbeat():
+    """写入心跳文件，供 web 状态灯读取"""
+    try:
+        hb_path = os.path.join(PATHS["queue"], "worker_heartbeat.txt")
+        with open(hb_path, "w", encoding="utf-8") as f:
+            f.write(str(int(time.time())))
+    except Exception:
+        pass
+
+
+def _is_pid_alive(pid):
+    """检查指定 PID 的进程是否还在运行"""
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # 沙箱环境无法发送信号，无法判断，假定已死
+        return False
+    except Exception:
+        # 其他异常也无法判断，假定已死
+        return False
+
+
+def _acquire_worker_lock():
+    if _acquire_lock():
+        return True
+    # 当前进程自己的残留锁
+    if _lock_pid() == os.getpid():
+        _log("worker", f"发现当前 PID 的残留队列锁，清理后重新获取 pid={os.getpid()}")
+        _release_lock()
+        return _acquire_lock()
+    # 其他进程的残留锁（进程已退出但锁未清理）
+    locked_pid = _lock_pid()
+    if locked_pid and not _is_pid_alive(locked_pid):
+        _log("worker", f"发现残留队列锁 (pid={locked_pid} 已退出)，自动清理")
+        _release_lock()
+        return _acquire_lock()
+    return False
+
+
 def _score_note_for_task(rid, note_text, step_times):
     t_score = time.perf_counter()
-    update_status(rid, "ai_scoring")
+    _set_status(rid, "ai_scoring")
     try:
         score = score_note(note_text)
         _log(rid, f"AI评分完成: {score.get('total', 0)}")
@@ -140,10 +231,12 @@ def process_one(task, dry=False):
             "作者": task.get("author", ""),
             "平台": task.get("platform", ""),
             "分类": task.get("category", ""),
+            "简介": task.get("synopsis", ""),
+            "取向": task.get("orientation", ""),
         }
 
         # 标记处理中
-        update_status(rid, "processing")
+        _set_status(rid, "processing")
         step_times["waiting"] = {"done": _now(), "duration": 0}
 
         # 1. 搜索补全
@@ -151,17 +244,25 @@ def process_one(task, dry=False):
         for k in ["作品名称", "作者", "平台", "分类", "评分", "字数（万）", "完结状态", "简介", "取向"]:
             if not work.get(k) and search_info.get(k):
                 work[k] = search_info.get(k)
+        # 简介优先用搜索到的版本（通常更详细准确）
+        if search_info.get("简介") and len(str(search_info.get("简介"))) > len(str(work.get("简介", ""))):
+            work["简介"] = search_info["简介"]
+            if search_info.get("搜索来源链接"):
+                work["简介来源"] = search_info["搜索来源链接"]
         
         # 确保必填字段有默认值
         if not work.get("简介"):
-            work["简介"] = f"{work.get('作品名称', '')} - {work.get('分类', '')}类小说"
+            work["简介"] = ""
 
         if dry:
             _log(rid, "dry=True，跳过模型调用")
             return {"ok": True, "record_id": rid}
 
         # 1.5 缓存检查：作品已拆解则跳过 LLM，但仍生成图片
-        force = os.getenv("FORCE_REDECONSTRUCT", "").strip().lower() in ("1", "true", "yes")
+        # 支持全局环境变量和单任务 _force_redeconstruct 字段
+        _task_entry0 = _get_task_entry(rid) or {}
+        force = (os.getenv("FORCE_REDECONSTRUCT", "").strip().lower() in ("1", "true", "yes")
+                 or _task_entry0.get("_force_redeconstruct", False))
         cached_main = _check_cache(work) if not force else None
         if cached_main:
             _log(rid, "缓存命中，跳过 LLM 调用，尝试补生成图片")
@@ -172,14 +273,28 @@ def process_one(task, dry=False):
                 xhs_title = normalize_feishu_value(cached_xhs.get("小红书标题模板", ""))
                 xhs_body = normalize_feishu_value(cached_xhs.get("正文开头模板", ""))
                 xhs_cta = normalize_feishu_value(cached_xhs.get("互动话术模板", ""))
-                xhs_tags = cached_xhs.get("热门标签推荐", [])
-                if isinstance(xhs_tags, list):
-                    xhs_tags = ", ".join(str(t) for t in xhs_tags)
+                xhs_tags_raw = cached_xhs.get("热门标签推荐", [])
+                if isinstance(xhs_tags_raw, list):
+                    # 过滤掉看起来像飞书 record ID 的标签（纯字母数字组合，不含 # 或中文）
+                    xhs_tags_list = [str(t) for t in xhs_tags_raw if not _is_feishu_id(str(t))]
+                    xhs_tags_str = ", ".join(xhs_tags_list)
                 else:
-                    xhs_tags = str(xhs_tags or "")
-                note_content = f"标题：{xhs_title}\n\n{xhs_body}\n\n互动话术：{xhs_cta}\n\n标签：{xhs_tags}"
+                    xhs_tags_str = str(xhs_tags_raw or "")
+                    xhs_tags_list = [t.strip() for t in xhs_tags_str.split(",") if t.strip()]
+                    xhs_tags_list = [t for t in xhs_tags_list if not _is_feishu_id(t)]
+                    xhs_tags_str = ", ".join(xhs_tags_list)
+                note_content = f"标题：{xhs_title}\n\n{xhs_body}\n\n互动话术：{xhs_cta}\n\n标签：{xhs_tags_str}"
+                # 构建结构化笔记 dict（用于 html_card 生图）
+                xhs_note_dict = {
+                    "title": xhs_title,
+                    "body": xhs_body,
+                    "cta": xhs_cta,
+                    "tags": xhs_tags_list,
+                    "lead": "",
+                }
             else:
                 note_content = "标题：" + work.get("作品名称", "") + " 拆解笔记\n\n请运行拆文任务获取笔记内容"
+                xhs_note_dict = {"title": work.get("作品名称", ""), "body": "", "cta": "", "tags": [], "lead": ""}
 
             # 映射为前端可读的 analysis 格式
             analysis = normalize_feishu_record(cached_main, source="main")
@@ -191,10 +306,43 @@ def process_one(task, dry=False):
                 cached_xhs_img = cached_main
 
             quality_score = _score_note_for_task(rid, note_content, step_times)
-            if os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
+
+            # 读取每任务策略（优先），否则读全局 .env
+            _entry1 = _get_task_entry(rid) or {}
+            _task_strategy1 = _entry1.get("image_strategy") or \
+                (os.getenv("IMAGE_GEN_STRATEGY") or "ai").strip().lower()
+            _html_style1 = (os.getenv("HTML_CARD_STYLE") or "warm").strip()
+            _html_count1 = int((os.getenv("HTML_CARD_COUNT") or "3").strip() or "3")
+
+            if _task_strategy1 in ("html_card", "auto"):
+                # HTML 卡片生图
+                t_image = time.perf_counter()
+                try:
+                    from scripts.html_card_generator import generate_cards_from_note
+                    _set_status(rid, "generating_image")
+                    _actual_style1 = "auto" if _task_strategy1 == "auto" else _html_style1
+                    _log(rid, f"HTML卡片生图 strategy={_task_strategy1} style={_actual_style1}")
+                    _out_dir = os.path.join("temp", "generated_images", rid)
+                    _pngs1 = generate_cards_from_note(xhs_note_dict, style=_actual_style1, n=_html_count1,
+                                                    output_dir=_out_dir)
+                    if _pngs1:
+                        images = {"cover": _pngs1[0]}
+                        for _i, _p in enumerate(_pngs1[1:], 1):
+                            images[f"scene{_i}"] = _p
+                        _log(rid, f"HTML卡片生成成功: {len(_pngs1)} 张")
+                    else:
+                        _log(rid, "HTML卡片生成失败: 无输出")
+                    step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
+                    _set_status(rid, "done", images=images, step_times=step_times)
+                except Exception as e:
+                    _log(rid, f"HTML卡片生成异常: {e}")
+                    step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
+                    _set_status(rid, "done", images=images, step_times=step_times)
+            elif os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
+                # AI 即梦生图（原有逻辑）
                 try:
                     from scripts.image_provider import generate_images_for_task
-                    update_status(rid, "generating_image")
+                    _set_status(rid, "generating_image")
                     img_result = generate_images_for_task(cached_xhs)
                     if img_result["ok"]:
                         images = img_result["images"]
@@ -203,19 +351,33 @@ def process_one(task, dry=False):
                         _log(rid, f"图片补生成失败: {img_result.get('error','未知')}")
                 except Exception as e:
                     _log(rid, f"图片补生成异常: {e}")
-            update_status(rid, "done",
-                          deconstruct_result=analysis,
-                          note_content=note_content,
-                          quality_score=quality_score,
-                          step_times=step_times,
-                          images=images)
+            else:
+                _log(rid, "图片生成未启用，跳过")
+            step_times["generating_image"] = {"done": _now(), "duration": 0}
+            # 确保 deconstruct_result 中有结构化笔记（用于前端展示）
+            analysis["note"] = xhs_note_dict
+            _set_status(rid, "done",
+                        deconstruct_result=analysis,
+                        note_content=note_content,
+                        quality_score=quality_score,
+                        step_times=step_times,
+                        images=images)
+            update_task_fields(rid, title_options=get_title_options(work, analysis))
             result["ok"] = True
             return result
 
         # 2. 调用模型拆解
         t_deconstruct = time.perf_counter()
-        update_status(rid, "deconstructing")
-        analysis = analyze_work(work)
+        _set_status(rid, "deconstructing")
+        generation_context = build_generation_context(task)
+        counts = context_counts(generation_context)
+        _log(
+            rid,
+            "模型上下文: "
+            f"参考笔记 {counts['reference_notes']} 条, "
+            f"近期反馈 {counts['recent_feedback']} 条",
+        )
+        analysis = analyze_work(work, **generation_context)
         source = (analysis.get("元信息", {}) or {}).get("来源", "")
         if "openai_parse_fallback" in str(source):
             raise RuntimeError(f"模型解析失败: {source}")
@@ -224,12 +386,33 @@ def process_one(task, dry=False):
 
         # 3. 生成报告文件
         t_note = time.perf_counter()
-        update_status(rid, "generating_note")
+        _set_status(rid, "generating_note")
         run_date = get_run_date()
         safe_name = f"{work.get('作品名称', '未知作品')}_{work.get('作者', '未知作者')}"
         report = build_report(work, search_info, analysis)
         xhs_note = build_xhs_note(work, analysis)
         quality_score = _score_note_for_task(rid, xhs_note, step_times)
+
+        # 评分闭环：grade=retry 且非降级分数时，重试一次
+        if (
+            not quality_score.get("_fallback")
+            and quality_score.get("grade") == "retry"
+            and os.getenv("QUALITY_AUTO_RETRY", "1").strip().lower() in ("1", "true", "yes")
+        ):
+            _log(rid, f"评分 {quality_score['total']} < 75，按建议重试: {quality_score.get('suggestion', '')}")
+            retry_feedback = [{"time": _now(), "field": "整体", "reason": quality_score.get("suggestion", "")}]
+            retry_ctx = {
+                "reference_notes": generation_context.get("reference_notes"),
+                "recent_feedback": retry_feedback,
+            }
+            analysis = analyze_work(work, **retry_ctx)
+            analysis["配图提示词"] = _build_image_prompts(work, analysis)
+            report = build_report(work, search_info, analysis)
+            xhs_note = build_xhs_note(work, analysis)
+            quality_score = _score_note_for_task(rid, xhs_note, step_times)
+            _log(rid, f"重试后评分: {quality_score.get('total', 0)} ({quality_score.get('grade', '')})")
+
+        title_options = get_title_options(work, analysis)
 
         report_path = os.path.join(PATHS["outputs"], "拆解报告", f"{run_date}_{safe_name}_拆解报告.md")
         os.makedirs(os.path.dirname(report_path), exist_ok=True)
@@ -287,21 +470,65 @@ def process_one(task, dry=False):
 
         # 8. 标记完成
         step_times["done"] = {"done": _now(), "duration": 0}
-        update_status(rid, "done",
-                       deconstruct_result=analysis,
-                       note_content=xhs_note,
-                       quality_score=quality_score,
-                       step_times=step_times)
-        update_task_fields(rid, main_record_id=record_id, xhs_record_id=xhs_record_id)
+        _set_status(rid, "done",
+                    deconstruct_result=analysis,
+                    note_content=xhs_note,
+                    quality_score=quality_score,
+                    step_times=step_times)
+        update_task_fields(rid, main_record_id=record_id, xhs_record_id=xhs_record_id, title_options=title_options)
 
         # 9. 生成图片（如果启用）
         images = {}
-        if os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
+        # 读取每任务策略（优先），否则读全局 .env
+        _entry = _get_task_entry(rid) or {}
+        _task_strategy = _entry.get("image_strategy") or \
+            (os.getenv("IMAGE_GEN_STRATEGY") or "ai").strip().lower()
+        _html_style = (os.getenv("HTML_CARD_STYLE") or "warm").strip()
+        _html_count = int((os.getenv("HTML_CARD_COUNT") or "3").strip() or "3")
+
+        # 构建 HTML 卡片所需的笔记字典（从 analysis 中提取结构化数据）
+        _packaging = analysis.get("小红书包装") or {}
+        _note_from_analysis = analysis.get("note") or {}
+        if isinstance(_note_from_analysis, str):
+            _note_from_analysis = {"title": "", "body": _note_from_analysis, "cta": "", "tags": []}
+        _xhs_note_for_card = {
+            "title": (_note_from_analysis.get("title") or "") or _packaging.get("小红书标题模板", ""),
+            "body": (_note_from_analysis.get("body") or "") or _packaging.get("正文开头模板", xhs_note[:800] if isinstance(xhs_note, str) else ""),
+            "cta": (_note_from_analysis.get("cta") or "") or _packaging.get("互动话术模板", ""),
+            "tags": (_note_from_analysis.get("tags") or []) or (_packaging.get("热门标签推荐") or []),
+            "lead": "",
+        }
+
+        if _task_strategy in ("html_card", "auto"):
+            # HTML 卡片生图
+            t_image = time.perf_counter()
+            try:
+                from scripts.html_card_generator import generate_cards_from_note
+                _set_status(rid, "generating_image")
+                _actual_style = "auto" if _task_strategy == "auto" else _html_style
+                _log(rid, f"HTML卡片生图 strategy={_task_strategy} style={_actual_style}")
+                _out_dir = os.path.join("temp", "generated_images", rid)
+                _pngs = generate_cards_from_note(_xhs_note_for_card, style=_actual_style, n=_html_count,
+                                                    output_dir=_out_dir)
+                if _pngs:
+                    images = {"cover": _pngs[0]}
+                    for _i, _p in enumerate(_pngs[1:], 1):
+                        images[f"scene{_i}"] = _p
+                    _log(rid, f"HTML卡片生成成功: {len(_pngs)} 张")
+                else:
+                    _log(rid, "HTML卡片生成失败: 无输出")
+                step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
+                _set_status(rid, "done", images=images, step_times=step_times)
+            except Exception as e:
+                _log(rid, f"HTML卡片生成异常: {e}")
+                step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
+                _set_status(rid, "done", images=images, step_times=step_times)
+        elif os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
             t_image = time.perf_counter()
             _log(rid, "开始生成图片...")
             try:
                 from scripts.image_provider import generate_images_for_task
-                update_status(rid, "generating_image")
+                _set_status(rid, "generating_image")
                 img_result = generate_images_for_task(analysis)
                 if img_result["ok"]:
                     images = img_result["images"]
@@ -311,12 +538,12 @@ def process_one(task, dry=False):
                 step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
                 # 更新完成状态（包含完整的 step_times）
                 step_times["done"] = {"done": _now(), "duration": 0}
-                update_status(rid, "done", images=images, step_times=step_times)
+                _set_status(rid, "done", images=images, step_times=step_times)
             except Exception as e:
                 _log(rid, f"图片生成异常: {e}")
                 step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
                 step_times["done"] = {"done": _now(), "duration": 0}
-                update_status(rid, "done", images=images, step_times=step_times)
+                _set_status(rid, "done", images=images, step_times=step_times)
         else:
             _log(rid, "图片生成未启用，跳过")
             step_times["generating_image"] = {"done": _now(), "duration": 0}
@@ -344,7 +571,7 @@ def process_one(task, dry=False):
     except Exception as e:
         error_msg = str(e)[:500]
         _log(rid, f"失败: {error_msg}")
-        update_status(rid, "failed", error=error_msg)
+        _set_status(rid, "failed", error=error_msg)
         result["error"] = error_msg
 
     return result
@@ -357,23 +584,47 @@ def run_loop(limit=0, sleep_sec=5.0, dry=False, stay_alive=True):
     stay_alive=True 时，队列为空也会继续等待（常驻模式）。
     """
     ensure_dirs()
-    if not _acquire_lock():
-        print("另一个 worker 实例正在运行，已跳过")
-        return
+    _log("worker", f"启动队列消费: stay_alive={stay_alive}, limit={limit}, sleep_sec={sleep_sec}, dry={dry}")
+    while not _acquire_worker_lock():
+        if not stay_alive:
+            _log("worker", "另一个 worker 实例正在运行，已跳过")
+            return
+        pid = _lock_pid()
+        suffix = f" pid={pid}" if pid else ""
+        _log("worker", f"另一个 worker 实例正在运行，等待队列锁释放{suffix}")
+        time.sleep(30)
 
     try:
+        _write_heartbeat()  # 启动时立即写心跳
         processed = 0
         idle_count = 0
+        last_heartbeat = 0
         while True:
+            # 检查停止信号
+            stop_file = os.path.join(PATHS["queue"], "worker_stop_signal.txt")
+            if os.path.exists(stop_file):
+                _log("worker", "收到停止信号，准备退出")
+                try:
+                    os.remove(stop_file)
+                except Exception:
+                    pass
+                break
+
+            # 每30秒写一次心跳
+            now_ts = time.time()
+            if now_ts - last_heartbeat >= 30:
+                _write_heartbeat()
+                last_heartbeat = now_ts
+
             task = get_next_pending()
             if not task:
                 if not stay_alive:
-                    print("队列为空，退出")
+                    _log("worker", "队列为空，退出")
                     break
                 # 常驻模式：等待新任务
                 idle_count += 1
                 if idle_count % 12 == 0:  # 每60秒打印一次
-                    print(f"等待新任务中... (已空闲 {idle_count * sleep_sec}s)")
+                    _log("worker", f"等待新任务中... (已空闲 {idle_count * sleep_sec}s)")
                 time.sleep(sleep_sec)
                 continue
             
@@ -387,14 +638,21 @@ def run_loop(limit=0, sleep_sec=5.0, dry=False, stay_alive=True):
                     retry_task(task["record_id"])
 
             if limit > 0 and processed >= limit:
-                print(f"已达到处理上限 {limit}，退出")
+                _log("worker", f"已达到处理上限 {limit}，退出")
                 break
 
             time.sleep(sleep_sec)
 
-        print(f"结束，共处理 {processed} 个任务")
+        _log("worker", f"结束，共处理 {processed} 个任务")
 
     finally:
+        # 清理心跳文件（停止时标记为离线）
+        try:
+            hb_path = os.path.join(PATHS["queue"], "worker_heartbeat.txt")
+            if os.path.exists(hb_path):
+                os.remove(hb_path)
+        except Exception:
+            pass
         _release_lock()
 
 

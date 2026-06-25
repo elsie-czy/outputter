@@ -12,7 +12,7 @@
 
   <!-- ===== 顶部任务概览 ===== -->
   <div class="td-header">
-    <div class="td-header-left">
+    <div class="td-header-left td-header-identity">
       <div class="td-cover">
         <div class="td-cover-img">📖</div>
       </div>
@@ -24,47 +24,52 @@
           <span class="td-info-tag" id="taskCategory">—</span>
           <span class="td-info-tag" id="taskWordCount">—</span>
         </div>
-        <div class="td-info-meta">
-          <span>任务ID: <code id="taskId">{{ task_id }}</code></span>
-          <span>创建: <span id="taskCreated">—</span></span>
-          <span>耗时: <span id="taskDuration">—</span></span>
-          <span>重试: <span id="summaryRetries">0</span></span>
-        </div>
-        <div class="td-refresh-meta">
-          <span id="autoRefreshStatus">自动刷新中</span>
-          <span>最近刷新: <span id="lastRefresh">—</span></span>
-        </div>
       </div>
     </div>
-    <div class="td-header-right">
-      <div class="td-summary-card">
-        <div class="td-summary-topline">
-          <div class="td-summary-status" id="summaryStatus">加载中</div>
-          <div class="td-summary-progress"><span id="summaryProgress">0</span>%</div>
+    <div class="td-header-middle" aria-label="任务基础信息">
+      <div class="td-task-meta-grid">
+        <div class="td-meta-item">
+          <span class="td-meta-label">任务ID</span>
+          <code class="td-meta-value td-meta-code" id="taskId">{{ task_id }}</code>
         </div>
-        <div class="td-summary-grid">
-          <div class="td-summary-item">
-            <span class="td-summary-label">总耗时</span>
-            <span class="td-summary-value" id="summaryDuration">—</span>
-          </div>
-          <div class="td-summary-item">
-            <span class="td-summary-label">当前阶段</span>
-            <span class="td-summary-value" id="summaryStage">—</span>
-          </div>
-          <div class="td-summary-item">
-            <span class="td-summary-label">生成效率</span>
-            <span class="td-summary-value" id="summarySpeed">—</span>
-          </div>
-          <div class="td-summary-item">
-            <span class="td-summary-label">模型</span>
-            <span class="td-summary-value" id="taskModel">—</span>
-          </div>
+        <div class="td-meta-item">
+          <span class="td-meta-label">创建时间</span>
+          <strong class="td-meta-value" id="taskCreated">—</strong>
         </div>
-        <div class="td-summary-actions">
-          <button class="td-btn td-btn--secondary td-btn--small" id="btnRefresh">手动刷新</button>
-          <button class="td-btn td-btn--secondary td-btn--small" id="btnRegenerate">重新生成</button>
-          <button class="td-btn td-btn--secondary td-btn--small" id="btnRescore">重新评分</button>
+        <div class="td-meta-item">
+          <span class="td-meta-label">当前阶段</span>
+          <strong class="td-meta-value" id="summaryStage">—</strong>
         </div>
+        <div class="td-meta-item">
+          <span class="td-meta-label">处理耗时</span>
+          <strong class="td-meta-value" id="taskDuration">—</strong>
+        </div>
+        <div class="td-meta-item">
+          <span class="td-meta-label">内容效率</span>
+          <strong class="td-meta-value" id="summarySpeed">—</strong>
+        </div>
+        <div class="td-meta-item">
+          <span class="td-meta-label">生成模型</span>
+          <strong class="td-meta-value" id="taskModel">—</strong>
+        </div>
+      </div>
+      <div class="td-refresh-meta">
+        <span id="autoRefreshStatus">自动刷新中</span>
+        <span>最近刷新: <span id="lastRefresh">—</span></span>
+        <span>重试 <strong id="summaryRetries">0</strong></span>
+      </div>
+    </div>
+    <div class="td-header-progress" aria-label="任务进度">
+      <div class="td-summary-status" id="summaryStatus">加载中</div>
+      <div class="td-summary-progress"><span id="summaryProgress">0</span>%</div>
+      <div class="td-progress-caption">预计剩余时间 <span id="summaryRemaining">—</span></div>
+      <div class="td-progress-track"><div class="td-progress-fill" id="summaryProgressBar"></div></div>
+    </div>
+    <div class="td-header-right" aria-label="任务操作">
+      <div class="td-summary-actions">
+        <button class="td-btn td-btn--secondary td-btn--small" id="btnRefresh"><i data-lucide="refresh-cw"></i><span>手动刷新</span></button>
+        <button class="td-btn td-btn--secondary td-btn--small" id="btnRegenerate"><i data-lucide="file-pen-line"></i><span>重新生成笔记</span></button>
+        <button class="td-btn td-btn--secondary td-btn--small" id="btnRescore"><i data-lucide="badge-check"></i><span>重新评分</span></button>
       </div>
     </div>
   </div>
@@ -137,15 +142,16 @@
     </div>
   </div>
 
-  <!-- ===== Tab导航 ===== -->
-  <div class="td-tabs">
-    <button class="td-tab active" data-tab="note">笔记内容</button>
-    <button class="td-tab" data-tab="deconstruct">拆文结果</button>
-    <button class="td-tab" data-tab="score">AI评分</button>
-    <button class="td-tab" data-tab="history">修改记录</button>
-  </div>
+  <div class="td-workspace-panel">
+    <!-- ===== Tab导航 ===== -->
+    <div class="td-tabs">
+      <button class="td-tab active" data-tab="note">笔记内容</button>
+      <button class="td-tab" data-tab="deconstruct">拆文结果</button>
+      <button class="td-tab" data-tab="score">AI评分</button>
+      <button class="td-tab" data-tab="history">修改记录</button>
+    </div>
 
-  <div class="td-tab-content">
+    <div class="td-tab-content">
 
     <!-- Tab1: 笔记内容 -->
     <div class="td-tab-pane active" id="tabNote">
@@ -165,6 +171,10 @@
             <div class="td-title-footer">
               <span class="td-title-counter"><span id="titleCount">0</span>/20</span>
               <span class="td-title-score">标题吸引力 <strong id="titleScore">—</strong>/30</span>
+            </div>
+            <div class="td-title-options" id="titleOptionsBox" style="display:none">
+              <div class="td-options-header">备选标题 <span class="td-inline-muted">点击切换</span></div>
+              <div class="td-options-list" id="titleOptionsList"></div>
             </div>
           </div>
           <div class="td-editor-body">
@@ -283,12 +293,14 @@
       </div>
     </div>
 
+    </div>
   </div>
 
   <!-- 底部操作栏 -->
   <div class="td-footer">
     <div class="td-footer-left">
-      <span class="td-save-status">自动保存: <span id="saveStatus">已保存</span></span>
+      <span class="td-save-status">自动刷新: <span id="footerRefreshStatus">运行中</span></span>
+      <span class="td-save-status">最近保存: <span id="saveStatus">已保存</span></span>
     </div>
     <div class="td-footer-right">
       <button class="td-btn td-btn--secondary" id="btnSaveDraft">保存草稿</button>

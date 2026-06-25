@@ -9,4 +9,11 @@ logs/
 memory/
 temp/
 data/shared_state/
+data/config/
+data/queue/*.lock
+data/queue/worker_heartbeat.txt
+*.log
+.learnings/
+start_flask.py
+start_services.sh
 *.bak_*

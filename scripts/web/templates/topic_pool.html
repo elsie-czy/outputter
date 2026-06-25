@@ -53,76 +53,76 @@
     </div>
   </div>
 
-  <!-- ===== 筛选器区域 ===== -->
-  <div class="tp-filter-bar">
-    <input type="text" id="tpSearch" class="tp-search-input" placeholder="搜索作品名 / 作者 / 关键词" />
-    <select id="tpPlatform" class="tp-select">
-      <option value="">全部平台</option>
-      <option value="起点">起点</option>
-      <option value="晋江">晋江</option>
-      <option value="番茄">番茄</option>
-      <option value="七猫">七猫</option>
-    </select>
-    <select id="tpCategory" class="tp-select">
-      <option value="">全部分类</option>
-      <option value="都市">都市</option>
-      <option value="幻言">幻言</option>
-      <option value="古言">古言</option>
-      <option value="悬疑">悬疑</option>
-      <option value="玄幻">玄幻</option>
-      <option value="科幻">科幻</option>
-    </select>
-    <select id="tpWordCount" class="tp-select">
-      <option value="">全部字数</option>
-      <option value="0-50">50万以下</option>
-      <option value="50-100">50-100万</option>
-      <option value="100-200">100-200万</option>
-      <option value="200+">200万以上</option>
-    </select>
-    <select id="tpScoreLevel" class="tp-select">
-      <option value="">全部评分</option>
-      <option value="s">S级 (90+)</option>
-      <option value="a">A级 (80-89)</option>
-      <option value="b">B级 (70-79)</option>
-      <option value="c">C级 (&lt;70)</option>
-    </select>
-    <select id="tpSort" class="tp-select">
-      <option value="score">综合评分 ↓</option>
-      <option value="favorites">收藏数 ↓</option>
-      <option value="likes">点赞数 ↓</option>
-      <option value="comments">评论数 ↓</option>
-      <option value="created_at">最新更新</option>
-    </select>
-    <button class="tp-filter-btn tp-filter-btn--reset" id="tpResetBtn">重置</button>
-    <div class="tp-filter-right">
-      <button class="tp-sync-btn" id="tpSyncBtn" title="从飞书同步选题">
-        <i data-lucide="refresh-cw"></i> 同步选题
-      </button>
-      <button class="tp-archive-btn" id="tpArchiveBtn" title="归档到飞书" style="display:none;">
-        <i data-lucide="archive"></i> 归档 <span id="archiveCount">0</span>
-      </button>
+  <!-- ===== 筛选 / 快捷操作 / 批量选择 ===== -->
+  <div class="tp-toolbar">
+    <div class="tp-toolbar-main">
+      <input type="text" id="tpSearch" class="tp-search-input" placeholder="搜索作品名 / 作者 / 关键词" />
+      <select id="tpPlatform" class="tp-select">
+        <option value="">全部平台</option>
+        <option value="起点">起点</option>
+        <option value="晋江">晋江</option>
+        <option value="番茄">番茄</option>
+        <option value="七猫">七猫</option>
+      </select>
+      <select id="tpCategory" class="tp-select">
+        <option value="">全部分类</option>
+        <option value="都市">都市</option>
+        <option value="幻言">幻言</option>
+        <option value="古言">古言</option>
+        <option value="悬疑">悬疑</option>
+        <option value="玄幻">玄幻</option>
+        <option value="科幻">科幻</option>
+      </select>
+      <select id="tpScoreLevel" class="tp-select">
+        <option value="">全部评分</option>
+        <option value="s">S级</option>
+        <option value="a">A级</option>
+        <option value="b">B级</option>
+        <option value="c">C级</option>
+      </select>
+      <select id="tpDeconstructStatus" class="tp-select">
+        <option value="pending">待拆解</option>
+        <option value="all">全部</option>
+        <option value="done">已拆解</option>
+      </select>
+      <select id="tpWordCount" class="tp-select">
+        <option value="">全部字数</option>
+        <option value="0-50">50万以下</option>
+        <option value="50-100">50-100万</option>
+        <option value="100-200">100-200万</option>
+        <option value="200+">200万以上</option>
+      </select>
+      <select id="tpSort" class="tp-select">
+        <option value="score">综合评分 ↓</option>
+        <option value="favorites">收藏数 ↓</option>
+        <option value="likes">点赞数 ↓</option>
+        <option value="comments">评论数 ↓</option>
+        <option value="created_at">最新更新</option>
+      </select>
+      <button class="tp-filter-btn tp-filter-btn--reset" id="tpResetBtn">重置</button>
     </div>
-  </div>
-
-  <!-- ===== 快捷筛选栏 ===== -->
-  <div class="tp-quick-filter">
-    <span class="tp-quick-filter-label">快捷筛选：</span>
-    <button class="tp-quick-btn" data-filter="high-favorites">高收藏</button>
-    <button class="tp-quick-btn" data-filter="high-score">高评分</button>
-    <button class="tp-quick-btn" data-filter="high-interaction">高互动</button>
-    <button class="tp-quick-btn" data-filter="potential">潜力作品</button>
-  </div>
-
-  <!-- ===== 批量操作栏 ===== -->
-  <div class="tp-batch-bar">
-    <div class="tp-batch-left">
-      <button class="tp-batch-btn" id="tpSelectAll">全选</button>
-      <button class="tp-batch-btn" id="tpDeselectAll">取消全选</button>
-      <button class="tp-batch-btn" id="tpSelectHighPot">仅高潜</button>
-      <button class="tp-batch-btn" id="tpClearSelect">清空</button>
-    </div>
-    <div class="tp-batch-right">
-      <span class="tp-batch-info">已选 <strong id="tpBatchCount">0</strong> 篇</span>
+    <div class="tp-toolbar-secondary">
+      <div class="tp-quick-filter">
+        <button class="tp-quick-btn" data-filter="high-favorites">高收藏</button>
+        <button class="tp-quick-btn" data-filter="high-score">高评分</button>
+        <button class="tp-quick-btn" data-filter="high-interaction">高互动</button>
+        <button class="tp-quick-btn" data-filter="potential">潜力作品</button>
+      </div>
+      <div class="tp-batch-bar">
+        <button class="tp-batch-btn" id="tpSelectAll">全选</button>
+        <button class="tp-batch-btn" id="tpDeselectAll">取消</button>
+        <button class="tp-batch-btn" id="tpSelectHighPot">仅高潜</button>
+        <button class="tp-batch-btn" id="tpClearSelect">清空</button>
+        <span class="tp-batch-info">已选 <strong id="tpBatchCount">0</strong> 篇</span>
+      </div>
+      <div class="tp-filter-right">
+        <button class="tp-sync-btn" id="tpSyncBtn" title="从飞书同步选题">
+          <i data-lucide="refresh-cw"></i> 同步
+        </button>
+        <button class="tp-archive-btn" id="tpArchiveBtn" title="归档到飞书" style="display:none;">
+          <i data-lucide="archive"></i> 归档 <span id="archiveCount">0</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -131,8 +131,20 @@
 
     <!-- 中间：作品列表 -->
     <div class="tp-main">
-      <div class="tp-grid" id="tpGrid">
-        <div class="tp-loading">加载中...</div>
+      <div class="tp-list-panel">
+        <div class="tp-table">
+          <div class="tp-table-head">
+            <div class="tp-th tp-th-select"></div>
+            <div class="tp-th tp-th-work">作品信息</div>
+            <div class="tp-th tp-th-score">综合评分</div>
+            <div class="tp-th tp-th-metrics">数据指标</div>
+            <div class="tp-th tp-th-potential">生产价值</div>
+            <div class="tp-th tp-th-action">操作</div>
+          </div>
+          <div class="tp-grid" id="tpGrid">
+            <div class="tp-loading">加载中...</div>
+          </div>
+        </div>
       </div>
       <div class="tp-pagination" id="tpPagination"></div>
     </div>
@@ -251,6 +263,15 @@
     <p class="tp-modal-subtitle">本次共选择：</p>
     <ul class="tp-modal-list" id="tpModalList"></ul>
     <div class="tp-modal-info" id="tpModalInfo"></div>
+    <div class="tp-modal-strategy">
+      <label style="font-size:13px;color:#374151;font-weight:500;">生图策略：</label>
+      <select id="tpModalStrategy" class="tp-select" style="margin-left:8px;">
+        <option value="ai">AI 即梦生图</option>
+        <option value="html_card">HTML 卡片生图</option>
+        <option value="auto">🤖 自动匹配(Auto)</option>
+      </select>
+      <span style="margin-left:8px;font-size:12px;color:#6B7280;" id="tpModalStrategyHint"></span>
+    </div>
     <div class="tp-modal-actions">
       <button class="tp-modal-cancel" id="tpModalCancel">取消</button>
       <button class="tp-modal-confirm" id="tpModalConfirm">确认提交</button>

@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1080, initial-scale=1.0">
+<title>{{ title }}</title>
+<style>
+/* ===== 字体声明 ===== */
+@font-face { font-family: "Noto Sans SC"; font-style: normal; font-weight: 300; font-display: swap; src: url("file://{{ font_root }}/NotoSansSC-300.woff2") format("woff2"); }
+@font-face { font-family: "Noto Sans SC"; font-style: normal; font-weight: 400; font-display: swap; src: url("file://{{ font_root }}/NotoSansSC-400.woff2") format("woff2"); }
+@font-face { font-family: "Noto Sans SC"; font-style: normal; font-weight: 500; font-display: swap; src: url("file://{{ font_root }}/NotoSansSC-500.woff2") format("woff2"); }
+@font-face { font-family: "Noto Sans SC"; font-style: normal; font-weight: 700; font-display: swap; src: url("file://{{ font_root }}/NotoSansSC-700.woff2") format("woff2"); }
+@font-face { font-family: "Noto Color Emoji"; font-style: normal; font-weight: 400; font-display: swap; src: url("file://{{ font_root }}/NotoColorEmoji.woff2") format("woff2"); }
+
+/* ===== Notion 风格变量 ===== */
+:root {
+  --bg-primary: #FFFFFF;
+  --bg-surface: #F7F6F3;
+  --bg-elevated: #F1F0EE;
+  --bg-accent: #E8F0FE;
+  --text-primary: #37352F;
+  --text-secondary: #6B6B6B;
+  --text-tertiary: #9B9A97;
+  --accent-blue: #2383E2;
+  --accent-orange: #E9730C;
+  --accent-green: #0F7B6C;
+  --accent-purple: #9065B0;
+  --border: #E0E0E0;
+  --border-light: #EBEBEA;
+  --divider: #E9E9E7;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  width: 1080px;
+  height: 1440px;
+  background: var(--bg-primary);
+  font-family: "Noto Sans SC", -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Color Emoji", sans-serif;
+  color: var(--text-primary);
+  overflow: hidden;
+  position: relative;
+}
+
+/* ===== 卡片容器 ===== */
+.card {
+  position: absolute;
+  top: 64px; left: 64px; right: 64px; bottom: 64px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 56px 72px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ===== 封面卡 ===== */
+.cover .icon-decoration {
+  font-size: 96px;
+  position: absolute;
+  right: 48px;
+  top: 120px;
+  opacity: 0.10;
+  z-index: 0;
+}
+
+.cover .category-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 28px;
+  font-weight: 500;
+  padding: 8px 20px;
+  border-radius: 8px;
+  background: var(--bg-accent);
+  color: var(--accent-blue);
+  margin-bottom: 36px;
+  z-index: 1;
+}
+
+.cover .category-tag::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--accent-blue);
+}
+
+.cover .title {
+  font-size: 76px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-primary);
+  margin-bottom: 28px;
+  z-index: 1;
+  position: relative;
+}
+
+.cover .title em {
+  font-style: normal;
+  color: var(--accent-blue);
+}
+
+.cover .subtitle {
+  font-size: 36px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  z-index: 1;
+  position: relative;
+  max-height: 380px;
+  overflow: hidden;
+}
+
+.cover .property-rows {
+  margin-top: auto;
+  z-index: 1;
+}
+
+.cover .property-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 30px;
+}
+
+.cover .property-row .prop-name {
+  color: var(--text-tertiary);
+  font-weight: 500;
+  min-width: 180px;
+}
+
+.cover .property-row .prop-value {
+  color: var(--text-primary);
+  font-weight: 400;
+}
+
+.cover .bottom-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  font-size: 28px;
+  color: var(--text-tertiary);
+  z-index: 1;
+}
+
+/* ===== 内容卡 ===== */
+.content-card .top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 36px;
+}
+
+.content-card .section-tag {
+  font-size: 28px;
+  font-weight: 500;
+  padding: 6px 18px;
+  border-radius: 8px;
+  background: var(--bg-accent);
+  color: var(--accent-blue);
+}
+
+.content-card .page-num {
+  font-size: 28px;
+  color: var(--text-tertiary);
+  letter-spacing: 2px;
+}
+
+.content-card .section-title {
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--text-primary);
+  margin-bottom: 40px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.content-card .body-text {
+  font-size: 36px;
+  line-height: 1.65;
+  color: var(--text-primary);
+  flex: 1;
+  overflow: hidden;
+}
+
+.content-card .body-text .point {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.content-card .body-text .point:last-child {
+  border-bottom: none;
+}
+
+.content-card .body-text .point .icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.content-card .body-text .point .text {
+  font-size: 36px;
+  line-height: 1.65;
+  color: var(--text-primary);
+  padding-top: 4px;
+}
+
+/* ===== 总结卡 ===== */
+.summary-card .top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 36px;
+}
+
+.summary-card .section-tag {
+  font-size: 28px;
+  font-weight: 500;
+  padding: 6px 18px;
+  border-radius: 8px;
+  background: rgba(15,123,108,0.10);
+  color: var(--accent-green);
+}
+
+.summary-card .page-num {
+  font-size: 28px;
+  color: var(--text-tertiary);
+  letter-spacing: 2px;
+}
+
+.summary-card .summary-title {
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--text-primary);
+  margin-bottom: 36px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.summary-card .takeaways {
+  flex: 1;
+  overflow: hidden;
+}
+
+.summary-card .takeaway {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 18px 24px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+.summary-card .takeaway .num {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: var(--accent-green);
+  color: white;
+  font-size: 28px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.summary-card .takeaway .text {
+  font-size: 36px;
+  line-height: 1.65;
+  color: var(--text-primary);
+  padding-top: 2px;
+}
+
+.summary-card .cta {
+  font-size: 36px;
+  line-height: 1.65;
+  color: var(--accent-blue);
+  margin-top: 28px;
+  font-weight: 500;
+}
+
+.summary-card .tags {
+  margin-top: auto;
+  padding-top: 24px;
+  border-top: 1px solid var(--divider);
+  font-size: 30px;
+  color: var(--text-tertiary);
+  line-height: 1.8;
+}
+</style>
+</head>
+<body class="{{ card_class }}">
+
+{% if card_type == "cover" %}
+<!-- 封面卡 -->
+<div class="card cover">
+  <div class="icon-decoration">{{ decoration_emoji }}</div>
+  <div class="category-tag">{{ category }}</div>
+  <div class="title">{{ title | safe }}</div>
+  <div class="subtitle">{{ subtitle | safe }}</div>
+  <div class="property-rows">
+    <div class="property-row">
+      <span class="prop-name">分类</span>
+      <span class="prop-value">{{ category }}</span>
+    </div>
+    <div class="property-row">
+      <span class="prop-name">标签</span>
+      <span class="prop-value">{{ tags | truncate(40, True, '...') }}</span>
+    </div>
+  </div>
+  <div class="bottom-bar">
+    <div class="page-num">{{ page_num }} / {{ total_pages }}</div>
+    <div style="color:var(--accent-blue);">继续阅读 →</div>
+  </div>
+</div>
+{% endif %}
+
+{% if card_type == "content" %}
+<!-- 内容卡 -->
+<div class="card content-card">
+  <div class="top-bar">
+    <div class="section-tag">{{ section_tag }}</div>
+    <div class="page-num">{{ page_num }} / {{ total_pages }}</div>
+  </div>
+  <div class="section-title">{{ section_title | safe }}</div>
+  <div class="body-text">
+    {% for point in points %}
+    <div class="point">
+      <div class="icon">{{ point.emoji }}</div>
+      <div class="text">{{ point.text | safe }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if card_type == "summary" %}
+<!-- 总结卡 -->
+<div class="card summary-card">
+  <div class="top-bar">
+    <div class="section-tag">{{ section_tag }}</div>
+    <div class="page-num">{{ page_num }} / {{ total_pages }}</div>
+  </div>
+  <div class="summary-title">{{ summary_title | safe }}</div>
+  <div class="takeaways">
+    {% for item in takeaways %}
+    <div class="takeaway">
+      <div class="num">{{ loop.index }}</div>
+      <div class="text">{{ item | safe }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="cta">{{ cta | safe }}</div>
+  <div class="tags">{{ tags | safe }}</div>
+</div>
+{% endif %}
+
+</body>
+</html>

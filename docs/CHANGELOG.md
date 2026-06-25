@@ -16,6 +16,217 @@
 - 回滚方式：
 - 风险与注意事项：
 
+## 2026-06-25（生产链路与卡片策略收口）
+- 变更摘要：收口选题池生图策略、HTML 卡片路径、worker 缓存补图和小红书卡片能力规划文档。
+- 影响范围：主流程 / 生图 / Web / Worker / 文档
+- 行为变化：
+  - 选题池提交生产时可携带 `image_strategy`，队列任务记录策略，worker 按任务策略选择 `ai`、`html_card` 或 `auto`
+  - 缓存命中任务补图时会过滤疑似飞书 record id 的标签，并构造结构化笔记供 HTML 卡片使用
+  - HTML 卡片截图使用 `Path.as_uri()` 生成 file URL，兼容含空格或特殊字符的本地路径
+  - 任务详情图片预览和 `/_health/images/<path>` 支持完整相对路径，兼容 HTML 卡片子目录输出
+  - 选题池 owner 模式按本地结果和队列完成状态过滤已拆解作品
+  - 新增 `docs/planning/XHS_CARD_SKILL_INTEGRATION.md`，规划内容简报、视觉简报与卡片生成能力集成
+  - `.gitignore` 补充本地日志、锁文件、worker 心跳、本地配置和临时启动脚本
+- 配置变更（.env）：无新增必填项；本地 `data/config/image_strategy.json` 继续作为运行态配置，不纳入提交
+- 数据迁移/回填动作：无；运行态 `data/*.jsonl` 不纳入本次代码提交
+- 回滚方式：回退本次涉及的 worker、队列、选题池、图片服务、HTML 卡片生成器、文档和 `.gitignore` 改动
+- 风险与注意事项：
+  - HTML 卡片实际截图仍依赖 Playwright/Chromium 环境，缺失时会降级为生成失败日志，不应阻断笔记正文
+  - `内容简报` 与 `视觉简报` 仍是规划，尚未接入模型 schema 和卡片 planner
+
+## 2026-06-20（Dashboard 与选题池布局精简）
+- 变更摘要：统一顶部页面标题靠左，精简 Dashboard 与选题池重复/冗余区域。
+- 影响范围：Web / 公共 Header / Dashboard / 选题池
+- 行为变化：
+  - 公共顶部菜单栏页面标题改为靠左展示，普通页面统一生效
+  - Dashboard 主内容区删除重复的“运营工作台 / 数据总览”标题
+  - Dashboard 数据趋势图按卡片容器宽度绘制，减少居中留白
+  - 选题池搜索、筛选、快捷筛选、批量选择与同步入口合并为一块紧凑工具栏
+  - 选题池 KPI 数字字号调整为 24px，与生产中心 KPI 规格保持一致
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/web/templates/_header.html`、`scripts/static/css/base.css`、`scripts/web/templates/dashboard.html`、`scripts/static/css/dashboard.css`、`scripts/static/js/dashboard.js`、`scripts/web/templates/topic_pool.html`、`scripts/static/css/topic_pool.css` 和本条记录
+- 风险与注意事项：
+  - 本次只调整布局与样式，不改选题池筛选/批量选择业务逻辑
+
+## 2026-06-20（Dashboard Banner 与环形图二次修正）
+- 变更摘要：继续按反馈优化 Dashboard banner 背景铺色和账号表现环形图实现。
+- 影响范围：Web / Dashboard
+- 行为变化：
+  - Banner 取消外边框，浅紫背景铺满到右侧插画区域
+  - 账号表现从 CSS conic-gradient 改为自定义 SVG 分段圆环，模拟 Pie 的内外半径、分段间距、圆角断点和白色描边
+  - 中心文字和图例继续使用自定义 DOM，便于后续接入真实账号指标
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/static/css/dashboard.css`、`scripts/static/js/dashboard.js` 和本条记录
+- 风险与注意事项：
+  - 本次不新增 Recharts 依赖，仍保持 Vanilla JS 实现
+
+## 2026-06-20（Dashboard 视觉反馈修正）
+- 变更摘要：按截图反馈修正 Dashboard Hero 插画、快捷操作卡片和账号表现环形图。
+- 影响范围：Web / Dashboard
+- 行为变化：
+  - Hero 插画改为透明背景 PNG，并允许在 banner 右侧和底部轻微外溢
+  - 移除 Dashboard 内容标题区右侧通知按钮和日期范围
+  - 修复快捷操作入口内部文字被误当卡片导致的溢出问题，入口图标继续使用 lucide
+  - 账号表现环形图改为分段环与右侧指标列表样式
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/web/templates/dashboard.html`、`scripts/static/css/dashboard.css`、`scripts/static/js/dashboard.js`、`scripts/static/img/dashboard-hero.png` 和本条记录
+- 风险与注意事项：
+  - 账号表现仍只展示任务侧真实指标，粉丝、阅读增长继续保持未接入空态
+
+## 2026-06-20（Dashboard 首页数据总览）
+- 变更摘要：新增真正可用的 `/dashboard` 运营工作台首页和 `/api/dashboard/overview` 聚合接口。
+- 影响范围：Web / Dashboard / 公共侧栏 / 文档
+- 行为变化：
+  - `/dashboard` 不再返回 `landing.html`，改为渲染 `dashboard.html`
+  - 新增首页 KPI、近 7 日趋势、热门选题 TOP5、账号任务指标、内容状态和快捷操作区
+  - 聚合接口复用现有队列、本地选题和统计能力，不改现有 API、不改队列结构、不新增数据库
+  - 阅读量、粉丝增长等尚未接入真实来源的指标返回空状态，不展示伪造数据
+  - 左侧侧栏新增可用的“工作台”入口并支持 dashboard 高亮
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/web/routes/dashboard_page.py`、`scripts/web/routes/__init__.py`、`scripts/web/routes/landing_page.py`、`scripts/web/templates/dashboard.html`、`scripts/web/templates/_sidebar.html`、`scripts/static/css/dashboard.css`、`scripts/static/js/dashboard.js`、`scripts/static/img/dashboard-hero.png` 和本条记录
+- 风险与注意事项：
+  - 热门选题排序依赖当前已有的评分、收藏、点赞、评论与创建时间字段；字段缺失时只按已有真实信息展示
+  - 发布状态字段尚未统一接入，待发布笔记当前按“已完成且有笔记内容但未标记发布”的待处理口径估算
+
+## 2026-06-20（选题池列表与侧栏按钮对齐）
+- 变更摘要：将侧栏收起按钮移回左侧菜单栏，并按生产中心任务列表风格优化选题池主列表。
+- 影响范围：Web / 公共 AppShell / 选题池
+- 行为变化：
+  - 侧栏收起按钮从顶部 Header 移入侧栏品牌区，折叠后仍保留展开入口
+  - 选题池作品列表从大卡片改为高密度行式表格，信息层级对齐生产中心列表
+  - 作品信息、综合评分、数据指标、生产价值和操作入口分列展示，筛选、快捷筛选、批量选择、右侧生产计划和提交生产能力保留
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/web/templates/_header.html`、`scripts/web/templates/_sidebar.html`、`scripts/web/templates/topic_pool.html`、`scripts/static/css/base.css`、`scripts/static/css/topic_pool.css`、`scripts/static/js/topic_pool.js` 和本条记录
+- 风险与注意事项：
+  - 选题池仍使用原前端筛选和分页逻辑，本次只调整列表呈现和操作入口布局
+
+## 2026-06-19（任务详情页红框问题修正）
+- 变更摘要：按参考图修正任务详情页顶部导航、任务概览信息栏、右侧操作按钮和底部操作栏覆盖范围。
+- 影响范围：Web / 任务详情 / 公共 Header 条件态
+- 行为变化：
+  - 任务详情页顶部 Header 新增“返回生产中心”入口，并将页面标题与任务 ID 胶囊左对齐展示
+  - 顶部任务信息栏调整为作品身份、静态任务信息、进度状态、右侧操作按钮四区布局
+  - 右侧操作按钮改为纵向动作栈，保留手动刷新、重新生成笔记、重新评分接口绑定
+  - 底部保存/审核操作栏限制在右侧内容区，不再横跨左侧菜单栏
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/web/routes/task_detail_page.py`、`scripts/web/templates/_header.html`、`scripts/web/templates/task_detail.html`、`scripts/static/css/base.css`、`scripts/static/css/task_detail.css`、`scripts/static/js/task_detail.js` 和本条记录
+- 风险与注意事项：
+  - 公共 Header 仅在传入 `header_back_href` 时启用上下文态；其它页面保持原 Header 结构
+
+## 2026-06-18（生产中心任务列表页优化）
+- 变更摘要：按参考设计优化生产中心任务列表页，提升 KPI、筛选区、状态进度、任务信息和操作区的扫读效率。
+- 影响范围：Web / 生产中心
+- 行为变化：
+  - 顶部统计区移除平均处理时长和资源使用率卡片，新增突出显示的“累计完成任务”主 KPI
+  - 状态 Tab 增加数量徽标，筛选区补充阶段筛选，搜索、分类和批量操作保留
+  - 任务列表压缩行高与封面尺寸，作品标题、作者、平台、分类拆分展示，失败原因单行截断避免撑坏表格
+  - 状态 Badge、进度条、模型标签和操作按钮重新分组，查看入口更明确，危险操作保留确认弹窗
+  - 5 秒自动刷新继续保留，并在表格内容未变化时避免重复重绘
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/web/templates/production_center.html`、`scripts/static/css/production_center.css`、`scripts/static/js/production_center.js` 和本条记录
+- 风险与注意事项：
+  - 本次不改后端数据结构、不删除现有 API、不改 worker / 队列逻辑
+  - 分类和阶段筛选基于当前页前端数据过滤，跨页精确筛选后续可单独接入后端查询参数
+
+## 2026-06-18（生产中心侧栏视觉对齐）
+- 变更摘要：按参考设计补齐左侧菜单栏的深色工作台视觉。
+- 影响范围：Web / 公共 AppShell 侧栏
+- 行为变化：
+  - 侧栏增加品牌区、深色导航底色、分组分隔线和更明确的激活态
+  - 底部增加资源使用卡片，匹配参考图中的侧栏信息层级
+  - 桌面端隐藏顶部 Header 重复品牌 Logo，避免与侧栏品牌重复
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/web/templates/_sidebar.html`、`scripts/static/css/base.css` 和本条记录
+- 风险与注意事项：
+  - 本次改动公共侧栏样式，会影响所有使用 AppShell 的页面；未改页面业务逻辑和接口
+
+## 2026-06-19（生产中心红框问题修正）
+- 变更摘要：修正生产中心页面顶部/侧栏割裂、操作按钮可读性和列表排序问题。
+- 影响范围：Web / 公共 AppShell / 生产中心 / 队列列表读取
+- 行为变化：
+  - 左侧菜单栏从视口顶部开始，顶部 Header 只占右侧主内容区域，减少上下割裂
+  - 任务操作区将暂停/重试/终止等状态操作前移，查看详情放在末尾
+  - 终止任务图标改为更明确的 `octagon-x`，操作 tooltip 改为快速出现的自定义提示
+  - 查看按钮固定宽度，避免“查看”文案溢出按钮
+  - 生产队列列表按 `created_at` 倒序后再分页，新提交任务优先显示在前面
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/web/templates/base.html`、`scripts/static/css/base.css`、`scripts/static/css/production_center.css`、`scripts/static/js/production_center.js`、`scripts/queue_manager.py` 和本条记录
+- 风险与注意事项：
+  - `get_queue()` 排序改为全局倒序，所有复用该函数的列表类页面/API 都会看到最新任务优先
+
+## 2026-06-17（生产测试问题热修）
+- 变更摘要：修复生产测试中发现的队列重复消费、生产中心刷新、提交过渡和任务详情标题清理问题。
+- 影响范围：队列 / Docker Worker / 生产中心 / 选题池 / 任务详情 / 笔记生成
+- 行为变化：
+  - 队列入队跳过重复 `record_id`，状态更新会同步所有同 ID 记录，避免重复 pending 任务被 worker 反复消费
+  - Docker Worker 遇到当前 PID 的残留锁会自动清理后重新获取，降低容器重建后的卡锁概率
+  - 生产中心列表和统计改为 5 秒轮询刷新
+  - 选题池提交生产成功后保留 loading 过渡直到跳转生产中心
+  - 任务详情标题输入框不再带 `标题：`、`标题:`、`【标题】` 包装前缀，正文框不再重复标题行
+  - 小红书笔记生成去除重复段落，并放宽人设、冲突、情绪字段截断长度
+- 配置变更（.env）：无
+- 数据迁移/回填动作：清理本地测试队列中重复的 `recvcjDKunVhgv` 运行态记录，保留信息更完整的一条并标记为已完成
+- 回滚方式：回退队列幂等、worker 锁、前端刷新/过渡、标题清理、笔记生成长度策略和本条记录
+- 风险与注意事项：
+  - 当前修复避免后续重复消费；已生成的历史短笔记不会自动重写，需要重新生成才会使用新的正文长度策略
+
+## 2026-06-17（参考笔记与反馈闭环接入）
+- 变更摘要：将历史高分参考笔记和近期修改反馈接入后端生成链路。
+- 影响范围：Worker / Web API / 飞书读取 / 模型提示词上下文
+- 行为变化：
+  - 新增 `scripts/generation_context.py`，统一收集可选生成上下文；飞书不可用或无数据时降级为空上下文，不阻断生成
+  - `deconstruct_worker.py` 调用 `analyze_work()` 前自动注入参考笔记和近期反馈，并记录上下文条数
+  - `POST /api/task/<task_id>/regenerate-note` 和 `POST /api/note/<rid>/regenerate` 重新生成时注入当前任务修改日志、飞书近期修改记录和高分参考笔记
+  - `feishu_client.get_top_notes()` 补充读取正文与标签字段，提升 few-shot 样本完整度
+  - 重新生成接口返回 `generation_context` 计数，便于验收确认上下文已进入模型层
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/generation_context.py`、worker、任务详情 API、note API、`feishu_client.py`、相关测试和本条记录
+- 风险与注意事项：
+  - 本次不改页面、不改队列/飞书数据结构、不触发真实模型费用
+  - 飞书字段名仍按现有候选字段兼容读取；若线上表字段不同，需要后续补充字段映射
+
+## 2026-06-17（Docker 拆文 worker 常驻化）
+- 变更摘要：将 Docker `deconstruct-runner` 从一次性主流程入口改为常驻队列消费入口。
+- 影响范围：Docker / Worker / 运维文档
+- 行为变化：
+  - `deconstruct-runner` 执行 `python scripts/deconstruct_worker.py`，默认随 compose 启动并 `restart: unless-stopped`
+  - 空队列下 worker 保持运行，每 60 秒输出一次等待日志；有 pending 任务时进入现有 `process_one()` 消费流程
+  - worker 日志补充启动信息、任务 ID、状态变更和异常原因，并继续写入 `logs/deconstruct_worker.log`
+  - Docker Web 暴露端口调整为宿主机 `8080` 转发到容器内 `8101`，匹配验收命令
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：将 `docker-compose.yml` 的 `deconstruct-runner` command 改回旧入口，并恢复 `restart: "no"` / run-once profile；回退 worker 日志与锁等待改动
+- 风险与注意事项：
+  - 本次不引入 Redis/RabbitMQ，不改 JSONL 队列结构，不改 Web 页面和模型 prompt
+  - 如已有其他 worker 正在运行，新 runner 会等待队列锁释放
+
+## 2026-06-16（任务详情页密度压实优化）
+- 变更摘要：执行任务详情页第二轮视觉压实，提升首屏信息密度并减少无效留白。
+- 影响范围：Web / 任务详情页
+- 行为变化：
+  - 页面容器更充分使用 app shell 内容区宽度，减少居中留白
+  - 顶部概览调整为封面身份、文本型任务信息条、状态操作三列结构
+  - 进度轴高度压缩，等待/当前/完成/失败状态更清晰，阶段说明单行截断
+  - Tab 与内容区合并为同一个工作面板，降低割裂感
+  - 笔记区三栏固定为 `300px minmax(0, 1fr) 280px`，收敛图片和正文输入高度
+  - 底部操作栏压实，并保留自动刷新与最近保存状态位
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/web/templates/task_detail.html`、`scripts/static/css/task_detail.css`、`scripts/static/js/task_detail.js`、`docs/planning/V2_PLAN.md` 和本条记录
+- 风险与注意事项：
+  - 本次不改后端 API、不改数据结构、不改 `web_app_legacy.py`
+  - CSS 仍在既有页面样式末尾追加覆盖，后续可单独安排样式文件瘦身
+
 ## 2026-06-16（任务详情页工作台优化）
 - 变更摘要：优化任务详情页为更清晰的任务详情工作台，补齐 5 秒自动刷新和编辑区保护。
 - 影响范围：Web / 任务详情页

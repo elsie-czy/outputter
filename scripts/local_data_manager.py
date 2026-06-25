@@ -8,6 +8,7 @@ from datetime import datetime
 
 from scripts.config import PATHS, ensure_dirs
 from scripts.utils import read_jsonl, write_jsonl, append_jsonl
+from scripts.feishu_reader import _is_deconstructed
 
 # 本地数据目录
 LOCAL_DATA_DIR = os.path.join(PATHS["data"], "local")
@@ -50,16 +51,48 @@ def sync_topics_from_feishu():
     try:
         records = client.list_records(topic_table_id, page_size=1000)
         
-        # 转换为本地格式
+        # 收集本地已拆解的作品名（results + queue）
+        deconstructed_names = set()
+        try:
+            results = get_local_results()
+            for r in results:
+                n = (r.get("work_name") or "").strip()
+                if n:
+                    deconstructed_names.add(n)
+        except Exception:
+            pass
+        try:
+            queue_file = os.path.join(PATHS["data"], "queue", "deconstruct_queue.jsonl")
+            if os.path.exists(queue_file):
+                with open(queue_file) as f:
+                    for line in f:
+                        if not line.strip():
+                            continue
+                        rec = json.loads(line)
+                        if rec.get("status") == "done":
+                            n = (rec.get("work_name") or "").strip()
+                            if n:
+                                deconstructed_names.add(n)
+        except Exception:
+            pass
+
+        # 转换为本地格式，过滤已拆解
         items = []
         for r in records:
             fields = r.get("fields", {}) or {}
+            work_name = str(fields.get("作品名称", "")).strip()
+            feishu_deconstructed = _is_deconstructed(fields.get("是否拆解"))
+            local_deconstructed = work_name in deconstructed_names if work_name else False
+            if feishu_deconstructed or local_deconstructed:
+                continue  # 跳过已拆解的作品
             item = {
                 "record_id": r.get("record_id", ""),
                 "work_name": fields.get("作品名称", ""),
                 "author": fields.get("作者", ""),
                 "platform": fields.get("平台", ""),
                 "category": fields.get("分类", ""),
+                "synopsis": fields.get("简介", ""),
+                "orientation": fields.get("取向", ""),
                 "word_count": fields.get("字数", 0),
                 "favorites": fields.get("收藏", 0),
                 "likes": fields.get("点赞", 0),
@@ -68,6 +101,7 @@ def sync_topics_from_feishu():
                 "comments": fields.get("评论", 0),
                 "rank": fields.get("排名", 0),
                 "quality_score": fields.get("评分", 0),
+                "是否拆解": fields.get("是否拆解", ""),
                 "synced_at": _now(),
                 "feishu_record_id": r.get("record_id", ""),
             }
@@ -75,8 +109,8 @@ def sync_topics_from_feishu():
         
         # 写入本地
         write_jsonl(LOCAL_TOPICS_FILE, items)
-        
-        return {"ok": True, "count": len(items)}
+        filtered_count = len(records) - len(items)
+        return {"ok": True, "count": len(items), "total": len(records), "filtered": filtered_count}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
