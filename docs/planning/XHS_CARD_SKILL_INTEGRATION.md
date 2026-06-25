@@ -313,17 +313,17 @@ def generate_cards_from_note(
 
 ## 7. 任务安排
 
-### 阶段 1：内容简报接入（P0）
+### 阶段 1：内容简报接入（P0，已完成）
 
 目标：把 `content-research-writer` 的核心能力变成项目内 `内容简报`。
 
 任务：
 
-1. 修改 `scripts/model_adapter.py` 的 JSON schema，新增 `内容简报`。
-2. 修改 `_ensure_analysis_shape()` 和 `_local_analyze()`，保证默认结构完整。
-3. 修改 `generate_title_options()`，优先使用 `内容简报.标题候选`。
-4. 修改 `build_xhs_note()`，使用 `核心痛点`、`读者收益`、`封面钩子` 强化开头。
-5. 增加或更新测试，覆盖旧 analysis 缺少 `内容简报` 时不报错。
+1. 已修改 `scripts/model_adapter.py` 的 JSON schema，新增 `内容简报`。
+2. 已修改 `_ensure_analysis_shape()` 和 `_local_analyze()`，保证默认结构完整。
+3. 已修改 `generate_title_options()`，优先使用 `内容简报.标题候选`。
+4. 已修改 `build_xhs_note()`，使用 `核心痛点`、`读者收益`、`封面钩子` 强化开头。
+5. 已增加测试，覆盖旧 analysis 缺少 `内容简报` 时不报错、标题优先级、默认补齐和本地 fallback。
 
 验收：
 

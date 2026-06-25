@@ -7,6 +7,27 @@ from datetime import datetime
 import requests
 
 
+CONTENT_BRIEF_DEFAULT = {
+    "目标人群": [],
+    "核心痛点": "",
+    "读者收益": "",
+    "标题候选": [],
+    "封面钩子": {
+        "主标题": "",
+        "副标题": "",
+        "情绪": "",
+        "点击理由": "",
+    },
+    "图文页结构": [],
+    "证据素材": [],
+    "禁用表达": [],
+}
+
+
+def _default_content_brief():
+    return json.loads(json.dumps(CONTENT_BRIEF_DEFAULT, ensure_ascii=False))
+
+
 def _local_analyze(work):
     name = work.get("作品名称", "")
     author = work.get("作者", "")
@@ -63,6 +84,25 @@ def _local_analyze(work):
             "爆款潜力评分": "中",
             "内容扩展方向": "不同平台开篇套路对比",
             "发布时间记录": datetime.now().strftime("%Y-%m-%d"),
+        },
+        "内容简报": {
+            "目标人群": ["写作者", "内容创作者", "网文爱好者"],
+            "核心痛点": f"想判断{name or '这本作品'}值不值得追，但简介信息太散，抓不到真正的爽点和雷点。",
+            "读者收益": "快速看懂开篇钩子、人物关系和冲突递进，决定是否加入书单或借鉴写法。",
+            "标题候选": [
+                f"{name}值不值得追？先看这3个爆点",
+                f"{category}党别错过！这本开篇很会抓人",
+                f"拆完{name}，我懂它为什么容易上头了",
+            ],
+            "封面钩子": {
+                "主标题": f"{name or category}开篇拆解",
+                "副标题": "3个爆点看懂值不值得追",
+                "情绪": "上头/好奇",
+                "点击理由": "用痛点、收益和关键钩子帮读者快速判断作品吸引力。",
+            },
+            "图文页结构": ["痛点提问", "作品速览", "开篇钩子", "人物关系", "冲突递进", "收藏总结"],
+            "证据素材": ["简介", "分类", "开篇套路", "冲突设计"],
+            "禁用表达": ["私信", "加群", "站外链接"],
         },
         "配图提示词": [
             "小红书竖版封面，比例3:4，动漫风，女主修真者半身像，红黑高对比，标题留白，细节精致，高清插画",
@@ -132,6 +172,22 @@ def _ensure_analysis_shape(result, work):
     p.setdefault("爆款潜力评分", "")
     p.setdefault("内容扩展方向", "")
     p.setdefault("发布时间记录", datetime.now().strftime("%Y-%m-%d"))
+
+    result.setdefault("内容简报", _default_content_brief())
+    cb = result["内容简报"]
+    if not isinstance(cb, dict):
+        cb = _default_content_brief()
+    for k, v in _default_content_brief().items():
+        cb.setdefault(k, v)
+    for k in ["目标人群", "标题候选", "图文页结构", "证据素材", "禁用表达"]:
+        if not isinstance(cb.get(k), list):
+            cb[k] = [str(cb[k])] if cb.get(k) else []
+    cb.setdefault("封面钩子", {})
+    if not isinstance(cb["封面钩子"], dict):
+        cb["封面钩子"] = {}
+    for k in ["主标题", "副标题", "情绪", "点击理由"]:
+        cb["封面钩子"].setdefault(k, "")
+    result["内容简报"] = cb
 
     prompts = result.get("配图提示词", [])
     if not isinstance(prompts, list):
@@ -249,6 +305,16 @@ def _openai_analyze(work, reference_notes=None, recent_feedback=None):
         "\"内容扩展方向\":string,"
         "\"发布时间记录\":string"
         "},"
+        "\"内容简报\": {"
+        "\"目标人群\":[string,string,string],"
+        "\"核心痛点\":string,"
+        "\"读者收益\":string,"
+        "\"标题候选\":[string,string,string,string,string],"
+        "\"封面钩子\":{\"主标题\":string,\"副标题\":string,\"情绪\":string,\"点击理由\":string},"
+        "\"图文页结构\":[string,string,string,string],"
+        "\"证据素材\":[string,string,string],"
+        "\"禁用表达\":[string,string,string]"
+        "},"
         "\"配图提示词\":[string,string,string,string,string],"
         "\"元信息\": {\"来源\":string,\"平台\":string,\"分类\":string,\"作者\":string}"
         "}"
@@ -265,6 +331,7 @@ def _openai_analyze(work, reference_notes=None, recent_feedback=None):
             "情绪触发至少3类，基于题材和情节判断",
             "金句至少5条，为该类型作品的写作方法论提炼，不要编造书中原文",
             "小红书包装字段全部必填，可发布",
+            "内容简报字段全部必填：目标人群、核心痛点、读者收益、标题候选、封面钩子、图文页结构、证据素材、禁用表达。标题候选需可直接作为小红书标题，封面钩子需给出主标题、副标题、情绪和点击理由。",
             "小红书包装文案要有明显钩子、对比、结论，不要写成学术报告",
             "正文开头模板和互动话术模板要带平台语气，可包含少量emoji",
             "热门标签推荐要贴近题材，不要泛泛标签",
