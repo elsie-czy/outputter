@@ -118,10 +118,11 @@ def _plan_cards(note: dict, style: str, n: int, content_brief: dict = None) -> l
 
     # 内容卡
     for idx, point_group in enumerate(points):
+        section_title = str(point_group.get("heading") or "").strip() or f"要点 {idx+1}"
         cards.append({
             "card_type": "content",
             "section_tag": f"第 {idx+1} 点",
-            "section_title": point_group.get("heading", f"要点 {idx+1}"),
+            "section_title": section_title,
             "points": point_group.get("items", []),
             "page_num": f"{idx+2:02d}",
             "total_pages": f"{total:02d}",
@@ -146,11 +147,8 @@ def _plan_cards(note: dict, style: str, n: int, content_brief: dict = None) -> l
 
 
 def _plan_cards_from_brief(note: dict, style: str, n: int, content_brief: dict) -> list[dict]:
-    page_structure = content_brief.get("图文页结构", [])
-    if not isinstance(page_structure, list):
-        page_structure = [str(page_structure)] if page_structure else []
-    page_structure = [str(x).strip() for x in page_structure if str(x).strip()]
-    if not page_structure:
+    brief_pages = _normalize_brief_pages(content_brief.get("图文页结构", []))
+    if not brief_pages:
         return []
 
     title = str(note.get("title") or "").strip() or _brief_cover_title(content_brief) or "小红书笔记"
@@ -161,9 +159,15 @@ def _plan_cards_from_brief(note: dict, style: str, n: int, content_brief: dict) 
     if not isinstance(cover_hook, dict):
         cover_hook = {}
 
-    target_total = max(3, min(int(n or 3), len(page_structure) + 2, 7))
+    content_pages = [
+        page for page in brief_pages
+        if page["role"] not in {"cover", "summary"} and page["title"]
+    ]
+    if not content_pages:
+        content_pages = [page for page in brief_pages if page["title"]]
+    target_total = max(3, min(int(n or 3), len(content_pages) + 2, 7))
     content_slots = max(1, target_total - 2)
-    selected_pages = page_structure[:content_slots]
+    selected_pages = content_pages[:content_slots]
     total = 1 + len(selected_pages) + 1
     evidence = _as_clean_list(content_brief.get("证据素材", []))
     fallback_points = _extract_points(_strip_tags_and_topics(body), max_per_card=3)
@@ -185,8 +189,12 @@ def _plan_cards_from_brief(note: dict, style: str, n: int, content_brief: dict) 
         "total_pages": f"{total:02d}",
     }]
 
-    for idx, page_title in enumerate(selected_pages):
-        role = _infer_brief_page_role(page_title, idx, len(selected_pages))
+    for idx, page in enumerate(selected_pages):
+        page_title = page["title"]
+        if page["role"] in {"problem", "insight", "proof", "summary"}:
+            role = page["role"]
+        else:
+            role = _infer_brief_page_role(page_title, idx, len(selected_pages))
         points = _brief_points_for_role(content_brief, role, page_title, evidence)
         if not points:
             fallback = fallback_points[min(idx, len(fallback_points) - 1)] if fallback_points else {}
@@ -211,7 +219,7 @@ def _plan_cards_from_brief(note: dict, style: str, n: int, content_brief: dict) 
     ]
     takeaways = [str(x).strip() for x in takeaways if str(x).strip()]
     if not takeaways:
-        takeaways = selected_pages[:3]
+        takeaways = [page["title"] for page in selected_pages[:3]]
     cards.append({
         "card_type": "summary",
         "plan_source": "content_brief",
@@ -225,6 +233,34 @@ def _plan_cards_from_brief(note: dict, style: str, n: int, content_brief: dict) 
         "total_pages": f"{total:02d}",
     })
     return cards
+
+
+def _normalize_brief_pages(page_structure) -> list[dict]:
+    if not isinstance(page_structure, list):
+        page_structure = [page_structure] if page_structure else []
+    pages = []
+    for idx, raw in enumerate(page_structure):
+        if isinstance(raw, dict):
+            title = str(
+                raw.get("title")
+                or raw.get("message")
+                or raw.get("section_title")
+                or raw.get("role")
+                or ""
+            ).strip()
+            role = str(raw.get("role") or "").strip().lower()
+        else:
+            title = str(raw or "").strip()
+            role = ""
+        if not title:
+            continue
+        inferred = role or _infer_brief_page_role(title, idx, len(page_structure))
+        if any(k in title for k in ["封面", "主标题", "钩子"]) or inferred == "cover":
+            inferred = "cover"
+        elif any(k in title for k in ["总结", "收藏", "结尾", "互动"]) or inferred == "summary":
+            inferred = "summary"
+        pages.append({"title": title, "role": inferred})
+    return pages
 
 
 def _brief_cover_title(content_brief: dict) -> str:

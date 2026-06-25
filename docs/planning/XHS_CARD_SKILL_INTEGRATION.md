@@ -351,6 +351,7 @@ def generate_cards_from_note(
 - 没有 `内容简报` 的旧数据仍按原逻辑生成。
 - 输出 PNG 尺寸为 1080x1440。
 - 输出目录存在 `card_plan.json`。
+- 2026-06-25 已完成本地真实链路验收：brief-driven 输出 5 张 PNG，legacy fallback 输出 4 张 PNG，均为 1080x1440。
 
 ### 阶段 3：视觉简报与 guizang 社交卡片系统吸收（P1）
 

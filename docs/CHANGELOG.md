@@ -65,6 +65,21 @@
 - 风险与注意事项：
   - 实际 PNG 截图仍依赖 Playwright/Chromium；缺失时会保留原有失败路径，不影响 AI 生图策略
 
+## 2026-06-25（HTML 卡片真实链路验收）
+- 变更摘要：完成 `内容简报 -> card_plan.json -> HTML -> PNG` 真实截图链路验收，并修复旧正文拆段 fallback 的空标题问题。
+- 影响范围：HTML 卡片 / 测试 / 文档
+- 行为变化：
+  - 已在本地 Playwright/Chromium 环境生成 brief-driven 与 legacy fallback 两组 PNG
+  - brief-driven 卡片组生成 5 张 1080x1440 PNG，内容页角色为 problem / insight / proof
+  - legacy fallback 卡片组生成 4 张 1080x1440 PNG
+  - 旧正文拆段产生空 heading 时，内容页标题会自动回退为 `要点 N`
+  - `图文页结构` 中显式包含封面或总结项时，不再把它们重复作为内容页，避免挤掉证据页
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无；运行态验收产物输出到 `temp/e2e_card_verify/`，不纳入提交
+- 回滚方式：回退 `scripts/html_card_generator.py`、`tests/test_html_card_content_brief.py`、`docs/planning/XHS_CARD_SKILL_INTEGRATION.md` 和本条记录
+- 风险与注意事项：
+  - Playwright Python 包与 Chromium 安装在本机 `.venv`/浏览器缓存中，本次不修改依赖声明
+
 ## 2026-06-20（Dashboard 与选题池布局精简）
 - 变更摘要：统一顶部页面标题靠左，精简 Dashboard 与选题池重复/冗余区域。
 - 影响范围：Web / 公共 Header / Dashboard / 选题池
