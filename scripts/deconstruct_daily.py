@@ -362,6 +362,11 @@ def generate_title_options(work, analysis):
     name = work.get("作品名称", "")
     category = work.get("分类", "")
     p = analysis.get("小红书包装", {})
+    content_brief = analysis.get("内容简报", {})
+    brief_titles = content_brief.get("标题候选", []) if isinstance(content_brief, dict) else []
+    if not isinstance(brief_titles, list):
+        brief_titles = [str(brief_titles)] if brief_titles else []
+    brief_titles = [str(t).strip() for t in brief_titles if str(t).strip()]
     
     # 提取核心卖点（从开篇套路和冲突设计中提取关键词）
     opening = analysis.get("开篇套路", [""])[0] if analysis.get("开篇套路") else ""
@@ -378,6 +383,9 @@ def generate_title_options(work, analysis):
     
     # 5种标题公式（来自xhs-writer-skill）
     titles = []
+    for t in brief_titles:
+        if t not in titles:
+            titles.append(t)
     
     # 公式1：痛点+解决方案
     if pain_point:
@@ -403,7 +411,8 @@ def generate_title_options(work, analysis):
     # 使用原有标题模板（如果有）
     original_title = p.get("小红书标题模板", "")
     if original_title and original_title not in titles:
-        titles.insert(0, original_title)
+        insert_at = len(brief_titles)
+        titles.insert(insert_at, original_title)
     
     return titles
 
@@ -429,6 +438,12 @@ def get_title_options(work, analysis):
 
 def build_xhs_note(work, analysis, use_formula=True):
     p = analysis["小红书包装"]
+    content_brief = analysis.get("内容简报", {})
+    if not isinstance(content_brief, dict):
+        content_brief = {}
+    cover_hook = content_brief.get("封面钩子", {})
+    if not isinstance(cover_hook, dict):
+        cover_hook = {}
     tags = p.get("热门标签推荐", [])
     if not isinstance(tags, list):
         tags = [str(tags)] if tags else []
@@ -449,7 +464,22 @@ def build_xhs_note(work, analysis, use_formula=True):
     
     # 痛点共鸣开头（参考xhs-writer-skill方法论）
     lines.append("姐妹们我先说结论👇")
-    lines.append(f"✨ {_compact_mobile(p.get('正文开头模板', ''), 120)}")
+    pain = _compact_mobile(content_brief.get("核心痛点", ""), 120)
+    benefit = _compact_mobile(content_brief.get("读者收益", ""), 120)
+    hook_bits = [
+        _compact_mobile(cover_hook.get("主标题", ""), 40),
+        _compact_mobile(cover_hook.get("副标题", ""), 60),
+        _compact_mobile(cover_hook.get("点击理由", ""), 100),
+    ]
+    hook_text = _compact_mobile("｜".join([h for h in hook_bits if h]), 140)
+    if pain:
+        lines.append(f"✨ {pain}")
+    else:
+        lines.append(f"✨ {_compact_mobile(p.get('正文开头模板', ''), 120)}")
+    if benefit:
+        lines.append(f"✅ {benefit}")
+    if hook_text:
+        lines.append(f"🎯 {hook_text}")
     lines.append("")
     
     # 情绪钩子（从 analysis 情绪词动态生成）

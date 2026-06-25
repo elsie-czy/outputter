@@ -32,7 +32,22 @@
 - 回滚方式：回退本次涉及的 worker、队列、选题池、图片服务、HTML 卡片生成器、文档和 `.gitignore` 改动
 - 风险与注意事项：
   - HTML 卡片实际截图仍依赖 Playwright/Chromium 环境，缺失时会降级为生成失败日志，不应阻断笔记正文
-  - `内容简报` 与 `视觉简报` 仍是规划，尚未接入模型 schema 和卡片 planner
+  - `视觉简报` 仍是规划，尚未接入模型 schema 和卡片 planner
+
+## 2026-06-25（内容简报接入）
+- 变更摘要：将 `content-research-writer` 方法论落成模型分析结果中的结构化 `内容简报`。
+- 影响范围：主流程 / 模型 / 笔记正文 / 测试 / 文档
+- 行为变化：
+  - `analyze_work()` 的模型输出 schema 和提示词新增 `内容简报`
+  - `_ensure_analysis_shape()` 会为旧 analysis 补齐默认 `内容简报`，避免旧任务重新生成笔记时报错
+  - `_local_analyze()` 在无模型环境返回最小可用 `内容简报`
+  - `generate_title_options()` 优先使用 `内容简报.标题候选`，不足时保留现有标题公式兜底
+  - `build_xhs_note()` 开头优先使用 `核心痛点`、`读者收益` 和 `封面钩子`
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无；不新增飞书字段，不改变飞书 schema
+- 回滚方式：回退 `scripts/model_adapter.py`、`scripts/deconstruct_daily.py`、`tests/test_content_brief.py` 和本条记录
+- 风险与注意事项：
+  - 视觉简报与 HTML 卡片 planner 仍在后续阶段，本次不改 HTML 卡片生成逻辑和 Web 页面
 
 ## 2026-06-20（Dashboard 与选题池布局精简）
 - 变更摘要：统一顶部页面标题靠左，精简 Dashboard 与选题池重复/冗余区域。
