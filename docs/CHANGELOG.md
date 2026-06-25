@@ -49,6 +49,22 @@
 - 风险与注意事项：
   - 视觉简报与 HTML 卡片 planner 仍在后续阶段，本次不改 HTML 卡片生成逻辑和 Web 页面
 
+## 2026-06-25（HTML 卡片接入内容简报）
+- 变更摘要：HTML 卡片生成优先读取 `内容简报.图文页结构`，并输出 `card_plan.json` 供复盘。
+- 影响范围：主流程 / Worker / HTML 卡片 / 测试 / 文档
+- 行为变化：
+  - `generate_cards_from_note()` 新增 `content_brief` 可选参数
+  - `_plan_cards()` 有 `图文页结构` 时生成 cover、problem/insight/proof 内容页和 summary
+  - 无 `内容简报` 或无 `图文页结构` 时保留原正文拆段逻辑
+  - HTML 卡片输出目录新增 `card_plan.json`
+  - `deconstruct_worker.py` 调用 HTML 卡片生成时传入 `analysis.get("内容简报")`
+  - `jimeng_worker.py` 回填 HTML 卡片时仅在记录中存在 `内容简报` 字段时解析传入，否则 fallback
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无；不新增飞书字段，不改变 AI 生图策略
+- 回滚方式：回退 `scripts/html_card_generator.py`、`scripts/deconstruct_worker.py`、`scripts/jimeng_worker.py`、`tests/test_html_card_content_brief.py` 和本条记录
+- 风险与注意事项：
+  - 实际 PNG 截图仍依赖 Playwright/Chromium；缺失时会保留原有失败路径，不影响 AI 生图策略
+
 ## 2026-06-20（Dashboard 与选题池布局精简）
 - 变更摘要：统一顶部页面标题靠左，精简 Dashboard 与选题池重复/冗余区域。
 - 影响范围：Web / 公共 Header / Dashboard / 选题池

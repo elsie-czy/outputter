@@ -327,6 +327,7 @@ def _backfill_html_card(client, table_id, record, style="auto", n=3):
 
     # 2. 解析为结构化内容
     note_content = parse_note_content(note_raw)
+    content_brief = _parse_content_brief(fields.get("内容简报"))
 
     # 2.5 风格解析（支持 auto 自动匹配）
     actual_style = style
@@ -342,6 +343,7 @@ def _backfill_html_card(client, table_id, record, style="auto", n=3):
             style=actual_style,   # 传实际风格，让 generate_cards_from_note 直接使用
             n=n,
             output_dir=None,   # 默认 temp/html_cards/
+            content_brief=content_brief,
         )
     except Exception as e:
         return {"record_id": rid, "work_name": work_name, "status": "failed", "error": f"html_card gen: {e}"}
@@ -372,6 +374,22 @@ def _backfill_html_card(client, table_id, record, style="auto", n=3):
         "strategy": "html_card",
         "errors": errors,
     }
+
+
+def _parse_content_brief(value):
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, list) and value:
+        value = value[0]
+    if not value:
+        return None
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, dict) else None
+        except Exception:
+            return None
+    return None
 
 
 if __name__ == "__main__":

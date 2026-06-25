@@ -39,6 +39,7 @@ def generate_cards_from_note(
     style: str = "auto",
     n: int = 3,
     output_dir: str = None,
+    content_brief: dict = None,
 ) -> list[str]:
     """
     从拆解笔记内容生成 HTML 卡片并截图。
@@ -48,11 +49,9 @@ def generate_cards_from_note(
                     auto = 根据笔记内容自动匹配最合适风格
     :param n: 期望生成图片张数（会根据内容自动调整）
     :param output_dir: PNG 输出目录，默认 temp/html_cards/
+    :param content_brief: 可选内容简报，优先按 图文页结构 规划卡片
     :return: [png_path, ...]
     """
-    if not _PLAYWRIGHT_OK:
-        raise RuntimeError("playwright 未安装，请运行：python -m playwright install chromium")
-
     # style="auto" → 根据内容自动匹配
     if style == "auto":
         style = auto_match_style(note_content)
@@ -61,7 +60,14 @@ def generate_cards_from_note(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. 规划卡片结构
-    cards = _plan_cards(note_content, style, n)
+    cards = _plan_cards(note_content, style, n, content_brief=content_brief)
+    errors = _validate_cards(cards)
+    if errors:
+        raise ValueError("card plan invalid: " + "; ".join(errors))
+    _write_card_plan(cards, out_dir)
+
+    if not _PLAYWRIGHT_OK:
+        raise RuntimeError("playwright 未安装，请运行：python -m playwright install chromium")
 
     # 2. 渲染 HTML
     html_paths = []
@@ -77,11 +83,16 @@ def generate_cards_from_note(
 
 
 # ── 卡片规划 ─────────────────────────────────────────────────────────
-def _plan_cards(note: dict, style: str, n: int) -> list[dict]:
+def _plan_cards(note: dict, style: str, n: int, content_brief: dict = None) -> list[dict]:
     """
     将笔记内容拆分为多张卡片数据。
     返回 [{"card_type":"cover", ...}, {"card_type":"content", ...}, ...]
     """
+    if isinstance(content_brief, dict) and content_brief.get("图文页结构"):
+        brief_cards = _plan_cards_from_brief(note, style, n, content_brief)
+        if brief_cards:
+            return brief_cards
+
     title = note.get("title", "小红书笔记")
     body = note.get("body", "")
     tags = note.get("tags", [])
@@ -132,6 +143,213 @@ def _plan_cards(note: dict, style: str, n: int) -> list[dict]:
     })
 
     return cards
+
+
+def _plan_cards_from_brief(note: dict, style: str, n: int, content_brief: dict) -> list[dict]:
+    page_structure = content_brief.get("图文页结构", [])
+    if not isinstance(page_structure, list):
+        page_structure = [str(page_structure)] if page_structure else []
+    page_structure = [str(x).strip() for x in page_structure if str(x).strip()]
+    if not page_structure:
+        return []
+
+    title = str(note.get("title") or "").strip() or _brief_cover_title(content_brief) or "小红书笔记"
+    body = note.get("body", "")
+    tags = note.get("tags", [])
+    lead = note.get("lead", "")
+    cover_hook = content_brief.get("封面钩子", {})
+    if not isinstance(cover_hook, dict):
+        cover_hook = {}
+
+    target_total = max(3, min(int(n or 3), len(page_structure) + 2, 7))
+    content_slots = max(1, target_total - 2)
+    selected_pages = page_structure[:content_slots]
+    total = 1 + len(selected_pages) + 1
+    evidence = _as_clean_list(content_brief.get("证据素材", []))
+    fallback_points = _extract_points(_strip_tags_and_topics(body), max_per_card=3)
+
+    cards = [{
+        "card_type": "cover",
+        "plan_source": "content_brief",
+        "title": _brief_cover_title(content_brief) or title,
+        "subtitle": (
+            cover_hook.get("副标题")
+            or content_brief.get("核心痛点")
+            or lead
+            or _strip_tags_and_topics(body)[:120]
+        )[:120],
+        "message": _brief_message(content_brief, cover_hook, "cover"),
+        "category": _pick_category(tags),
+        "decoration_emoji": _pick_emoji(tags, style),
+        "page_num": "01",
+        "total_pages": f"{total:02d}",
+    }]
+
+    for idx, page_title in enumerate(selected_pages):
+        role = _infer_brief_page_role(page_title, idx, len(selected_pages))
+        points = _brief_points_for_role(content_brief, role, page_title, evidence)
+        if not points:
+            fallback = fallback_points[min(idx, len(fallback_points) - 1)] if fallback_points else {}
+            points = fallback.get("items", [])[:3]
+        message = _points_to_message(points) or page_title
+        cards.append({
+            "card_type": "content",
+            "plan_source": "content_brief",
+            "page_role": role,
+            "section_tag": _role_label(role, idx),
+            "section_title": page_title[:32],
+            "message": message,
+            "points": points[:3],
+            "page_num": f"{idx+2:02d}",
+            "total_pages": f"{total:02d}",
+        })
+
+    takeaways = [
+        content_brief.get("读者收益", ""),
+        cover_hook.get("点击理由", ""),
+        "按图文页结构保存，方便复盘和二次改稿。",
+    ]
+    takeaways = [str(x).strip() for x in takeaways if str(x).strip()]
+    if not takeaways:
+        takeaways = selected_pages[:3]
+    cards.append({
+        "card_type": "summary",
+        "plan_source": "content_brief",
+        "section_tag": "总结",
+        "summary_title": "一文总结",
+        "message": " / ".join(takeaways[:3]),
+        "takeaways": takeaways[:3],
+        "cta": note.get("cta") or "你有什么想法？评论区聊聊 →",
+        "tags": " ".join(["#" + str(t).lstrip("#") for t in tags[:8]]) if tags else "",
+        "page_num": f"{total:02d}",
+        "total_pages": f"{total:02d}",
+    })
+    return cards
+
+
+def _brief_cover_title(content_brief: dict) -> str:
+    cover_hook = content_brief.get("封面钩子", {})
+    if not isinstance(cover_hook, dict):
+        cover_hook = {}
+    return str(cover_hook.get("主标题") or "").strip()
+
+
+def _brief_message(content_brief: dict, cover_hook: dict, role: str) -> str:
+    if role == "cover":
+        parts = [
+            content_brief.get("核心痛点", ""),
+            content_brief.get("读者收益", ""),
+            cover_hook.get("点击理由", ""),
+        ]
+        return " / ".join([str(x).strip() for x in parts if str(x).strip()])[:180]
+    return ""
+
+
+def _infer_brief_page_role(page_title: str, idx: int, total: int) -> str:
+    text = str(page_title)
+    if idx == 0 or any(k in text for k in ["痛点", "问题", "开头", "提问"]):
+        return "problem"
+    if any(k in text for k in ["洞察", "亮点", "看点", "钩子", "人设", "冲突"]):
+        return "insight"
+    if any(k in text for k in ["证据", "素材", "案例", "剧情", "速览"]):
+        return "proof"
+    if idx == total - 1 or any(k in text for k in ["总结", "收藏", "建议"]):
+        return "summary"
+    return "insight"
+
+
+def _role_label(role: str, idx: int) -> str:
+    labels = {
+        "problem": "痛点",
+        "insight": "洞察",
+        "proof": "证据",
+        "summary": "总结",
+    }
+    return labels.get(role, f"第 {idx+1} 点")
+
+
+def _brief_points_for_role(content_brief: dict, role: str, page_title: str, evidence: list[str]) -> list[dict]:
+    if role == "problem":
+        items = [content_brief.get("核心痛点", ""), content_brief.get("读者收益", "")]
+        emoji = "🎯"
+    elif role == "proof":
+        items = evidence[:3]
+        emoji = "🔍"
+    elif role == "summary":
+        items = [content_brief.get("读者收益", ""), "收藏这套拆解结构，下次选书先看钩子和冲突。"]
+        emoji = "✅"
+    else:
+        hook = content_brief.get("封面钩子", {})
+        if not isinstance(hook, dict):
+            hook = {}
+        items = [page_title, hook.get("点击理由", ""), content_brief.get("读者收益", "")]
+        emoji = "💡"
+    return [{"emoji": emoji, "text": str(x).strip()[:80]} for x in items if str(x).strip()][:3]
+
+
+def _as_clean_list(value) -> list[str]:
+    if isinstance(value, list):
+        items = value
+    elif value:
+        items = [value]
+    else:
+        items = []
+    return [str(x).strip() for x in items if str(x).strip()]
+
+
+def _points_to_message(points: list[dict]) -> str:
+    return " / ".join([str(p.get("text", "")).strip() for p in points if str(p.get("text", "")).strip()])[:180]
+
+
+def _validate_cards(cards: list[dict]) -> list[str]:
+    errors = []
+    if not isinstance(cards, list) or not cards:
+        return ["card plan is empty"]
+    if len(cards) < 2 or len(cards) > 7:
+        errors.append(f"页数不合理: {len(cards)}")
+
+    for idx, card in enumerate(cards, 1):
+        card_type = card.get("card_type", "")
+        title = ""
+        if card_type == "cover":
+            title = card.get("title", "")
+        elif card_type == "summary":
+            title = card.get("summary_title", "")
+        else:
+            title = card.get("section_title", "")
+        title = str(title).strip()
+        if not title:
+            errors.append(f"第{idx}页标题为空")
+        if len(title) > 48:
+            errors.append(f"第{idx}页标题过长")
+
+        message = str(card.get("message") or card.get("subtitle") or "").strip()
+        if card_type == "content" and not message:
+            message = _points_to_message(card.get("points", []))
+        if card_type == "summary" and not message:
+            message = " / ".join([str(x).strip() for x in card.get("takeaways", []) if str(x).strip()])
+        if not message:
+            errors.append(f"第{idx}页 message 为空")
+
+        points = card.get("points", [])
+        if isinstance(points, list) and len(points) > 3:
+            errors.append(f"第{idx}页要点超过3个")
+    return errors
+
+
+def _write_card_plan(cards: list[dict], out_dir: Path):
+    plan_path = out_dir / "card_plan.json"
+    plan_path.write_text(
+        json.dumps(
+            {
+                "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "cards": cards,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
 
 def _extract_points(body: str, max_per_card: int = 3) -> list[dict]:

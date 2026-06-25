@@ -332,23 +332,25 @@ def generate_cards_from_note(
 - 标题候选可被优先使用。
 - 本地 fallback 模式仍能跑通。
 
-### 阶段 2：HTML 卡片接入内容简报（P0）
+### 阶段 2：HTML 卡片接入内容简报（P0，已完成）
 
 目标：让卡片拆页从正文拆段升级为按图文页结构生成。
 
 任务：
 
-1. 修改 `generate_cards_from_note()`，支持 `content_brief` 参数。
-2. 修改 `_plan_cards()`，优先读取 `内容简报.图文页结构`。
-3. 保留现有拆段逻辑作为 fallback。
-4. 生成卡片时写出 `brief.md` 或 `card_plan.json` 到输出目录，便于复盘。
-5. 增加测试，覆盖有 brief 和无 brief 两种路径。
+1. 已修改 `generate_cards_from_note()`，支持 `content_brief` 参数。
+2. 已修改 `_plan_cards()`，优先读取 `内容简报.图文页结构`。
+3. 已保留现有拆段逻辑作为 fallback。
+4. 已生成 `card_plan.json` 到输出目录，便于复盘。
+5. 已增加测试，覆盖有 brief、无 brief、计划写出和 validator 路径。
+6. 已新增 `_validate_cards()`，检查标题、页数、message、要点数和标题长度。
 
 验收：
 
 - `html_card` 策略能生成封面、内容页和总结页。
 - 没有 `内容简报` 的旧数据仍按原逻辑生成。
 - 输出 PNG 尺寸为 1080x1440。
+- 输出目录存在 `card_plan.json`。
 
 ### 阶段 3：视觉简报与 guizang 社交卡片系统吸收（P1）
 

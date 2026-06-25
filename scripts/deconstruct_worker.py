@@ -323,8 +323,13 @@ def process_one(task, dry=False):
                     _actual_style1 = "auto" if _task_strategy1 == "auto" else _html_style1
                     _log(rid, f"HTML卡片生图 strategy={_task_strategy1} style={_actual_style1}")
                     _out_dir = os.path.join("temp", "generated_images", rid)
-                    _pngs1 = generate_cards_from_note(xhs_note_dict, style=_actual_style1, n=_html_count1,
-                                                    output_dir=_out_dir)
+                    _pngs1 = generate_cards_from_note(
+                        xhs_note_dict,
+                        style=_actual_style1,
+                        n=_html_count1,
+                        output_dir=_out_dir,
+                        content_brief=analysis.get("内容简报") if isinstance(analysis, dict) else None,
+                    )
                     if _pngs1:
                         images = {"cover": _pngs1[0]}
                         for _i, _p in enumerate(_pngs1[1:], 1):
@@ -508,8 +513,13 @@ def process_one(task, dry=False):
                 _actual_style = "auto" if _task_strategy == "auto" else _html_style
                 _log(rid, f"HTML卡片生图 strategy={_task_strategy} style={_actual_style}")
                 _out_dir = os.path.join("temp", "generated_images", rid)
-                _pngs = generate_cards_from_note(_xhs_note_for_card, style=_actual_style, n=_html_count,
-                                                    output_dir=_out_dir)
+                _pngs = generate_cards_from_note(
+                    _xhs_note_for_card,
+                    style=_actual_style,
+                    n=_html_count,
+                    output_dir=_out_dir,
+                    content_brief=analysis.get("内容简报") if isinstance(analysis, dict) else None,
+                )
                 if _pngs:
                     images = {"cover": _pngs[0]}
                     for _i, _p in enumerate(_pngs[1:], 1):
