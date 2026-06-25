@@ -237,7 +237,7 @@ def _screenshot_one(browser, html_path: str, output_dir: str) -> str:
     base = Path(html_path).stem
     png_path = str(Path(output_dir) / f"{base}.png")
     page = browser.new_page(viewport={"width": 1080, "height": 1440})
-    file_url = "file://" + html_path
+    file_url = Path(html_path).resolve().as_uri()
     page.goto(file_url, wait_until="networkidle", timeout=15000)
     try:
         page.wait_for_function("document.fonts.ready", timeout=5000)

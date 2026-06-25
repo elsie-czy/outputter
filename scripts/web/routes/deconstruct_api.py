@@ -84,7 +84,7 @@ def batch_enqueue():
                     w["取向"] = local_item.get("orientation", "")
             enriched.append(w)
 
-        count = enqueue_works(enriched)
+        count = enqueue_works(enriched, image_strategy=data.get("image_strategy", ""))
         return jsonify({"ok": True, "data": {"enqueued": count}})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500

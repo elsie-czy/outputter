@@ -1,7 +1,23 @@
+import os, sys
+
+# 将项目根目录加入 sys.path，确保 `import scripts.*` 能找到包
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
 from scripts.web.routes import register_routes
 from scripts.web_app_legacy import app as legacy_app
-import os
 import subprocess
+
+# 启动时加载 .env 文件（必须在其他模块读取 os.getenv 之前执行）
+_dotenv_path = os.path.abspath(os.path.join(BASE_DIR, ".env"))
+if os.path.exists(_dotenv_path):
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(_dotenv_path)
+        print(f"[startup] 已加载 .env: {_dotenv_path}")
+    except ImportError:
+        print("[WARN] python-dotenv 未安装，跳过 .env 加载（pip install python-dotenv）")
 
 
 def _validate_on_startup():
@@ -40,3 +56,12 @@ def create_app():
     register_routes(legacy_app)
     _validate_on_startup()
     return legacy_app
+
+
+if __name__ == "__main__":
+    app = create_app()
+    # 读取端口配置，默认 8082
+    port = int(os.getenv("FLASK_PORT", 8082))
+    debug = os.getenv("FLASK_DEBUG", "0") == "1"
+    print(f"[startup] Flask 启动: http://127.0.0.1:{port}")
+    app.run(host="0.0.0.0", port=port, debug=debug)

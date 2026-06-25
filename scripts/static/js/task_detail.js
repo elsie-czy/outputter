@@ -352,8 +352,8 @@
   function _toImageUrl(path) {
     if (!path) return null;
     if (path.indexOf("http") === 0) return path;
-    var p = path.replace(/^temp\/(jimeng_cache|generated_images)\//, "");
-    return "/_health/images/" + encodeURI(p);
+    // 直接拼 /_health/images/ + 完整相对路径（支持子目录）
+    return "/_health/images/" + encodeURI(path);
   }
 
   function renderNote() {

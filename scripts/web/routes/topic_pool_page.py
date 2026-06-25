@@ -66,7 +66,7 @@ def topic_pool_list():
         if mode == "owner":
             # owner 模式：从本地读取，过滤已拆解
             items = get_local_topics()
-            # 从本地结果文件判断拆解状态
+            # 收集所有已拆解的作品名（从 results.jsonl + deconstruct_queue.jsonl）
             deconstructed_names = set()
             try:
                 results = get_local_results()
@@ -76,13 +76,30 @@ def topic_pool_list():
                         deconstructed_names.add(n)
             except Exception:
                 pass
-            # 补充拆解状态字段
+            # 补充：队列中已完成的任务也算已拆解
+            try:
+                import json, os
+                queue_file = os.path.join(
+                    os.path.dirname(__file__), "..", "..", "data", "queue", "deconstruct_queue.jsonl"
+                )
+                if os.path.exists(queue_file):
+                    with open(queue_file) as f:
+                        for line in f:
+                            if not line.strip():
+                                continue
+                            rec = json.loads(line)
+                            if rec.get("status") == "done":
+                                n = (rec.get("work_name") or "").strip()
+                                if n:
+                                    deconstructed_names.add(n)
+            except Exception:
+                pass
+            # owner 模式：只以 results.jsonl 中存在实际拆文结果为准
+            # 不依赖飞书「是否拆解」字段（该字段可能为默认值/旧值）
             for item in items:
-                raw = item.get("是否拆解", "")
-                if not raw and item.get("work_name", "") in deconstructed_names:
-                    raw = "已拆解"
-                item["is_deconstructed"] = _is_deconstructed(raw) or (item.get("work_name", "") in deconstructed_names)
-                item["deconstruct_status_label"] = raw or ("已拆解" if item.get("work_name", "") in deconstructed_names else "")
+                in_results = item.get("work_name", "") in deconstructed_names
+                item["is_deconstructed"] = in_results
+                item["deconstruct_status_label"] = "已拆解" if in_results else ""
             # 默认过滤已拆解；?show_all=1 可查看全部
             if request.args.get("show_all") != "1":
                 items = [i for i in items if not i.get("is_deconstructed")]

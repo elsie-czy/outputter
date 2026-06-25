@@ -16,6 +16,24 @@
 - 回滚方式：
 - 风险与注意事项：
 
+## 2026-06-25（生产链路与卡片策略收口）
+- 变更摘要：收口选题池生图策略、HTML 卡片路径、worker 缓存补图和小红书卡片能力规划文档。
+- 影响范围：主流程 / 生图 / Web / Worker / 文档
+- 行为变化：
+  - 选题池提交生产时可携带 `image_strategy`，队列任务记录策略，worker 按任务策略选择 `ai`、`html_card` 或 `auto`
+  - 缓存命中任务补图时会过滤疑似飞书 record id 的标签，并构造结构化笔记供 HTML 卡片使用
+  - HTML 卡片截图使用 `Path.as_uri()` 生成 file URL，兼容含空格或特殊字符的本地路径
+  - 任务详情图片预览和 `/_health/images/<path>` 支持完整相对路径，兼容 HTML 卡片子目录输出
+  - 选题池 owner 模式按本地结果和队列完成状态过滤已拆解作品
+  - 新增 `docs/planning/XHS_CARD_SKILL_INTEGRATION.md`，规划内容简报、视觉简报与卡片生成能力集成
+  - `.gitignore` 补充本地日志、锁文件、worker 心跳、本地配置和临时启动脚本
+- 配置变更（.env）：无新增必填项；本地 `data/config/image_strategy.json` 继续作为运行态配置，不纳入提交
+- 数据迁移/回填动作：无；运行态 `data/*.jsonl` 不纳入本次代码提交
+- 回滚方式：回退本次涉及的 worker、队列、选题池、图片服务、HTML 卡片生成器、文档和 `.gitignore` 改动
+- 风险与注意事项：
+  - HTML 卡片实际截图仍依赖 Playwright/Chromium 环境，缺失时会降级为生成失败日志，不应阻断笔记正文
+  - `内容简报` 与 `视觉简报` 仍是规划，尚未接入模型 schema 和卡片 planner
+
 ## 2026-06-20（Dashboard 与选题池布局精简）
 - 变更摘要：统一顶部页面标题靠左，精简 Dashboard 与选题池重复/冗余区域。
 - 影响范围：Web / 公共 Header / Dashboard / 选题池

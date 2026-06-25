@@ -632,7 +632,38 @@ const PAGE_SIZE = 10;
         "预计耗时：<span>~" + Math.ceil(selected.length * 0.5) + "分钟</span>";
     }
 
+    // 读取全局策略默认值
+    const strategySelect = $("#tpModalStrategy");
+    const strategyHint = $("#tpModalStrategyHint");
+    if (strategySelect) {
+      fetch("/api/config/image_strategy")
+        .then(r => r.json())
+        .then(json => {
+          if (json.ok && json.data && json.data.strategy) {
+            strategySelect.value = json.data.strategy;
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          updateStrategyHint(strategySelect, strategyHint);
+        });
+      strategySelect.addEventListener("change", () => {
+        updateStrategyHint(strategySelect, strategyHint);
+      });
+    }
+
     overlay.classList.add("visible");
+  }
+
+  function updateStrategyHint(selectEl, hintEl) {
+    if (!selectEl || !hintEl) return;
+    const v = selectEl.value;
+    const hints = {
+      "ai": "即梦 AI 生图，适合需要真实感图片的场景",
+      "html_card": "HTML 卡片截图，文字 100% 可控，适合小红书图文笔记",
+      "auto": "根据笔记内容自动匹配最佳风格",
+    };
+    hintEl.textContent = hints[v] || "";
   }
 
   function bindModal() {
@@ -682,10 +713,16 @@ const PAGE_SIZE = 10;
         取向: i.orientation || "",
       }));
 
+      const strategySelect = $("#tpModalStrategy");
+      const imageStrategy = (strategySelect ? strategySelect.value : "") || "";
+
       const res = await fetch("/api/deconstruct/batch-enqueue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ works: works }),
+        body: JSON.stringify({
+          works: works,
+          image_strategy: imageStrategy || undefined,
+        }),
       });
 
       const json = await res.json();

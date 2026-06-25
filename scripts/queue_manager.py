@@ -116,8 +116,8 @@ def _release_lock():
         pass
 
 
-def enqueue_works(works):
-    """批量入队。works 是 list[dict]，每个 dict 含 作品名称/作者/平台/分类 等"""
+def enqueue_works(works, image_strategy=None):
+    """批量入队。works 是 list[dict]，每个 dict 含 作品名称/作者/平台/分类 等；image_strategy 为全局策略（可选，存入每条记录）"""
     ensure_dirs()
     existing = read_jsonl(QUEUE_FILE)
     existing_ids = {
@@ -147,6 +147,7 @@ def enqueue_works(works):
             "recommend_votes": w.get("推荐票", 0),
             "comments": w.get("评论", 0),
             "rank": w.get("排名", 0),
+            "image_strategy": image_strategy or None,
             "status": "pending",
             "error": None,
             "retry_count": 0,

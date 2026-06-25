@@ -30,16 +30,16 @@ def serve_image(filepath):
     """服务本地图片: /_health/images/dir/filename.png"""
     base = os.path.join(os.path.dirname(__file__), "..", "..", "..")
     base = os.path.abspath(base)
-    # filepath 可能带子目录
-    full = os.path.join(base, "temp", "generated_images", filepath)
-    if not os.path.exists(full):
-        full = os.path.join(base, "temp", "jimeng_cache", filepath)
-    if not os.path.exists(full):
-        # Try as full relative path from project root
-        full = os.path.join(base, filepath)
-    if not os.path.exists(full):
-        return jsonify({"ok": False, "error": "image not found"}), 404
-    return send_file(full, mimetype="image/png")
+    # 优先用完整相对路径（支持子目录，如 temp/generated_images/rid/xhs_card_01.png）
+    full = os.path.join(base, filepath)
+    if os.path.exists(full):
+        return send_file(full, mimetype="image/png")
+    # 兼容裸文件名（不含前缀目录）
+    for prefix in ["temp/generated_images", "temp/jimeng_cache", "temp/html_cards"]:
+        full = os.path.join(base, prefix, filepath)
+        if os.path.exists(full):
+            return send_file(full, mimetype="image/png")
+    return jsonify({"ok": False, "error": "image not found: " + filepath}), 404
 
 
 @bp.get("")

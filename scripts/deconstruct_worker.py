@@ -85,6 +85,34 @@ def _check_cache(work):
     return None
 
 
+def _is_feishu_id(val):
+    """判断字符串是否像飞书记录 ID（纯字母数字，不含 # / 中文 / emoji）"""
+    import re
+    val = str(val or "").strip()
+    if not val:
+        return True
+    # 正常标签：以 # 开头，或包含中文/emoji
+    if val.startswith("#") or re.search(r'[\u4e00-\u9fff\u3400-\u4dbf\U0001f300-\U0001f9ff]', val):
+        return False
+    # 纯字母数字 + 可能的下划线/连字符 → 可能是记录 ID
+    if re.match(r'^[a-zA-Z0-9_-]+$', val):
+        return True
+    return False
+
+
+def _get_task_entry(rid):
+    """从队列文件中读取指定 rid 的完整条目（含 image_strategy 字段）"""
+    try:
+        from scripts.queue_manager import get_queue as _q
+        result = _q(per_page=9999)
+        for item in result.get("items", []):
+            if item.get("record_id") == rid:
+                return item
+    except Exception:
+        pass
+    return None
+
+
 def _log(rid, msg):
     ts = datetime.now().strftime("%H:%M:%S")
     print(f"[{ts}] [{rid}] {msg}")
@@ -231,7 +259,10 @@ def process_one(task, dry=False):
             return {"ok": True, "record_id": rid}
 
         # 1.5 缓存检查：作品已拆解则跳过 LLM，但仍生成图片
-        force = os.getenv("FORCE_REDECONSTRUCT", "").strip().lower() in ("1", "true", "yes")
+        # 支持全局环境变量和单任务 _force_redeconstruct 字段
+        _task_entry0 = _get_task_entry(rid) or {}
+        force = (os.getenv("FORCE_REDECONSTRUCT", "").strip().lower() in ("1", "true", "yes")
+                 or _task_entry0.get("_force_redeconstruct", False))
         cached_main = _check_cache(work) if not force else None
         if cached_main:
             _log(rid, "缓存命中，跳过 LLM 调用，尝试补生成图片")
@@ -242,14 +273,28 @@ def process_one(task, dry=False):
                 xhs_title = normalize_feishu_value(cached_xhs.get("小红书标题模板", ""))
                 xhs_body = normalize_feishu_value(cached_xhs.get("正文开头模板", ""))
                 xhs_cta = normalize_feishu_value(cached_xhs.get("互动话术模板", ""))
-                xhs_tags = cached_xhs.get("热门标签推荐", [])
-                if isinstance(xhs_tags, list):
-                    xhs_tags = ", ".join(str(t) for t in xhs_tags)
+                xhs_tags_raw = cached_xhs.get("热门标签推荐", [])
+                if isinstance(xhs_tags_raw, list):
+                    # 过滤掉看起来像飞书 record ID 的标签（纯字母数字组合，不含 # 或中文）
+                    xhs_tags_list = [str(t) for t in xhs_tags_raw if not _is_feishu_id(str(t))]
+                    xhs_tags_str = ", ".join(xhs_tags_list)
                 else:
-                    xhs_tags = str(xhs_tags or "")
-                note_content = f"标题：{xhs_title}\n\n{xhs_body}\n\n互动话术：{xhs_cta}\n\n标签：{xhs_tags}"
+                    xhs_tags_str = str(xhs_tags_raw or "")
+                    xhs_tags_list = [t.strip() for t in xhs_tags_str.split(",") if t.strip()]
+                    xhs_tags_list = [t for t in xhs_tags_list if not _is_feishu_id(t)]
+                    xhs_tags_str = ", ".join(xhs_tags_list)
+                note_content = f"标题：{xhs_title}\n\n{xhs_body}\n\n互动话术：{xhs_cta}\n\n标签：{xhs_tags_str}"
+                # 构建结构化笔记 dict（用于 html_card 生图）
+                xhs_note_dict = {
+                    "title": xhs_title,
+                    "body": xhs_body,
+                    "cta": xhs_cta,
+                    "tags": xhs_tags_list,
+                    "lead": "",
+                }
             else:
                 note_content = "标题：" + work.get("作品名称", "") + " 拆解笔记\n\n请运行拆文任务获取笔记内容"
+                xhs_note_dict = {"title": work.get("作品名称", ""), "body": "", "cta": "", "tags": [], "lead": ""}
 
             # 映射为前端可读的 analysis 格式
             analysis = normalize_feishu_record(cached_main, source="main")
@@ -261,7 +306,40 @@ def process_one(task, dry=False):
                 cached_xhs_img = cached_main
 
             quality_score = _score_note_for_task(rid, note_content, step_times)
-            if os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
+
+            # 读取每任务策略（优先），否则读全局 .env
+            _entry1 = _get_task_entry(rid) or {}
+            _task_strategy1 = _entry1.get("image_strategy") or \
+                (os.getenv("IMAGE_GEN_STRATEGY") or "ai").strip().lower()
+            _html_style1 = (os.getenv("HTML_CARD_STYLE") or "warm").strip()
+            _html_count1 = int((os.getenv("HTML_CARD_COUNT") or "3").strip() or "3")
+
+            if _task_strategy1 in ("html_card", "auto"):
+                # HTML 卡片生图
+                t_image = time.perf_counter()
+                try:
+                    from scripts.html_card_generator import generate_cards_from_note
+                    _set_status(rid, "generating_image")
+                    _actual_style1 = "auto" if _task_strategy1 == "auto" else _html_style1
+                    _log(rid, f"HTML卡片生图 strategy={_task_strategy1} style={_actual_style1}")
+                    _out_dir = os.path.join("temp", "generated_images", rid)
+                    _pngs1 = generate_cards_from_note(xhs_note_dict, style=_actual_style1, n=_html_count1,
+                                                    output_dir=_out_dir)
+                    if _pngs1:
+                        images = {"cover": _pngs1[0]}
+                        for _i, _p in enumerate(_pngs1[1:], 1):
+                            images[f"scene{_i}"] = _p
+                        _log(rid, f"HTML卡片生成成功: {len(_pngs1)} 张")
+                    else:
+                        _log(rid, "HTML卡片生成失败: 无输出")
+                    step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
+                    _set_status(rid, "done", images=images, step_times=step_times)
+                except Exception as e:
+                    _log(rid, f"HTML卡片生成异常: {e}")
+                    step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
+                    _set_status(rid, "done", images=images, step_times=step_times)
+            elif os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
+                # AI 即梦生图（原有逻辑）
                 try:
                     from scripts.image_provider import generate_images_for_task
                     _set_status(rid, "generating_image")
@@ -273,6 +351,11 @@ def process_one(task, dry=False):
                         _log(rid, f"图片补生成失败: {img_result.get('error','未知')}")
                 except Exception as e:
                     _log(rid, f"图片补生成异常: {e}")
+            else:
+                _log(rid, "图片生成未启用，跳过")
+            step_times["generating_image"] = {"done": _now(), "duration": 0}
+            # 确保 deconstruct_result 中有结构化笔记（用于前端展示）
+            analysis["note"] = xhs_note_dict
             _set_status(rid, "done",
                         deconstruct_result=analysis,
                         note_content=note_content,
@@ -396,7 +479,51 @@ def process_one(task, dry=False):
 
         # 9. 生成图片（如果启用）
         images = {}
-        if os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
+        # 读取每任务策略（优先），否则读全局 .env
+        _entry = _get_task_entry(rid) or {}
+        _task_strategy = _entry.get("image_strategy") or \
+            (os.getenv("IMAGE_GEN_STRATEGY") or "ai").strip().lower()
+        _html_style = (os.getenv("HTML_CARD_STYLE") or "warm").strip()
+        _html_count = int((os.getenv("HTML_CARD_COUNT") or "3").strip() or "3")
+
+        # 构建 HTML 卡片所需的笔记字典（从 analysis 中提取结构化数据）
+        _packaging = analysis.get("小红书包装") or {}
+        _note_from_analysis = analysis.get("note") or {}
+        if isinstance(_note_from_analysis, str):
+            _note_from_analysis = {"title": "", "body": _note_from_analysis, "cta": "", "tags": []}
+        _xhs_note_for_card = {
+            "title": (_note_from_analysis.get("title") or "") or _packaging.get("小红书标题模板", ""),
+            "body": (_note_from_analysis.get("body") or "") or _packaging.get("正文开头模板", xhs_note[:800] if isinstance(xhs_note, str) else ""),
+            "cta": (_note_from_analysis.get("cta") or "") or _packaging.get("互动话术模板", ""),
+            "tags": (_note_from_analysis.get("tags") or []) or (_packaging.get("热门标签推荐") or []),
+            "lead": "",
+        }
+
+        if _task_strategy in ("html_card", "auto"):
+            # HTML 卡片生图
+            t_image = time.perf_counter()
+            try:
+                from scripts.html_card_generator import generate_cards_from_note
+                _set_status(rid, "generating_image")
+                _actual_style = "auto" if _task_strategy == "auto" else _html_style
+                _log(rid, f"HTML卡片生图 strategy={_task_strategy} style={_actual_style}")
+                _out_dir = os.path.join("temp", "generated_images", rid)
+                _pngs = generate_cards_from_note(_xhs_note_for_card, style=_actual_style, n=_html_count,
+                                                    output_dir=_out_dir)
+                if _pngs:
+                    images = {"cover": _pngs[0]}
+                    for _i, _p in enumerate(_pngs[1:], 1):
+                        images[f"scene{_i}"] = _p
+                    _log(rid, f"HTML卡片生成成功: {len(_pngs)} 张")
+                else:
+                    _log(rid, "HTML卡片生成失败: 无输出")
+                step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
+                _set_status(rid, "done", images=images, step_times=step_times)
+            except Exception as e:
+                _log(rid, f"HTML卡片生成异常: {e}")
+                step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
+                _set_status(rid, "done", images=images, step_times=step_times)
+        elif os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
             t_image = time.perf_counter()
             _log(rid, "开始生成图片...")
             try:

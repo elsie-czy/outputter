@@ -463,7 +463,7 @@ def build_xhs_note(work, analysis, use_formula=True):
     lines.append("")
     structure = _compact_mobile(p.get('正文结构建议', ''), 80)
     if structure:
-        lines.append(structure)
+        lines.append("这本不是靠设定噱头撑着走的，是真有阅读粘性的那种。")
     else:
         lines.append("这本不是靠设定噱头撑着走的，是真有阅读粘性的那种。")
     lines.append("我本来只想看几章，结果直接连着刷下去。")
