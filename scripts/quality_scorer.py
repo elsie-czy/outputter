@@ -40,6 +40,8 @@ SCORE_PROMPT = (
 def score_note(note_text):
     """对笔记进行六维质量评分，返回 dict"""
     provider = os.getenv("MODEL_PROVIDER", "zhipu").strip().lower()
+    if provider == "local":
+        return _default_score("MODEL_PROVIDER=local，跳过远端评分")
     is_qwen = provider in {"qwen", "dashscope"}
 
     api_key = (os.getenv("QWEN_API_KEY", "") if is_qwen else os.getenv("OPENAI_API_KEY", "")).strip()
@@ -47,8 +49,7 @@ def score_note(note_text):
         return _default_score("API Key 未配置")
 
     model = (os.getenv("QWEN_MODEL", "") if is_qwen else os.getenv("OPENAI_MODEL", "glm-4-plus")).strip()
-    base_url = (os.getenv("QWEN_BASE_URL", "") if is_qwen else os.getenv("OPENAI_BASE_URL", "https://open.bigmodel.cn/api/paas/v4")).strip().rstrip("/")
-    url = f"{base_url}/chat/completions"
+    endpoints = _score_endpoints(is_qwen)
 
     payload = {
         "model": model,
@@ -60,38 +61,85 @@ def score_note(note_text):
         "max_tokens": 500,
     }
 
+    last_error = None
     for attempt in range(3):
-        try:
-            resp = requests.post(
-                url,
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json=payload,
-                timeout=60,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            content = data["choices"][0]["message"]["content"]
-            # Extract JSON
-            start = content.find("{")
-            end = content.rfind("}") + 1
-            if start >= 0 and end > start:
-                result = json.loads(content[start:end])
-                result.setdefault("total", sum([
-                    result.get("title_appeal", 0),
-                    result.get("emotion_density", 0),
-                    result.get("collection_value", 0),
-                    result.get("interaction_guide", 0),
-                    result.get("xhs_style_match", 0),
-                    result.get("ai_trace", 0),
-                ]))
-                result.setdefault("grade", _calc_grade(result.get("total", 0)))
-                result.setdefault("suggestion", "")
-                return result
-        except Exception as e:
-            if attempt == 2:
-                return _default_score(f"评分失败(attempt {attempt+1}): {e}")
+        for base_url, endpoint_key in endpoints:
+            if not endpoint_key:
+                continue
+            try:
+                resp = requests.post(
+                    f"{base_url}/chat/completions",
+                    headers={"Authorization": f"Bearer {endpoint_key}", "Content-Type": "application/json"},
+                    json=payload,
+                    timeout=60,
+                )
+                if resp.status_code >= 400:
+                    last_error = _format_http_error(resp, base_url)
+                    continue
+                data = resp.json()
+                content = data["choices"][0]["message"]["content"]
+                # Extract JSON
+                start = content.find("{")
+                end = content.rfind("}") + 1
+                if start >= 0 and end > start:
+                    result = json.loads(content[start:end])
+                    result.setdefault("total", sum([
+                        result.get("title_appeal", 0),
+                        result.get("emotion_density", 0),
+                        result.get("collection_value", 0),
+                        result.get("interaction_guide", 0),
+                        result.get("xhs_style_match", 0),
+                        result.get("ai_trace", 0),
+                    ]))
+                    result.setdefault("grade", _calc_grade(result.get("total", 0)))
+                    result.setdefault("suggestion", "")
+                    return result
+                last_error = "评分模型未返回 JSON"
+            except Exception as e:
+                last_error = str(e)
+        if attempt < 2:
             time.sleep(1 * (attempt + 1))
-    return _default_score("未知错误")
+    return _default_score(f"评分失败: {last_error or '未知错误'}")
+
+
+def _score_endpoints(is_qwen):
+    if not is_qwen:
+        base = os.getenv("OPENAI_BASE_URL", "https://open.bigmodel.cn/api/paas/v4").strip().rstrip("/")
+        return [(base, os.getenv("OPENAI_API_KEY", "").strip())]
+
+    api_key = os.getenv("QWEN_API_KEY", "").strip()
+    api_key_intl = os.getenv("QWEN_API_KEY_INTL", "").strip()
+    raw_urls = os.getenv("QWEN_BASE_URLS", "").strip()
+    if raw_urls:
+        base_urls = [u.strip().rstrip("/") for u in raw_urls.split(",") if u.strip()]
+    else:
+        base_urls = []
+        qwen_base = os.getenv("QWEN_BASE_URL", "").strip()
+        if qwen_base:
+            base_urls.append(qwen_base.rstrip("/"))
+        if "https://dashscope.aliyuncs.com/compatible-mode/v1" not in base_urls:
+            base_urls.append("https://dashscope.aliyuncs.com/compatible-mode/v1")
+        if "https://dashscope-intl.aliyuncs.com/compatible-mode/v1" not in base_urls:
+            base_urls.append("https://dashscope-intl.aliyuncs.com/compatible-mode/v1")
+
+    endpoints = []
+    for base_url in base_urls:
+        endpoint_key = api_key_intl if "dashscope-intl" in base_url and api_key_intl else api_key
+        endpoints.append((base_url, endpoint_key))
+    return endpoints
+
+
+def _format_http_error(resp, base_url):
+    detail = ""
+    try:
+        payload = resp.json()
+        err = payload.get("error") or {}
+        code = err.get("code") or err.get("type") or ""
+        message = err.get("message") or ""
+        detail = f"{code}: {message}".strip(": ")
+    except Exception:
+        detail = (resp.text or "")[:300]
+    return f"{base_url} HTTP {resp.status_code}: {detail}"
 
 
 def _calc_grade(total):

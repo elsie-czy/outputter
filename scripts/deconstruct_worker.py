@@ -113,6 +113,17 @@ def _get_task_entry(rid):
     return None
 
 
+def _has_content_brief(analysis):
+    if not isinstance(analysis, dict):
+        return False
+    brief = analysis.get("内容简报")
+    if not isinstance(brief, dict):
+        return False
+    structure = brief.get("图文页结构")
+    titles = brief.get("标题候选")
+    return bool(brief.get("核心痛点") or brief.get("读者收益") or structure or titles)
+
+
 def _log(rid, msg):
     ts = datetime.now().strftime("%H:%M:%S")
     print(f"[{ts}] [{rid}] {msg}")
@@ -265,6 +276,11 @@ def process_one(task, dry=False):
                  or _task_entry0.get("_force_redeconstruct", False))
         cached_main = _check_cache(work) if not force else None
         if cached_main:
+            cached_analysis = normalize_feishu_record(cached_main, source="main")
+            if not _has_content_brief(cached_analysis):
+                _log(rid, "缓存命中但缺少内容简报，继续使用最新分析链路")
+                cached_main = None
+        if cached_main:
             _log(rid, "缓存命中，跳过 LLM 调用，尝试补生成图片")
 
             # 从小红书笔记库获取笔记内容和配图提示词
@@ -297,7 +313,7 @@ def process_one(task, dry=False):
                 xhs_note_dict = {"title": work.get("作品名称", ""), "body": "", "cta": "", "tags": [], "lead": ""}
 
             # 映射为前端可读的 analysis 格式
-            analysis = normalize_feishu_record(cached_main, source="main")
+            analysis = cached_analysis
             images = {}
 
             # 从小红书笔记库获取配图提示词（用于生图）
