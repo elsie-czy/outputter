@@ -21,6 +21,7 @@ from scripts.related_sync import sync_related, update_main_links
 from scripts.validator import validate_required
 from scripts.dedupe import find_by_title_author
 from scripts.image_generator import generate_images_from_prompt, is_image_generation_enabled
+from scripts.source_cleaner import clean_source_synopsis
 
 
 def _extract_name_hint(text):
@@ -68,6 +69,35 @@ def _compact_mobile(text, max_len=56):
     return s[:max_len]
 
 
+_NON_STORY_INTRO_PATTERNS = [
+    "实体书",
+    "出版",
+    "开售",
+    "签名",
+    "围脖",
+    "微博",
+    "有声剧",
+    "喜马拉雅",
+    "详情关注",
+    "限时",
+    "预售",
+    "番外",
+    "作话",
+]
+
+
+def _looks_like_story_intro_line(text):
+    s = str(text or "").strip()
+    if not s:
+        return False
+    if any(p in s for p in _NON_STORY_INTRO_PATTERNS):
+        return False
+    # Avoid list/announcement fragments that carry dates or sales info instead of plot.
+    if re.search(r"\d{4}年|\d+月\d+号|\d+点|第[一二三四五六七八九十\d]+册", s):
+        return False
+    return True
+
+
 def _mobile_lines(text, max_len=36, max_lines=3):
     s = re.sub(r"\s+", " ", str(text or "")).strip()
     if not s:
@@ -75,6 +105,8 @@ def _mobile_lines(text, max_len=36, max_lines=3):
     parts = [x.strip() for x in re.split(r"[。；;！!？?]", s) if x.strip()]
     out = []
     for p in parts:
+        if not _looks_like_story_intro_line(p):
+            continue
         while p and len(p) > max_len and len(out) < max_lines:
             out.append(p[:max_len])
             p = p[max_len:]
@@ -366,7 +398,11 @@ def generate_title_options(work, analysis):
     brief_titles = content_brief.get("标题候选", []) if isinstance(content_brief, dict) else []
     if not isinstance(brief_titles, list):
         brief_titles = [str(brief_titles)] if brief_titles else []
-    brief_titles = [str(t).strip() for t in brief_titles if str(t).strip()]
+    brief_titles = [
+        str(t).strip()
+        for t in brief_titles
+        if str(t).strip() and not any(p in str(t) for p in _BRIEF_UNGROUNDED_PATTERNS)
+    ]
     
     # 提取核心卖点（从开篇套路和冲突设计中提取关键词）
     opening = analysis.get("开篇套路", [""])[0] if analysis.get("开篇套路") else ""
@@ -417,6 +453,66 @@ def generate_title_options(work, analysis):
     return titles
 
 
+_BRIEF_UNGROUNDED_PATTERNS = [
+    "认知脚手架",
+    "反套路写作技巧",
+    "底层逻辑",
+    "新领域",
+    "安静努力",
+    "大声内卷",
+    "可复用",
+    "努力方向感",
+    "错误赛道",
+    "换引擎",
+]
+
+
+def _grounded_brief_value(text, fallback, max_len=120):
+    s = _compact_mobile(text, max_len)
+    if not s:
+        return fallback
+    if any(p in s for p in _BRIEF_UNGROUNDED_PATTERNS):
+        return fallback
+    return s
+
+
+def _safe_content_brief_for_note(work, analysis):
+    content_brief = analysis.get("内容简报", {})
+    if not isinstance(content_brief, dict):
+        content_brief = {}
+
+    name = work.get("作品名称", "") or "这本书"
+    category = work.get("分类", "") or "这个题材"
+    fallback_pain = f"想判断《{name}》值不值得追，但只看标签很难抓住真正看点"
+    fallback_benefit = f"快速看懂《{name}》的人设、冲突和爽点，判断是否适合加入书单"
+
+    safe = dict(content_brief)
+    safe["核心痛点"] = _grounded_brief_value(content_brief.get("核心痛点", ""), fallback_pain)
+    safe["读者收益"] = _grounded_brief_value(content_brief.get("读者收益", ""), fallback_benefit)
+
+    cover_hook = content_brief.get("封面钩子", {})
+    if not isinstance(cover_hook, dict):
+        cover_hook = {}
+    safe_hook = dict(cover_hook)
+    safe_hook["主标题"] = _grounded_brief_value(
+        cover_hook.get("主标题", ""),
+        f"{name}值不值得追",
+        max_len=40,
+    )
+    safe_hook["副标题"] = _grounded_brief_value(
+        cover_hook.get("副标题", ""),
+        f"{category}看点速览",
+        max_len=60,
+    )
+    safe_hook["点击理由"] = _grounded_brief_value(
+        cover_hook.get("点击理由", ""),
+        f"用作品设定和核心冲突判断《{name}》是否合口味",
+        max_len=100,
+    )
+    safe["封面钩子"] = safe_hook
+    return safe
+
+
 def _select_best_title(titles, work):
     """选择最佳标题（优先选择包含作品名的标题）"""
     name = work.get("作品名称", "")
@@ -438,9 +534,7 @@ def get_title_options(work, analysis):
 
 def build_xhs_note(work, analysis, use_formula=True):
     p = analysis["小红书包装"]
-    content_brief = analysis.get("内容简报", {})
-    if not isinstance(content_brief, dict):
-        content_brief = {}
+    content_brief = _safe_content_brief_for_note(work, analysis)
     cover_hook = content_brief.get("封面钩子", {})
     if not isinstance(cover_hook, dict):
         cover_hook = {}
@@ -1064,8 +1158,12 @@ def run():
             if not work.get(k) and search_info.get(k):
                 work[k] = search_info.get(k)
         # 简介优先用搜索到的版本（通常更详细准确）
-        if search_info.get("简介") and len(str(search_info.get("简介"))) > len(str(work.get("简介", ""))):
-            work["简介"] = search_info["简介"]
+        clean_intro = search_info.get("剧情简介") or clean_source_synopsis(search_info.get("简介", "")).get("剧情简介", "")
+        if clean_intro and len(str(clean_intro)) > len(str(work.get("简介", ""))):
+            work["简介"] = clean_intro
+            work["剧情简介"] = clean_intro
+            work["原始简介"] = search_info.get("原始简介") or search_info.get("简介", "")
+            work["非剧情信息"] = search_info.get("非剧情信息", [])
             # 同时标记来源
             if search_info.get("搜索来源链接"):
                 work["简介来源"] = search_info["搜索来源链接"]

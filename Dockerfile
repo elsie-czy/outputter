@@ -7,7 +7,10 @@ WORKDIR /app
 
 # Keep image small and deterministic.
 COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir --upgrade pip && \
+RUN apt-get update && \
+    apt-get install -y --fix-missing --no-install-recommends chromium && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r /app/requirements.txt
 
 # Copy project files.

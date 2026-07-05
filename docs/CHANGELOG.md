@@ -16,6 +16,24 @@
 - 回滚方式：
 - 风险与注意事项：
 
+## 2026-07-05（笔记事实锚定与 HTML 卡片运行时修复）
+- 变更摘要：修复内容简报把泛化方法论写入笔记、公告信息混入“一句话剧情”、Docker HTML 卡片截图缺 Playwright 的问题。
+- 影响范围：主流程 / 模型 / 笔记正文 / HTML 卡片 / Docker / 测试
+- 行为变化：
+  - 新增 `scripts/source_cleaner.py`，在搜索/生产入口把原始简介分层为 `剧情简介`、`非剧情信息`、`原始简介`
+  - `search_work_info()`、`deconstruct_worker.py`、`deconstruct_daily.py` 优先把 `剧情简介` 传入模型，非剧情信息只保留排查，不作为生成事实
+  - 模型 prompt 将 `作品事实` 与 `风格参考笔记` 分离，参考笔记只允许学习结构、语气、节奏，禁止迁移观点、收益承诺和标题语义
+  - 模型提示词明确要求过滤出版、签名、围脖、喜马拉雅、有声剧、番外、作话等非剧情公告信息
+  - `build_xhs_note()` 会过滤不贴作品的泛化成长/方法论表达，如认知脚手架、反套路写作技巧、底层逻辑、努力方向感等
+  - “一句话剧情”只展示剧情型简介片段，避免把公告/促销文本误当剧情
+  - Docker 镜像安装 Playwright 和 Chromium，支持 `IMAGE_GEN_STRATEGY=html_card` 在容器中实际截图
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无；已有运行态任务需重新生成才会应用新过滤逻辑和卡片截图环境
+- 回滚方式：回退 `scripts/source_cleaner.py`、`scripts/search.py`、`scripts/deconstruct_worker.py`、`scripts/deconstruct_daily.py`、`scripts/model_adapter.py`、`requirements.txt`、`Dockerfile`、相关测试和本条记录
+- 风险与注意事项：
+  - Playwright/Chromium 会增加 Docker 镜像构建时间和体积
+  - 已生成的旧任务正文不会自动改写，需要重新生成或重新跑生产任务
+
 ## 2026-06-25（生产链路与卡片策略收口）
 - 变更摘要：收口选题池生图策略、HTML 卡片路径、worker 缓存补图和小红书卡片能力规划文档。
 - 影响范围：主流程 / 生图 / Web / Worker / 文档

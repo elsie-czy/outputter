@@ -5,6 +5,8 @@ HTML 卡片生成模块 —— 替代 AI 生图，用程序化排版输出小红
 import os
 import re
 import json
+import shutil
+import subprocess
 import textwrap
 from pathlib import Path
 from datetime import datetime
@@ -65,9 +67,6 @@ def generate_cards_from_note(
     if errors:
         raise ValueError("card plan invalid: " + "; ".join(errors))
     _write_card_plan(cards, out_dir)
-
-    if not _PLAYWRIGHT_OK:
-        raise RuntimeError("playwright 未安装，请运行：python -m playwright install chromium")
 
     # 2. 渲染 HTML
     html_paths = []
@@ -474,8 +473,11 @@ def _render_html(card: dict, style: str, out_path: Path, total: int):
     out_path.write_text(html, encoding="utf-8")
 
 
-# ── Playwright 截图 ──────────────────────────────────────────────────
+# ── HTML 截图 ────────────────────────────────────────────────────────
 def _screenshot_batch(html_paths: list[str], output_dir: str) -> list[str]:
+    if not _PLAYWRIGHT_OK:
+        return _screenshot_batch_with_chromium_cli(html_paths, output_dir)
+
     png_paths = []
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -500,6 +502,51 @@ def _screenshot_one(browser, html_path: str, output_dir: str) -> str:
     page.screenshot(path=png_path, full_page=False)
     page.close()
     return png_path
+
+
+def _find_chromium_binary() -> str:
+    candidates = [
+        os.getenv("CHROMIUM_BIN", "").strip(),
+        "chromium",
+        "chromium-browser",
+        "google-chrome",
+        "google-chrome-stable",
+    ]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        found = shutil.which(candidate)
+        if found:
+            return found
+    return ""
+
+
+def _screenshot_batch_with_chromium_cli(html_paths: list[str], output_dir: str) -> list[str]:
+    chromium = _find_chromium_binary()
+    if not chromium:
+        raise RuntimeError("未找到 Chromium。请安装系统 chromium，或安装 playwright/chromium。")
+
+    png_paths = []
+    for html_path in html_paths:
+        base = Path(html_path).stem
+        png_path = str(Path(output_dir) / f"{base}.png")
+        cmd = [
+            chromium,
+            "--headless=new",
+            "--no-sandbox",
+            "--disable-gpu",
+            "--hide-scrollbars",
+            "--window-size=1080,1440",
+            f"--screenshot={png_path}",
+            Path(html_path).resolve().as_uri(),
+        ]
+        try:
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30)
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(f"Chromium 截图失败: {exc.stderr.strip() or exc.stdout.strip()}") from exc
+        if os.path.exists(png_path):
+            png_paths.append(png_path)
+    return png_paths
 
 
 # ── 笔记内容解析 ────────────────────────────────────────────────────

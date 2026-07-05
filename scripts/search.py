@@ -6,10 +6,13 @@ from datetime import datetime
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
+from scripts.source_cleaner import clean_source_synopsis
+
 
 def _build_search_info(work, result, source):
     """将抓取结果转换为标准 search_info 字典"""
     desc = str(result.get("desc", "") or "").strip()
+    cleaned = clean_source_synopsis(desc or work.get("简介", ""))
     platform = work.get("平台", "") or result.get("platform", "")
     author = work.get("作者", "") or result.get("author", "")
 
@@ -21,7 +24,10 @@ def _build_search_info(work, result, source):
         "完结状态": result.get("finish", "未知"),
         "搜索时间": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "搜索模式": source,
-        "简介": desc or work.get("简介", ""),
+        "简介": cleaned.get("剧情简介") or desc or work.get("简介", ""),
+        "剧情简介": cleaned.get("剧情简介", ""),
+        "原始简介": cleaned.get("原始简介", desc or work.get("简介", "")),
+        "非剧情信息": cleaned.get("非剧情信息", []),
         "作者": author,
         "作品名称": work.get("作品名称", ""),
         "取向": work.get("取向", ""),
@@ -163,6 +169,8 @@ def search_work_info(work):
             source_tag = result.get("搜索模式", "fanqie")
 
     # 3. 构建最终结果
+    cleaned_work_intro = clean_source_synopsis(work.get("简介", ""))
+    result_intro = result.get("剧情简介") or result.get("简介", "")
     base = {
         "平台": platform or result.get("平台", ""),
         "分类": work.get("分类") or result.get("分类", ""),
@@ -171,7 +179,10 @@ def search_work_info(work):
         "完结状态": result.get("完结状态") or work.get("完结状态", ""),
         "搜索时间": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "搜索模式": source_tag,
-        "简介": result.get("简介") or work.get("简介", ""),
+        "简介": result_intro or cleaned_work_intro.get("剧情简介") or work.get("简介", ""),
+        "剧情简介": result.get("剧情简介") or cleaned_work_intro.get("剧情简介", ""),
+        "原始简介": result.get("原始简介") or cleaned_work_intro.get("原始简介", ""),
+        "非剧情信息": result.get("非剧情信息") or cleaned_work_intro.get("非剧情信息", []),
         "作者": author or result.get("作者", ""),
         "作品名称": name,
         "取向": work.get("取向", ""),
@@ -190,6 +201,7 @@ def search_work_info(work):
 
 def _fallback_info(work):
     """无作品名时直接回退"""
+    cleaned = clean_source_synopsis(work.get("简介", ""))
     return {
         "平台": work.get("平台", ""),
         "分类": work.get("分类", ""),
@@ -198,7 +210,10 @@ def _fallback_info(work):
         "完结状态": work.get("完结状态", ""),
         "搜索时间": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "搜索模式": "off",
-        "简介": work.get("简介", ""),
+        "简介": cleaned.get("剧情简介") or work.get("简介", ""),
+        "剧情简介": cleaned.get("剧情简介", ""),
+        "原始简介": cleaned.get("原始简介", work.get("简介", "")),
+        "非剧情信息": cleaned.get("非剧情信息", []),
         "作者": work.get("作者", ""),
         "作品名称": "",
         "取向": work.get("取向", ""),

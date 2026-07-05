@@ -23,6 +23,7 @@ from scripts.queue_manager import (
 from scripts.quality_scorer import score_note
 from scripts.data_normalizer import normalize_feishu_record, normalize_feishu_value
 from scripts.generation_context import build_generation_context, context_counts
+from scripts.source_cleaner import clean_source_synopsis
 
 # Import from deconstruct_daily
 from scripts.deconstruct_daily import (
@@ -256,8 +257,12 @@ def process_one(task, dry=False):
             if not work.get(k) and search_info.get(k):
                 work[k] = search_info.get(k)
         # 简介优先用搜索到的版本（通常更详细准确）
-        if search_info.get("简介") and len(str(search_info.get("简介"))) > len(str(work.get("简介", ""))):
-            work["简介"] = search_info["简介"]
+        clean_intro = search_info.get("剧情简介") or clean_source_synopsis(search_info.get("简介", "")).get("剧情简介", "")
+        if clean_intro and len(str(clean_intro)) > len(str(work.get("简介", ""))):
+            work["简介"] = clean_intro
+            work["剧情简介"] = clean_intro
+            work["原始简介"] = search_info.get("原始简介") or search_info.get("简介", "")
+            work["非剧情信息"] = search_info.get("非剧情信息", [])
             if search_info.get("搜索来源链接"):
                 work["简介来源"] = search_info["搜索来源链接"]
         
