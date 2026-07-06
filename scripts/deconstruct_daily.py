@@ -283,6 +283,41 @@ def _is_no_female_lead(work, analysis):
     return any(k in text for k in ["纯爱", "无女主", "无（纯爱", "BL", "bl"])
 
 
+def _style_bible_for_image_prompts(scene_text, visual_source):
+    """按作品调性生成整组图片共享的画风说明。"""
+    text = " ".join([str(scene_text or ""), str(visual_source or "")])
+    if any(k in text for k in ["末世", "无限流", "惊悚", "克系", "悬疑", "生存"]):
+        tone = (
+            "Style bible: cinematic dark anime, deep indigo and cold teal palette, "
+            "sharp rim light, tense atmosphere, clean detailed linework, dramatic shadows"
+        )
+    elif any(k in text for k in ["纯爱", "甜宠", "治愈", "糖", "虎牙"]):
+        tone = (
+            "Style bible: warm pastel anime romance, soft peach and lavender palette, "
+            "gentle glow, clean rounded linework, cozy emotional atmosphere"
+        )
+    elif any(k in text for k in ["仙侠", "修真", "古言", "宫廷", "侯门", "江湖"]):
+        tone = (
+            "Style bible: soft historical fantasy anime, jade green and moonlit gold palette, "
+            "flowing robes, elegant linework, misty lantern lighting"
+        )
+    elif any(k in text for k in ["科幻", "星际", "机甲", "未来"]):
+        tone = (
+            "Style bible: sleek sci-fi anime, electric blue and silver palette, "
+            "holographic glow, precise mechanical linework, high-tech lighting"
+        )
+    else:
+        tone = (
+            "Style bible: polished editorial anime illustration, cohesive soft color palette, "
+            "clean linework, gentle cinematic lighting, emotionally readable faces"
+        )
+    return (
+        f"{tone}. Keep the same art style, color palette, character facial features, "
+        "hair shapes, clothing language, line thickness, shading method, and rendering quality "
+        "across all images in this carousel."
+    )
+
+
 def _strip_all_cjk(text):
     """彻底移除文本中所有CJK字符（中日韩），只保留英文/数字/标点"""
     p = str(text or "")
@@ -382,6 +417,7 @@ def _build_image_prompts(work, analysis):
         "determined female protagonist and restrained male lead"
     )
     story_anchors = _join_visual_terms(visual_source, fallback="story-specific emotional symbols", limit=8)
+    style_bible = _style_bible_for_image_prompts(scene_text, visual_source)
     c1 = _join_visual_terms(conflict.get("第一层", ""), visual_source, fallback="high stakes conflict", limit=5)
     c2 = _join_visual_terms(conflict.get("第二层", ""), visual_source, fallback="emotional tension", limit=5)
     c3 = _join_visual_terms(conflict.get("第三层", ""), visual_source, fallback="final confrontation", limit=5)
@@ -394,6 +430,7 @@ def _build_image_prompts(work, analysis):
         f"Era: {era_hint}. "
         f"Main cast: {character_desc}. "
         f"Story anchors: {story_anchors}. "
+        f"{style_bible} "
         "Style must be consistent across all images: anime illustration only. "
         "NOT realistic photo, NOT 3D render, NOT photographic, NOT live-action."
     )

@@ -42,6 +42,9 @@ class ImagePromptBuilderTest(unittest.TestCase):
         self.assertIn("glowing mission interface", joined)
         self.assertIn("small fang smile", joined)
         self.assertIn("candy motif", joined)
+        self.assertIn("warm pastel anime romance", joined)
+        self.assertIn("same art style", joined)
+        self.assertIn("character facial features", joined)
         self.assertIn("NO text", joined)
 
     def test_prompt_has_no_cjk_characters(self):
@@ -56,6 +59,21 @@ class ImagePromptBuilderTest(unittest.TestCase):
 
         self.assertFalse(any("\u4e00" <= ch <= "\u9fff" for ch in joined))
         self.assertIn("mecha cockpit", joined)
+        self.assertIn("sleek sci-fi anime", joined)
+
+    def test_dark_survival_story_uses_cinematic_dark_style_bible(self):
+        work = {"分类": "科幻、末世危机", "简介": "主角在末世建立城市，对抗资源危机和外部入侵。"}
+        analysis = {
+            "人物设定": {"女主": "冷静城主", "男主": "防线指挥官"},
+            "冲突设计": {"第一层": "资源断供", "第二层": "外部入侵", "第三层": "城市存亡"},
+        }
+
+        prompts = _build_image_prompts(work, analysis)
+        joined = "\n".join(prompts)
+
+        self.assertIn("cinematic dark anime", joined)
+        self.assertIn("deep indigo and cold teal palette", joined)
+        self.assertIn("Keep the same art style", joined)
 
     def test_missing_synopsis_gets_required_field_fallback(self):
         work = {
