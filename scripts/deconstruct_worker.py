@@ -23,16 +23,54 @@ from scripts.queue_manager import (
 from scripts.quality_scorer import score_note
 from scripts.data_normalizer import normalize_feishu_record, normalize_feishu_value
 from scripts.generation_context import build_generation_context, context_counts
+from scripts.source_cleaner import clean_source_synopsis
 
 # Import from deconstruct_daily
 from scripts.deconstruct_daily import (
     build_report, build_xhs_note, build_experiment_log, get_title_options,
     sync_to_feishu, sync_xhs_note_table, _build_image_prompts,
+    _ensure_required_synopsis,
 )
 
 
 def _now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _read_image_strategy_config():
+    path = os.path.join(BASE_DIR, "data", "config", "image_strategy.json")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f) or {}
+    except Exception:
+        data = {}
+    return {
+        "strategy": str(data.get("strategy") or os.getenv("IMAGE_GEN_STRATEGY") or "ai").strip().lower(),
+        "style": str(data.get("style") or os.getenv("HTML_CARD_STYLE") or "warm").strip(),
+        "count": int(data.get("count") or os.getenv("HTML_CARD_COUNT") or 3),
+        "provider": str(data.get("provider") or os.getenv("IMAGE_PROVIDER") or "jimeng").strip().lower(),
+    }
+
+
+def _with_image_provider(provider, func, force_enabled=False):
+    provider = str(provider or "").strip().lower()
+    old_provider = os.getenv("IMAGE_PROVIDER")
+    old_enabled = os.getenv("IMAGE_GEN_ENABLED")
+    if provider:
+        os.environ["IMAGE_PROVIDER"] = provider
+    if force_enabled:
+        os.environ["IMAGE_GEN_ENABLED"] = "true"
+    try:
+        return func()
+    finally:
+        if old_enabled is None:
+            os.environ.pop("IMAGE_GEN_ENABLED", None)
+        else:
+            os.environ["IMAGE_GEN_ENABLED"] = old_enabled
+        if old_provider is None:
+            os.environ.pop("IMAGE_PROVIDER", None)
+        else:
+            os.environ["IMAGE_PROVIDER"] = old_provider
 
 
 def _check_xhs_cache(work, need_prompts=True):
@@ -256,14 +294,19 @@ def process_one(task, dry=False):
             if not work.get(k) and search_info.get(k):
                 work[k] = search_info.get(k)
         # 简介优先用搜索到的版本（通常更详细准确）
-        if search_info.get("简介") and len(str(search_info.get("简介"))) > len(str(work.get("简介", ""))):
-            work["简介"] = search_info["简介"]
+        clean_intro = search_info.get("剧情简介") or clean_source_synopsis(search_info.get("简介", "")).get("剧情简介", "")
+        if clean_intro and len(str(clean_intro)) > len(str(work.get("简介", ""))):
+            work["简介"] = clean_intro
+            work["剧情简介"] = clean_intro
+            work["原始简介"] = search_info.get("原始简介") or search_info.get("简介", "")
+            work["非剧情信息"] = search_info.get("非剧情信息", [])
             if search_info.get("搜索来源链接"):
                 work["简介来源"] = search_info["搜索来源链接"]
         
         # 确保必填字段有默认值
         if not work.get("简介"):
-            work["简介"] = ""
+            work["简介"] = _ensure_required_synopsis(work)
+            work["简介来源"] = "fallback_required_field"
 
         if dry:
             _log(rid, "dry=True，跳过模型调用")
@@ -325,10 +368,12 @@ def process_one(task, dry=False):
 
             # 读取每任务策略（优先），否则读全局 .env
             _entry1 = _get_task_entry(rid) or {}
+            _image_config1 = _read_image_strategy_config()
             _task_strategy1 = _entry1.get("image_strategy") or \
-                (os.getenv("IMAGE_GEN_STRATEGY") or "ai").strip().lower()
-            _html_style1 = (os.getenv("HTML_CARD_STYLE") or "warm").strip()
-            _html_count1 = int((os.getenv("HTML_CARD_COUNT") or "3").strip() or "3")
+                _image_config1["strategy"]
+            _html_style1 = _image_config1["style"]
+            _html_count1 = _image_config1["count"]
+            _image_provider1 = _entry1.get("image_provider") or _image_config1["provider"]
 
             if _task_strategy1 in ("html_card", "auto"):
                 # HTML 卡片生图
@@ -345,6 +390,8 @@ def process_one(task, dry=False):
                         n=_html_count1,
                         output_dir=_out_dir,
                         content_brief=analysis.get("内容简报") if isinstance(analysis, dict) else None,
+                        work_info=work,
+                        analysis=analysis,
                     )
                     if _pngs1:
                         images = {"cover": _pngs1[0]}
@@ -359,15 +406,37 @@ def process_one(task, dry=False):
                     _log(rid, f"HTML卡片生成异常: {e}")
                     step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
                     _set_status(rid, "done", images=images, step_times=step_times)
-            elif os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
+            elif _task_strategy1 == "ai":
                 # AI 即梦生图（原有逻辑）
                 try:
                     from scripts.image_provider import generate_images_for_task
                     _set_status(rid, "generating_image")
-                    img_result = generate_images_for_task(cached_xhs)
+                    _log(rid, f"AI图片生成 provider={_image_provider1}")
+                    img_result = _with_image_provider(
+                        _image_provider1,
+                        lambda: generate_images_for_task(cached_xhs),
+                        force_enabled=True,
+                    )
                     if img_result["ok"]:
                         images = img_result["images"]
                         _log(rid, f"图片补生成成功: {list(images.keys())}")
+                        try:
+                            from scripts.html_card_generator import generate_cards_on_images
+                            _overlay_dir = os.path.join("temp", "generated_images", rid, "ai_overlay")
+                            _overlay_count = max(_html_count1, len(images))
+                            images = generate_cards_on_images(
+                                xhs_note_dict,
+                                images,
+                                style=_html_style1,
+                                n=_overlay_count,
+                                output_dir=_overlay_dir,
+                                content_brief=analysis.get("内容简报") if isinstance(analysis, dict) else None,
+                                work_info=work,
+                                analysis=analysis,
+                            )
+                            _log(rid, f"AI图片叠加文字层成功: {len([k for k in images if not k.startswith('raw_')])} 张")
+                        except Exception as overlay_exc:
+                            _log(rid, f"AI图片叠加文字层失败，保留原图: {overlay_exc}")
                     else:
                         _log(rid, f"图片补生成失败: {img_result.get('error','未知')}")
                 except Exception as e:
@@ -502,10 +571,12 @@ def process_one(task, dry=False):
         images = {}
         # 读取每任务策略（优先），否则读全局 .env
         _entry = _get_task_entry(rid) or {}
+        _image_config = _read_image_strategy_config()
         _task_strategy = _entry.get("image_strategy") or \
-            (os.getenv("IMAGE_GEN_STRATEGY") or "ai").strip().lower()
-        _html_style = (os.getenv("HTML_CARD_STYLE") or "warm").strip()
-        _html_count = int((os.getenv("HTML_CARD_COUNT") or "3").strip() or "3")
+            _image_config["strategy"]
+        _html_style = _image_config["style"]
+        _html_count = _image_config["count"]
+        _image_provider = _entry.get("image_provider") or _image_config["provider"]
 
         # 构建 HTML 卡片所需的笔记字典（从 analysis 中提取结构化数据）
         _packaging = analysis.get("小红书包装") or {}
@@ -535,6 +606,8 @@ def process_one(task, dry=False):
                     n=_html_count,
                     output_dir=_out_dir,
                     content_brief=analysis.get("内容简报") if isinstance(analysis, dict) else None,
+                    work_info=work,
+                    analysis=analysis,
                 )
                 if _pngs:
                     images = {"cover": _pngs[0]}
@@ -549,16 +622,38 @@ def process_one(task, dry=False):
                 _log(rid, f"HTML卡片生成异常: {e}")
                 step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
                 _set_status(rid, "done", images=images, step_times=step_times)
-        elif os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
+        elif _task_strategy == "ai":
             t_image = time.perf_counter()
             _log(rid, "开始生成图片...")
             try:
                 from scripts.image_provider import generate_images_for_task
                 _set_status(rid, "generating_image")
-                img_result = generate_images_for_task(analysis)
+                _log(rid, f"AI图片生成 provider={_image_provider}")
+                img_result = _with_image_provider(
+                    _image_provider,
+                    lambda: generate_images_for_task(analysis),
+                    force_enabled=True,
+                )
                 if img_result["ok"]:
                     images = img_result["images"]
                     _log(rid, f"图片生成成功: {list(images.keys())}")
+                    try:
+                        from scripts.html_card_generator import generate_cards_on_images
+                        _overlay_dir = os.path.join("temp", "generated_images", rid, "ai_overlay")
+                        _overlay_count = max(_html_count, len(images))
+                        images = generate_cards_on_images(
+                            _xhs_note_for_card,
+                            images,
+                            style=_html_style,
+                            n=_overlay_count,
+                            output_dir=_overlay_dir,
+                            content_brief=analysis.get("内容简报") if isinstance(analysis, dict) else None,
+                            work_info=work,
+                            analysis=analysis,
+                        )
+                        _log(rid, f"AI图片叠加文字层成功: {len([k for k in images if not k.startswith('raw_')])} 张")
+                    except Exception as overlay_exc:
+                        _log(rid, f"AI图片叠加文字层失败，保留原图: {overlay_exc}")
                 else:
                     _log(rid, f"图片生成失败: {img_result['error']}")
                 step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}

@@ -21,6 +21,7 @@ from scripts.related_sync import sync_related, update_main_links
 from scripts.validator import validate_required
 from scripts.dedupe import find_by_title_author
 from scripts.image_generator import generate_images_from_prompt, is_image_generation_enabled
+from scripts.source_cleaner import clean_source_synopsis
 
 
 def _extract_name_hint(text):
@@ -68,6 +69,66 @@ def _compact_mobile(text, max_len=56):
     return s[:max_len]
 
 
+def _split_packaging_lines(text, max_lines=3, max_len=38):
+    s = str(text or "").strip()
+    if not s:
+        return []
+    raw_lines = []
+    for chunk in re.split(r"[\n\r]+", s):
+        raw_lines.extend([x.strip() for x in re.split(r"[。；;！!？?]", chunk) if x.strip()])
+    lines = []
+    for line in raw_lines:
+        if not line:
+            continue
+        lines.append(_compact_mobile(line, max_len))
+        if len(lines) >= max_lines:
+            break
+    return lines
+
+
+def _sharp_fallback_lead(content_brief, cover_hook, work, p):
+    name = work.get("作品名称", "") or "这本书"
+    category = _compact_mobile(work.get("分类", ""), 18) or "网文"
+    pain = _compact_mobile(content_brief.get("核心痛点", ""), 34)
+    benefit = _compact_mobile(content_brief.get("读者收益", ""), 34)
+    cover_title = _compact_mobile(cover_hook.get("主标题", ""), 18)
+    if pain and benefit:
+        return [f"先说结论：{name}适合书荒党", pain, benefit]
+    if cover_title:
+        return [f"先说结论：{cover_title}", f"{category}读者可以冲", f"看完能判断{name}合不合胃口"]
+    opening = _compact_mobile(p.get("正文开头模板", ""), 34)
+    return [f"先说结论：{name}值得放进书单", opening or f"{category}看点很集中", "先看这3个点再决定追不追"]
+
+
+_NON_STORY_INTRO_PATTERNS = [
+    "实体书",
+    "出版",
+    "开售",
+    "签名",
+    "围脖",
+    "微博",
+    "有声剧",
+    "喜马拉雅",
+    "详情关注",
+    "限时",
+    "预售",
+    "番外",
+    "作话",
+]
+
+
+def _looks_like_story_intro_line(text):
+    s = str(text or "").strip()
+    if not s:
+        return False
+    if any(p in s for p in _NON_STORY_INTRO_PATTERNS):
+        return False
+    # Avoid list/announcement fragments that carry dates or sales info instead of plot.
+    if re.search(r"\d{4}年|\d+月\d+号|\d+点|第[一二三四五六七八九十\d]+册", s):
+        return False
+    return True
+
+
 def _mobile_lines(text, max_len=36, max_lines=3):
     s = re.sub(r"\s+", " ", str(text or "")).strip()
     if not s:
@@ -75,6 +136,8 @@ def _mobile_lines(text, max_len=36, max_lines=3):
     parts = [x.strip() for x in re.split(r"[。；;！!？?]", s) if x.strip()]
     out = []
     for p in parts:
+        if not _looks_like_story_intro_line(p):
+            continue
         while p and len(p) > max_len and len(out) < max_lines:
             out.append(p[:max_len])
             p = p[max_len:]
@@ -172,15 +235,118 @@ def _extract_keywords(texts, limit=8):
     return out
 
 
-def _chinese_to_english_desc(text):
-    """将中文片段替换为英文视觉描述占位符，避免图片模型渲染中文文字"""
-    s = str(text or "").strip()
-    if not s:
-        return ""
-    chinese_chars = sum(1 for c in s if '\u4e00' <= c <= '\u9fff')
-    if chinese_chars >= len(s) * 0.5:
-        return "[visual scene description]"
-    return s
+def _visual_terms_from_text(text, limit=8):
+    """把中文作品事实转成英文视觉锚点，避免把中文原文直接送进图片模型。"""
+    raw = str(text or "")
+    rules = [
+        ("快穿", "quick transmigration arcs"),
+        ("系统", "glowing mission interface"),
+        ("纯爱", "boys love romance"),
+        ("虎牙", "small fang smile"),
+        ("糖", "candy motif"),
+        ("投喂", "gentle feeding gesture"),
+        ("亲亲", "tender near-kiss tension"),
+        ("情感障碍", "reserved protagonist learning affection"),
+        ("错过", "bittersweet missed-years mood"),
+        ("十年", "long regret atmosphere"),
+        ("技术", "clean tech workspace"),
+        ("大佬", "confident genius aura"),
+        ("计划", "strategic mastermind feeling"),
+        ("现实", "real world bedroom"),
+        ("虚拟", "virtual world glow"),
+        ("小说", "story-world portal"),
+        ("重生", "second chance turning point"),
+        ("穿越", "time travel portal"),
+        ("无限流", "survival game arena"),
+        ("惊悚", "eerie suspense lighting"),
+        ("克系", "cosmic horror atmosphere"),
+        ("游戏", "dangerous game space"),
+        ("仙侠", "ancient fantasy cultivation world"),
+        ("修真", "cultivation sect courtyard"),
+        ("古言", "ancient palace courtyard"),
+        ("宫廷", "palace intrigue setting"),
+        ("侯门", "noble household setting"),
+        ("江湖", "martial arts riverside inn"),
+        ("科幻", "futuristic sci-fi city"),
+        ("星际", "space academy hangar"),
+        ("机甲", "mecha cockpit"),
+        ("末世", "post-apocalyptic street"),
+        ("甜宠", "warm romantic sweetness"),
+        ("虐心", "bittersweet emotional tension"),
+        ("治愈", "soft healing atmosphere"),
+        ("爽文", "high-energy triumph mood"),
+        ("群像", "ensemble cast composition"),
+        ("女主", "determined female protagonist"),
+        ("男主", "male protagonist"),
+        ("无女主", "no female lead"),
+        ("无（纯爱", "no female lead"),
+    ]
+    terms = []
+    for key, value in rules:
+        if key in raw and value not in terms:
+            terms.append(value)
+        if len(terms) >= limit:
+            break
+    return terms
+
+
+def _join_visual_terms(*texts, fallback="", limit=8):
+    terms = []
+    for text in texts:
+        for term in _visual_terms_from_text(text, limit=limit):
+            if term not in terms:
+                terms.append(term)
+            if len(terms) >= limit:
+                break
+        if len(terms) >= limit:
+            break
+    if not terms and fallback:
+        return fallback
+    return ", ".join(terms)
+
+
+def _is_no_female_lead(work, analysis):
+    text = " ".join([
+        str(work.get("分类", "") or ""),
+        str(work.get("取向", "") or ""),
+        str((analysis.get("人物设定") or {}).get("女主", "") or ""),
+    ])
+    return any(k in text for k in ["纯爱", "无女主", "无（纯爱", "BL", "bl"])
+
+
+def _style_bible_for_image_prompts(scene_text, visual_source):
+    """按作品调性生成整组图片共享的画风说明。"""
+    text = " ".join([str(scene_text or ""), str(visual_source or "")])
+    if any(k in text for k in ["末世", "无限流", "惊悚", "克系", "悬疑", "生存"]):
+        tone = (
+            "Style bible: cinematic dark anime, deep indigo and cold teal palette, "
+            "sharp rim light, tense atmosphere, clean detailed linework, dramatic shadows"
+        )
+    elif any(k in text for k in ["纯爱", "甜宠", "治愈", "糖", "虎牙"]):
+        tone = (
+            "Style bible: warm pastel anime romance, soft peach and lavender palette, "
+            "gentle glow, clean rounded linework, cozy emotional atmosphere"
+        )
+    elif any(k in text for k in ["仙侠", "修真", "古言", "宫廷", "侯门", "江湖"]):
+        tone = (
+            "Style bible: soft historical fantasy anime, jade green and moonlit gold palette, "
+            "flowing robes, elegant linework, misty lantern lighting"
+        )
+    elif any(k in text for k in ["科幻", "星际", "机甲", "未来"]):
+        tone = (
+            "Style bible: sleek sci-fi anime, electric blue and silver palette, "
+            "holographic glow, precise mechanical linework, high-tech lighting"
+        )
+    else:
+        tone = (
+            "Style bible: polished editorial anime illustration, cohesive soft color palette, "
+            "clean linework, gentle cinematic lighting, emotionally readable faces"
+        )
+    return (
+        f"{tone}. Keep the same art style, color palette, character facial features, "
+        "hair shapes, clothing language, line thickness, shading method, and rendering quality "
+        "across all images in this carousel."
+    )
 
 
 def _strip_all_cjk(text):
@@ -201,7 +367,7 @@ def _sanitize_prompt_for_image_gen(prompt):
     """
     p = str(prompt or "")
     # 第一步：移除引号包裹的内容（用原始字符串避免转义问题）
-    quote_pattern = r'["\u201c\u201d\u300c\u300d\[\]''\u300a\u300b][^"\[\]''\u300a\u300b]{0,80}[["'']\u3001\u3002]'
+    quote_pattern = r'["“”「」『』《》][^"“”「」『』《》]{0,80}["“”「」『』《》]'
     p = re.sub(quote_pattern, "", p)
     # 第二步：彻底移除所有CJK字符——这是消除图片上文字的关键
     p = _strip_all_cjk(p)
@@ -222,28 +388,70 @@ def _sanitize_prompt_for_image_gen(prompt):
     return p.strip()
 
 
+def _ensure_required_synopsis(work):
+    """为飞书主表必填的简介字段提供最小可用兜底。"""
+    intro = str(work.get("简介") or work.get("剧情简介") or "").strip()
+    if intro:
+        return intro
+
+    name = str(work.get("作品名称") or "该作品").strip()
+    author = str(work.get("作者") or "").strip()
+    category = str(work.get("分类") or "").strip()
+    platform = str(work.get("平台") or "").strip()
+    parts = [f"《{name}》"]
+    if author:
+        parts.append(f"作者为{author}")
+    if category:
+        parts.append(f"分类为{category}")
+    if platform:
+        parts.append(f"来源平台为{platform}")
+    base = "，".join(parts)
+    return f"{base}。当前选题池未提供详细简介，先以作品名、作者、分类和平台信息作为拆解基础；后续可补充正式简介以提升内容准确度。"
+
+
 
 
 def _build_image_prompts(work, analysis):
     category = str(work.get("分类", "") or "")
-    intro = str(work.get("简介", "") or "")
-    lead_name = _extract_lead_name_from_intro(intro)
-    # 角色描述：中文转英文占位符，避免图片模型渲染中文
-    heroine_desc = _chinese_to_english_desc(lead_name or analysis.get("人物设定", {}).get("女主", "") or "") or "calm and determined woman"
-    hero_desc = _chinese_to_english_desc(analysis.get("人物设定", {}).get("男主", "") or "") or "cold and restrained man"
-    support_desc = _chinese_to_english_desc(analysis.get("人物设定", {}).get("亮点配角", "") or "") or "key trigger character"
+    intro = _ensure_required_synopsis(work)
+    characters = analysis.get("人物设定", {}) or {}
+    packaging = analysis.get("小红书包装", {}) or {}
+    brief = analysis.get("内容简报", {}) or {}
     conflict = analysis.get("冲突设计", {})
+    cover_hook = brief.get("封面钩子", {}) if isinstance(brief, dict) else {}
+
+    visual_source = " ".join([
+        category,
+        intro,
+        str(characters),
+        str(conflict),
+        str(packaging.get("封面图描述建议", "")),
+        str(brief.get("图文页结构", "") if isinstance(brief, dict) else ""),
+        str(brief.get("证据素材", "") if isinstance(brief, dict) else ""),
+        str(cover_hook),
+    ])
 
     scene_text = " ".join([category, intro])
     is_action_genre = any(k in scene_text for k in ["仙侠", "玄幻", "悬疑", "科幻", "末世", "无限流", "战斗"])
     is_ancient = any(k in scene_text for k in ["仙侠", "修真", "古代", "宫廷", "侯门", "朝堂", "江湖"])
+    no_female_lead = _is_no_female_lead(work, analysis)
     era_hint = "ancient fantasy era" if is_ancient else "modern era"
-    world_hint = "ancient architecture, layered silk robes, moonlight and lantern lighting" if is_ancient else "urban interior and night city lighting"
+    world_hint = (
+        "ancient architecture, layered silk robes, moonlight and lantern lighting"
+        if is_ancient else
+        _join_visual_terms(visual_source, fallback="urban interior and night city lighting", limit=5)
+    )
 
-    # 冲突描述也用英文替代
-    c1 = _chinese_to_english_desc(conflict.get("第一层", "")) or "high stakes conflict"
-    c2 = _chinese_to_english_desc(conflict.get("第二层", "")) or "emotional tension"
-    c3 = _chinese_to_english_desc(conflict.get("第三层", "")) or "final confrontation"
+    character_desc = (
+        "two male leads, one reserved protagonist, one warm strategic genius"
+        if no_female_lead else
+        "determined female protagonist and restrained male lead"
+    )
+    story_anchors = _join_visual_terms(visual_source, fallback="story-specific emotional symbols", limit=8)
+    style_bible = _style_bible_for_image_prompts(scene_text, visual_source)
+    c1 = _join_visual_terms(conflict.get("第一层", ""), visual_source, fallback="high stakes conflict", limit=5)
+    c2 = _join_visual_terms(conflict.get("第二层", ""), visual_source, fallback="emotional tension", limit=5)
+    c3 = _join_visual_terms(conflict.get("第三层", ""), visual_source, fallback="final confrontation", limit=5)
 
     # 统一风格前缀：明确的 anime/manga 插画风格，排除写实照片风
     # 关键：所有prompt只包含英文，不含任何CJK字符
@@ -251,15 +459,16 @@ def _build_image_prompts(work, analysis):
         "anime manga illustration style, 2D cel-shaded art, Japanese anime aesthetic. "
         "Vertical 3:4 composition, vibrant colors, soft shading. "
         f"Era: {era_hint}. "
-        f"Female lead: {heroine_desc}. "
-        f"Male lead: {hero_desc}. "
+        f"Main cast: {character_desc}. "
+        f"Story anchors: {story_anchors}. "
+        f"{style_bible} "
         "Style must be consistent across all images: anime illustration only. "
         "NOT realistic photo, NOT 3D render, NOT photographic, NOT live-action."
     )
 
     p1 = (
-        f"{anchor} Cover shot: female lead half-body close-up portrait, low angle camera, "
-        f"foreground blur, dramatic side-lighting, emotional expression showing {c1}."
+        f"{anchor} Cover shot: main character half-body close-up portrait, low angle camera, "
+        f"foreground blur, dramatic side-lighting, visual symbols: {c1}."
     )
     p2 = (
         f"{anchor} Worldbuilding shot: wide environmental scene, {world_hint}, "
@@ -267,27 +476,27 @@ def _build_image_prompts(work, analysis):
     )
     if is_action_genre:
         p3 = (
-            f"{anchor} Action shot: female lead in dynamic pose, male lead in background, "
+            f"{anchor} Action shot: protagonist in dynamic pose, love interest in background, "
             f"motion lines, hard split lighting, intense moment of {c1}."
         )
         p4 = (
-            f"{anchor} Emotional duel: female lead and male lead face-to-face, "
+            f"{anchor} Emotional duel: protagonist and love interest face-to-face, "
             f"eye-level medium shot, rain atmosphere, volumetric light, {c3}."
         )
     else:
         p3 = (
-            f"{anchor} Relationship shot: female lead and male lead together but distant, "
+            f"{anchor} Relationship shot: protagonist and love interest together but distant, "
             f"medium shot, warm indoor lighting, quiet daily-life moment hinting {c1}."
         )
         p4 = (
-            f"{anchor} Emotional close-up: female lead alone near window, "
+            f"{anchor} Emotional close-up: protagonist alone near window, "
             f"soft bokeh, gentle light on face, inner emotion of {c3}."
         )
     p5 = (
-        f"{anchor} Group ending: female lead with allies, emotional release, "
+        f"{anchor} Group ending: protagonist with allies, emotional release, "
         "morning warm light, shallow depth of field, particles in air."
     )
-    return [p1, p2, p3, p4, p5]
+    return [_sanitize_prompt_for_image_gen(p) for p in [p1, p2, p3, p4, p5]]
 
 
 
@@ -366,7 +575,11 @@ def generate_title_options(work, analysis):
     brief_titles = content_brief.get("标题候选", []) if isinstance(content_brief, dict) else []
     if not isinstance(brief_titles, list):
         brief_titles = [str(brief_titles)] if brief_titles else []
-    brief_titles = [str(t).strip() for t in brief_titles if str(t).strip()]
+    brief_titles = [
+        str(t).strip()
+        for t in brief_titles
+        if str(t).strip() and not any(p in str(t) for p in _BRIEF_UNGROUNDED_PATTERNS)
+    ]
     
     # 提取核心卖点（从开篇套路和冲突设计中提取关键词）
     opening = analysis.get("开篇套路", [""])[0] if analysis.get("开篇套路") else ""
@@ -387,26 +600,26 @@ def generate_title_options(work, analysis):
         if t not in titles:
             titles.append(t)
     
-    # 公式1：痛点+解决方案
+    # 公式1：痛点型
     if pain_point:
-        titles.append(f"{pain_point}？这本{category}把答案写透了")
+        titles.append(f"{pain_point}？这本{category}给答案")
     else:
-        titles.append(f"追{category}总踩雷？这本真的不一样")
+        titles.append(f"追{category}总踩雷？先看这本")
     
-    # 公式2：提问式
-    titles.append(f"有没有那种看完就走不出来的{category}？")
+    # 公式2：爽点型
+    titles.append(f"这本{category}爽点太密了")
     
-    # 公式3：发现式
+    # 公式3：反差型
     if hook:
-        titles.append(f"我发现了个宝藏！{hook}的{category}")
+        titles.append(f"{hook}，居然写成了爽文")
     else:
-        titles.append(f"我发现了个宝藏！{name}真的绝了")
+        titles.append(f"{name}不是噱头是真上头")
     
-    # 公式4：热点词
-    titles.append(f"刷到就是赚到！这本{category}我连刷了三遍")
+    # 公式4：搜索长尾型
+    titles.append(f"书荒必看{category}推荐")
     
-    # 公式5：身份共鸣
-    titles.append(f"{category}党必备！{name}把{emotion}拉满了")
+    # 公式5：互动求投喂型
+    titles.append(f"{category}党求投喂同款")
     
     # 使用原有标题模板（如果有）
     original_title = p.get("小红书标题模板", "")
@@ -414,16 +627,84 @@ def generate_title_options(work, analysis):
         insert_at = len(brief_titles)
         titles.insert(insert_at, original_title)
     
-    return titles
+    return [_compact_mobile(t, 24) for t in titles]
+
+
+_BRIEF_UNGROUNDED_PATTERNS = [
+    "认知脚手架",
+    "反套路写作技巧",
+    "底层逻辑",
+    "新领域",
+    "安静努力",
+    "大声内卷",
+    "可复用",
+    "努力方向感",
+    "错误赛道",
+    "换引擎",
+]
+
+
+def _grounded_brief_value(text, fallback, max_len=120):
+    s = _compact_mobile(text, max_len)
+    if not s:
+        return fallback
+    if any(p in s for p in _BRIEF_UNGROUNDED_PATTERNS):
+        return fallback
+    return s
+
+
+def _safe_content_brief_for_note(work, analysis):
+    content_brief = analysis.get("内容简报", {})
+    if not isinstance(content_brief, dict):
+        content_brief = {}
+
+    name = work.get("作品名称", "") or "这本书"
+    category = work.get("分类", "") or "这个题材"
+    fallback_pain = f"想判断《{name}》值不值得追，但只看标签很难抓住真正看点"
+    fallback_benefit = f"快速看懂《{name}》的人设、冲突和爽点，判断是否适合加入书单"
+
+    safe = dict(content_brief)
+    safe["核心痛点"] = _grounded_brief_value(content_brief.get("核心痛点", ""), fallback_pain)
+    safe["读者收益"] = _grounded_brief_value(content_brief.get("读者收益", ""), fallback_benefit)
+
+    cover_hook = content_brief.get("封面钩子", {})
+    if not isinstance(cover_hook, dict):
+        cover_hook = {}
+    safe_hook = dict(cover_hook)
+    safe_hook["主标题"] = _grounded_brief_value(
+        cover_hook.get("主标题", ""),
+        f"{name}值不值得追",
+        max_len=16,
+    )
+    safe_hook["副标题"] = _grounded_brief_value(
+        cover_hook.get("副标题", ""),
+        f"{category}看点速览",
+        max_len=24,
+    )
+    safe_hook["点击理由"] = _grounded_brief_value(
+        cover_hook.get("点击理由", ""),
+        f"用作品设定和核心冲突判断《{name}》是否合口味",
+        max_len=100,
+    )
+    safe["封面钩子"] = safe_hook
+    return safe
 
 
 def _select_best_title(titles, work):
-    """选择最佳标题（优先选择包含作品名的标题）"""
+    """选择最佳标题：优先短、具体、带作品或题材信号。"""
     name = work.get("作品名称", "")
-    for t in titles:
-        if name and name in t:
+    category = work.get("分类", "")
+    cleaned = [_compact_mobile(t, 24) for t in titles if str(t).strip()]
+    for t in cleaned:
+        if name and name in t and len(t) <= 24:
             return t
-    return titles[0] if titles else ""
+    for t in cleaned:
+        if category and category in t and len(t) <= 22:
+            return t
+    for t in cleaned:
+        if len(t) <= 20:
+            return t
+    return cleaned[0] if cleaned else ""
 
 
 def get_title_options(work, analysis):
@@ -438,9 +719,7 @@ def get_title_options(work, analysis):
 
 def build_xhs_note(work, analysis, use_formula=True):
     p = analysis["小红书包装"]
-    content_brief = analysis.get("内容简报", {})
-    if not isinstance(content_brief, dict):
-        content_brief = {}
+    content_brief = _safe_content_brief_for_note(work, analysis)
     cover_hook = content_brief.get("封面钩子", {})
     if not isinstance(cover_hook, dict):
         cover_hook = {}
@@ -462,24 +741,13 @@ def build_xhs_note(work, analysis, use_formula=True):
         lines.append(f"【标题】{p.get('小红书标题模板', '')}")
     lines.append("")
     
-    # 痛点共鸣开头（参考xhs-writer-skill方法论）
-    lines.append("姐妹们我先说结论👇")
-    pain = _compact_mobile(content_brief.get("核心痛点", ""), 120)
-    benefit = _compact_mobile(content_brief.get("读者收益", ""), 120)
-    hook_bits = [
-        _compact_mobile(cover_hook.get("主标题", ""), 40),
-        _compact_mobile(cover_hook.get("副标题", ""), 60),
-        _compact_mobile(cover_hook.get("点击理由", ""), 100),
-    ]
-    hook_text = _compact_mobile("｜".join([h for h in hook_bits if h]), 140)
-    if pain:
-        lines.append(f"✨ {pain}")
-    else:
-        lines.append(f"✨ {_compact_mobile(p.get('正文开头模板', ''), 120)}")
-    if benefit:
-        lines.append(f"✅ {benefit}")
-    if hook_text:
-        lines.append(f"🎯 {hook_text}")
+    # 前三行先给结论，避免先铺剧情导致滑走。
+    lines.append("先说结论👇")
+    lead_lines = _split_packaging_lines(p.get("正文开头模板", ""), max_lines=3, max_len=38)
+    if len(lead_lines) < 3:
+        lead_lines = _sharp_fallback_lead(content_brief, cover_hook, work, p)
+    for marker, text in zip(["✅", "🔥", "📌"], lead_lines[:3]):
+        lines.append(f"{marker} {text}")
     lines.append("")
     
     # 情绪钩子（从 analysis 情绪词动态生成）
@@ -592,8 +860,14 @@ def build_xhs_note(work, analysis, use_formula=True):
     
     # CTA行动号召（参考xhs-writer-skill：点赞/收藏/关注）
     lines.append("👇 你来选")
-    lines.append(_compact_mobile(p.get("互动话术模板", "你最吃哪类开篇？评论区告诉我"), 120))
-    lines.append("我也想抄你们的书单，评论区互相投喂！")
+    cta = _compact_mobile(p.get("互动话术模板", ""), 46)
+    if not cta or any(x in cta for x in ["欢迎评论", "聊聊", "评论区告诉我"]):
+        category = _compact_mobile(work.get("分类", ""), 16) or "同款"
+        cta = f"你更吃人设拉扯，还是剧情反转？"
+        if category:
+            cta = f"{category}里你最想被投喂哪本？"
+    lines.append(cta)
+    lines.append("我会从评论区挑书继续拆。")
     lines.append("")
     
     # 增加收藏引导
@@ -1064,8 +1338,12 @@ def run():
             if not work.get(k) and search_info.get(k):
                 work[k] = search_info.get(k)
         # 简介优先用搜索到的版本（通常更详细准确）
-        if search_info.get("简介") and len(str(search_info.get("简介"))) > len(str(work.get("简介", ""))):
-            work["简介"] = search_info["简介"]
+        clean_intro = search_info.get("剧情简介") or clean_source_synopsis(search_info.get("简介", "")).get("剧情简介", "")
+        if clean_intro and len(str(clean_intro)) > len(str(work.get("简介", ""))):
+            work["简介"] = clean_intro
+            work["剧情简介"] = clean_intro
+            work["原始简介"] = search_info.get("原始简介") or search_info.get("简介", "")
+            work["非剧情信息"] = search_info.get("非剧情信息", [])
             # 同时标记来源
             if search_info.get("搜索来源链接"):
                 work["简介来源"] = search_info["搜索来源链接"]

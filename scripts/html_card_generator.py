@@ -5,6 +5,8 @@ HTML 卡片生成模块 —— 替代 AI 生图，用程序化排版输出小红
 import os
 import re
 import json
+import shutil
+import subprocess
 import textwrap
 from pathlib import Path
 from datetime import datetime
@@ -16,6 +18,7 @@ try:
     from playwright.sync_api import sync_playwright
     _PLAYWRIGHT_OK = True
 except Exception:
+    sync_playwright = None
     _PLAYWRIGHT_OK = False
 
 # ── 路径 ──────────────────────────────────────────────────────────────
@@ -40,6 +43,8 @@ def generate_cards_from_note(
     n: int = 3,
     output_dir: str = None,
     content_brief: dict = None,
+    work_info: dict = None,
+    analysis: dict = None,
 ) -> list[str]:
     """
     从拆解笔记内容生成 HTML 卡片并截图。
@@ -50,6 +55,8 @@ def generate_cards_from_note(
     :param n: 期望生成图片张数（会根据内容自动调整）
     :param output_dir: PNG 输出目录，默认 temp/html_cards/
     :param content_brief: 可选内容简报，优先按 图文页结构 规划卡片
+    :param work_info: 可选作品元信息，含 作品名称/作者/平台/分类
+    :param analysis: 可选完整拆解结果，用于作品笔记固定页结构
     :return: [png_path, ...]
     """
     # style="auto" → 根据内容自动匹配
@@ -60,14 +67,18 @@ def generate_cards_from_note(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. 规划卡片结构
-    cards = _plan_cards(note_content, style, n, content_brief=content_brief)
+    cards = _plan_cards(
+        note_content,
+        style,
+        n,
+        content_brief=content_brief,
+        work_info=work_info,
+        analysis=analysis,
+    )
     errors = _validate_cards(cards)
     if errors:
         raise ValueError("card plan invalid: " + "; ".join(errors))
     _write_card_plan(cards, out_dir)
-
-    if not _PLAYWRIGHT_OK:
-        raise RuntimeError("playwright 未安装，请运行：python -m playwright install chromium")
 
     # 2. 渲染 HTML
     html_paths = []
@@ -82,12 +93,82 @@ def generate_cards_from_note(
     return png_paths
 
 
+def generate_cards_on_images(
+    note_content: dict,
+    base_images: dict,
+    style: str = "auto",
+    n: int = 5,
+    output_dir: str = None,
+    content_brief: dict = None,
+    work_info: dict = None,
+    analysis: dict = None,
+) -> dict:
+    """
+    将 AI 生成的底图作为素材，叠加同一套图文卡片规则后导出。
+    返回 {"cover": "...", "scene1": "...", "raw_cover": "..."}。
+    """
+    if style == "auto":
+        style = auto_match_style(note_content)
+    if style != "warm":
+        style = "warm"
+
+    out_dir = Path(output_dir) if output_dir else OUTPUT_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    cards = _plan_cards(
+        note_content,
+        style,
+        n,
+        content_brief=content_brief,
+        work_info=work_info,
+        analysis=analysis,
+    )
+    backgrounds = _ordered_image_paths(base_images)
+    for idx, card in enumerate(cards):
+        if idx < len(backgrounds):
+            card["background_image"] = _background_uri(backgrounds[idx])
+            card["image_backed"] = True
+            _compact_card_for_image_overlay(card)
+
+    errors = _validate_cards(cards)
+    if errors:
+        raise ValueError("card plan invalid: " + "; ".join(errors))
+    _write_card_plan(cards, out_dir)
+
+    html_paths = []
+    for i, card in enumerate(cards):
+        html_path = out_dir / f"xhs_ai_card_{i+1:02d}.html"
+        _render_html(card, style, html_path, len(cards))
+        html_paths.append(str(html_path))
+    png_paths = _screenshot_batch(html_paths, str(out_dir))
+
+    images = {}
+    if png_paths:
+        images["cover"] = png_paths[0]
+        for idx, path in enumerate(png_paths[1:], 1):
+            images[f"scene{idx}"] = path
+    for key, path in (base_images or {}).items():
+        images[f"raw_{key}"] = path
+    return images
+
+
 # ── 卡片规划 ─────────────────────────────────────────────────────────
-def _plan_cards(note: dict, style: str, n: int, content_brief: dict = None) -> list[dict]:
+def _plan_cards(
+    note: dict,
+    style: str,
+    n: int,
+    content_brief: dict = None,
+    work_info: dict = None,
+    analysis: dict = None,
+) -> list[dict]:
     """
     将笔记内容拆分为多张卡片数据。
     返回 [{"card_type":"cover", ...}, {"card_type":"content", ...}, ...]
     """
+    work_cards = _plan_work_note_cards(note, style, n, work_info=work_info, analysis=analysis)
+    if work_cards:
+        return work_cards
+
     if isinstance(content_brief, dict) and content_brief.get("图文页结构"):
         brief_cards = _plan_cards_from_brief(note, style, n, content_brief)
         if brief_cards:
@@ -146,6 +227,131 @@ def _plan_cards(note: dict, style: str, n: int, content_brief: dict = None) -> l
     return cards
 
 
+def _plan_work_note_cards(note: dict, style: str, n: int, work_info: dict = None, analysis: dict = None) -> list[dict]:
+    """
+    作品拆解专用卡片结构：
+    1 封面：笔记标题 + 作品名 + 作者 + 介绍内容
+    2 基本信息：书名 / 作者 / 关键词 / 标签
+    3-5 内容：经典金句、经典场景、核心看点
+    """
+    work_info = work_info if isinstance(work_info, dict) else {}
+    analysis = analysis if isinstance(analysis, dict) else {}
+    work_name = _first_text(work_info.get("作品名称"), work_info.get("work_name"), analysis.get("作品名称"))
+    author = _first_text(work_info.get("作者"), work_info.get("author"), analysis.get("作者"))
+    if not (work_name or author or analysis):
+        return []
+
+    packaging = analysis.get("小红书包装") if isinstance(analysis.get("小红书包装"), dict) else {}
+    content_brief = analysis.get("内容简报") if isinstance(analysis.get("内容简报"), dict) else {}
+    cover_hook = content_brief.get("封面钩子") if isinstance(content_brief.get("封面钩子"), dict) else {}
+    title = _first_text(
+        cover_hook.get("主标题"),
+        note.get("title"),
+        packaging.get("小红书标题模板"),
+        f"{work_name} 读完想立刻安利" if work_name else "这本书值得一看",
+    )
+    tags = _as_clean_list(note.get("tags") or packaging.get("热门标签推荐") or analysis.get("分类") or work_info.get("分类"))
+    keywords = _work_keywords(work_info, analysis, packaging)
+    intro = _first_text(
+        packaging.get("正文开头模板"),
+        packaging.get("封面图描述建议"),
+        analysis.get("简介"),
+        note.get("lead"),
+        note.get("body"),
+    )
+    count = max(3, min(int(n or 5), 5))
+    total = count
+    cards = [
+        {
+            "card_type": "cover",
+            "plan_source": "work_note_rules",
+            "title": _cover_billboard_text(title, 16),
+            "work_name": work_name,
+            "author": author,
+            "cover_desc": _cover_billboard_text(
+                _first_text(cover_hook.get("副标题"), intro),
+                24,
+            ),
+            "subtitle": _cover_billboard_text(
+                _first_text(cover_hook.get("副标题"), _join_parts([work_name, f"作者：{author}" if author else ""], " · ")),
+                28,
+            ),
+            "message": intro[:160] or title,
+            "category": _pick_category(tags),
+            "decoration_emoji": _pick_emoji(tags, style),
+            "page_num": "01",
+            "total_pages": f"{total:02d}",
+        },
+        {
+            "card_type": "content",
+            "plan_source": "work_note_rules",
+            "page_role": "basic_info",
+            "section_tag": "作品速览",
+            "section_title": "先看基本信息",
+            "message": _join_parts([work_name, author, " / ".join(keywords[:4])], " / "),
+            "points": [
+                {"emoji": "📚", "text": f"书名：{work_name or '未填写'}"},
+                {"emoji": "✍️", "text": f"作者：{author or '未填写'}"},
+                {"emoji": "🏷️", "text": f"关键词：{' / '.join(keywords[:5]) or '好书推荐'}"},
+            ],
+            "page_num": "02",
+            "total_pages": f"{total:02d}",
+        },
+    ]
+
+    topic_cards = _work_topic_cards(analysis, note, tags, total)
+    cards.extend(topic_cards[: max(1, total - 2)])
+    while len(cards) < total:
+        cards.append(_fallback_work_card(note, analysis, len(cards) + 1, total))
+    cards = cards[:total]
+    for idx, card in enumerate(cards, start=1):
+        card["page_num"] = f"{idx:02d}"
+        card["total_pages"] = f"{total:02d}"
+    return cards
+
+
+def _work_topic_cards(analysis: dict, note: dict, tags: list[str], total: int) -> list[dict]:
+    quotes = _extract_quotes(analysis)
+    scenes = _extract_scenes(analysis)
+    highlights = _extract_highlights(analysis, note)
+    cards = []
+    for quote in quotes[:3]:
+        if not quote:
+            continue
+        cards.append({
+            "card_type": "content",
+            "plan_source": "work_note_rules",
+            "page_role": "quote",
+            "section_tag": "经典金句",
+            "section_title": "一句封神",
+            "message": quote[:86],
+            "points": [{"emoji": "💬", "text": quote[:86]}],
+            "page_num": f"{len(cards) + 3:02d}",
+            "total_pages": f"{total:02d}",
+        })
+
+    specs = [
+        ("经典场景", "名场面速记", "scene", scenes, "🎬"),
+        ("推荐理由", "为什么值得看", "highlight", highlights, "✨"),
+    ]
+    for tag, title, role, items, emoji in specs:
+        points = [{"emoji": emoji, "text": text[:86]} for text in items[:3] if text]
+        if not points:
+            continue
+        cards.append({
+            "card_type": "content",
+            "plan_source": "work_note_rules",
+            "page_role": role,
+            "section_tag": tag,
+            "section_title": title,
+            "message": _points_to_message(points),
+            "points": points,
+            "page_num": f"{len(cards) + 3:02d}",
+            "total_pages": f"{total:02d}",
+        })
+    return cards
+
+
 def _plan_cards_from_brief(note: dict, style: str, n: int, content_brief: dict) -> list[dict]:
     brief_pages = _normalize_brief_pages(content_brief.get("图文页结构", []))
     if not brief_pages:
@@ -175,13 +381,13 @@ def _plan_cards_from_brief(note: dict, style: str, n: int, content_brief: dict) 
     cards = [{
         "card_type": "cover",
         "plan_source": "content_brief",
-        "title": _brief_cover_title(content_brief) or title,
+        "title": _cover_billboard_text(_brief_cover_title(content_brief) or title, 16),
         "subtitle": (
             cover_hook.get("副标题")
             or content_brief.get("核心痛点")
             or lead
             or _strip_tags_and_topics(body)[:120]
-        )[:120],
+        )[:24],
         "message": _brief_message(content_brief, cover_hook, "cover"),
         "category": _pick_category(tags),
         "decoration_emoji": _pick_emoji(tags, style),
@@ -270,6 +476,12 @@ def _brief_cover_title(content_brief: dict) -> str:
     return str(cover_hook.get("主标题") or "").strip()
 
 
+def _cover_billboard_text(text: str, max_len: int) -> str:
+    s = re.sub(r"\s+", "", str(text or "")).strip()
+    s = re.sub(r"^[🔥✨📌✅💥]+", "", s)
+    return s[:max_len]
+
+
 def _brief_message(content_brief: dict, cover_hook: dict, role: str) -> str:
     if role == "cover":
         parts = [
@@ -326,11 +538,133 @@ def _brief_points_for_role(content_brief: dict, role: str, page_title: str, evid
 def _as_clean_list(value) -> list[str]:
     if isinstance(value, list):
         items = value
+    elif isinstance(value, dict):
+        items = [value.get("text") or value.get("name") or value.get("value") or ""]
     elif value:
         items = [value]
     else:
         items = []
-    return [str(x).strip() for x in items if str(x).strip()]
+    cleaned = []
+    for item in items:
+        if isinstance(item, dict):
+            item = item.get("text") or item.get("name") or item.get("value") or ""
+        text = str(item).strip().lstrip("#")
+        if text:
+            cleaned.append(text)
+    return cleaned
+
+
+def _first_text(*values) -> str:
+    for value in values:
+        if isinstance(value, list):
+            text = " / ".join(_as_clean_list(value))
+        elif isinstance(value, dict):
+            text = str(value.get("text") or value.get("name") or value.get("value") or "").strip()
+        else:
+            text = str(value or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def _join_parts(parts, sep=" / ") -> str:
+    return sep.join([str(part).strip() for part in parts if str(part).strip()])
+
+
+def _work_keywords(work_info: dict, analysis: dict, packaging: dict) -> list[str]:
+    raw = []
+    for value in [
+        work_info.get("分类"),
+        work_info.get("category"),
+        analysis.get("分类"),
+        analysis.get("取向"),
+        packaging.get("热门标签推荐"),
+        packaging.get("内容类型标签"),
+    ]:
+        raw.extend(_as_clean_list(value))
+    keywords = []
+    for item in raw:
+        for part in re.split(r"[,，/、\s]+", item):
+            part = part.strip().lstrip("#")
+            if part and part not in keywords:
+                keywords.append(part)
+    return keywords[:8]
+
+
+def _extract_quotes(analysis: dict) -> list[str]:
+    candidates = []
+    for key in ["金句", "金句（Top5）", "经典金句", "情绪触发"]:
+        candidates.extend(_as_clean_list(analysis.get(key)))
+    packaging = analysis.get("小红书包装") if isinstance(analysis.get("小红书包装"), dict) else {}
+    candidates.extend(_as_clean_list(packaging.get("正文开头模板")))
+    return _dedupe_texts(candidates, max_len=100)
+
+
+def _extract_scenes(analysis: dict) -> list[str]:
+    candidates = []
+    for key in ["经典场景", "情绪分析摘要", "情绪钩子", "情节节点摘要"]:
+        candidates.extend(_split_long_text(analysis.get(key)))
+    conflicts = analysis.get("冲突设计")
+    if isinstance(conflicts, dict):
+        candidates.extend(_split_long_text(list(conflicts.values())))
+    elif conflicts:
+        candidates.extend(_split_long_text(conflicts))
+    return _dedupe_texts(candidates, max_len=110)
+
+
+def _extract_highlights(analysis: dict, note: dict) -> list[str]:
+    candidates = []
+    for key in ["核心冲突", "简介", "开篇套路", "开篇套路类型"]:
+        candidates.extend(_split_long_text(analysis.get(key)))
+    packaging = analysis.get("小红书包装") if isinstance(analysis.get("小红书包装"), dict) else {}
+    for key in ["正文结构建议", "情绪基调", "内容扩展方向"]:
+        candidates.extend(_split_long_text(packaging.get(key)))
+    candidates.extend(_split_long_text(note.get("body")))
+    return _dedupe_texts(candidates, max_len=110)
+
+
+def _split_long_text(value) -> list[str]:
+    texts = _as_clean_list(value)
+    out = []
+    for text in texts:
+        parts = re.split(r"[；;。\n]|(?<=）)、|、(?=[^、]{8,})", text)
+        out.extend([p.strip(" -—:：") for p in parts if p.strip(" -—:：")])
+    return out
+
+
+def _dedupe_texts(items: list[str], max_len: int = 100) -> list[str]:
+    out = []
+    seen = set()
+    for item in items:
+        text = re.sub(r"\s+", " ", str(item).strip())
+        if not text:
+            continue
+        text = text[:max_len]
+        key = text[:32]
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(text)
+        if len(out) >= 5:
+            break
+    return out
+
+
+def _fallback_work_card(note: dict, analysis: dict, page_index: int, total: int) -> dict:
+    title = ["经典金句", "经典场景", "推荐理由"][(page_index - 3) % 3]
+    text = _first_text(note.get("body"), analysis.get("简介"), "这页用于承接作品亮点，方便读者快速判断是否加入书单。")
+    points = [{"emoji": "✨", "text": text[:86]}]
+    return {
+        "card_type": "content",
+        "plan_source": "work_note_rules",
+        "page_role": "fallback",
+        "section_tag": title,
+        "section_title": title,
+        "message": _points_to_message(points),
+        "points": points,
+        "page_num": f"{page_index:02d}",
+        "total_pages": f"{total:02d}",
+    }
 
 
 def _points_to_message(points: list[dict]) -> str:
@@ -386,6 +720,97 @@ def _write_card_plan(cards: list[dict], out_dir: Path):
         ),
         encoding="utf-8",
     )
+
+
+def _ordered_image_paths(images: dict) -> list[str]:
+    if not isinstance(images, dict):
+        return []
+    keys = ["cover"] + [f"scene{i}" for i in range(1, 10)]
+    paths = []
+    for key in keys:
+        value = str(images.get(key) or "").strip()
+        if value:
+            paths.append(value)
+    return paths
+
+
+def _background_uri(path: str) -> str:
+    text = str(path or "").strip()
+    if not text:
+        return ""
+    if re.match(r"^https?://", text):
+        return text
+    return Path(text).resolve().as_uri()
+
+
+def _compact_card_for_image_overlay(card: dict):
+    card_type = card.get("card_type")
+    if card_type == "cover":
+        title = str(card.get("title") or "").strip()
+        work_name = str(card.get("work_name") or "").strip()
+        author = str(card.get("author") or "").strip()
+        desc = str(card.get("cover_desc") or "").strip()
+        subtitle = str(card.get("subtitle") or "").strip()
+        parts = [p.strip() for p in re.split(r"[｜|]", subtitle) if p.strip()]
+        if work_name or author:
+            author_text = f"作者：{author}" if author and "作者" not in author else author
+            card["cover_meta"] = _join_parts([work_name, author_text], " · ")
+            card["cover_desc"] = desc[:72]
+            card["subtitle"] = card["cover_meta"]
+        elif len(parts) >= 2:
+            card["cover_meta"] = " · ".join(parts[:2])
+            card["cover_desc"] = (desc or "｜".join(parts[2:]))[:72]
+            card["subtitle"] = card["cover_meta"]
+        elif subtitle:
+            card["cover_meta"] = subtitle[:42]
+            card["cover_desc"] = desc[:72]
+        card["title"] = _cover_billboard_text(title, 16)
+        card["cover_desc"] = _cover_billboard_text(card.get("cover_desc", ""), 24)
+        return
+
+    if card_type == "content":
+        page_role = str(card.get("page_role") or "")
+        points = card.get("points") if isinstance(card.get("points"), list) else []
+        if page_role == "quote":
+            quote = ""
+            if points:
+                quote = str(points[0].get("text") or "").strip()
+            quote = quote.strip("“”\"' ")
+            card["quote_text"] = quote[:42]
+            card["quote_emoji"] = _quote_emoji(quote)
+            card["section_title"] = "一句封神"
+            card["points"] = [{"emoji": card["quote_emoji"], "text": card["quote_text"]}]
+            card["message"] = card["quote_text"]
+            return
+        compact = []
+        for point in points[:3]:
+            text = str(point.get("text", "")).strip()
+            text = re.sub(r"^(书名|作者|关键词|标签)[：:]\s*", "", text)
+            compact.append({
+                "emoji": point.get("emoji", "•"),
+                "text": text[:58],
+            })
+        card["points"] = compact
+        card["section_title"] = str(card.get("section_title") or "")[:18]
+        card["message"] = _points_to_message(compact)
+        return
+
+    if card_type == "summary":
+        card["takeaways"] = [str(item).strip()[:58] for item in card.get("takeaways", [])[:3]]
+        card["summary_title"] = str(card.get("summary_title") or "")[:18]
+
+
+def _quote_emoji(text: str) -> str:
+    value = str(text or "")
+    if any(k in value for k in ["死", "命", "末世", "活", "生存"]):
+        return "😎"
+    if any(k in value for k in ["爱", "心", "温柔", "喜欢"]):
+        return "💘"
+    if any(k in value for k in ["剑", "杀", "疯", "反抗", "赢"]):
+        return "🔥"
+    if any(k in value for k in ["哭", "疼", "碎", "遗憾"]):
+        return "💔"
+    return "✨"
 
 
 def _extract_points(body: str, max_per_card: int = 3) -> list[dict]:
@@ -474,17 +899,28 @@ def _render_html(card: dict, style: str, out_path: Path, total: int):
     out_path.write_text(html, encoding="utf-8")
 
 
-# ── Playwright 截图 ──────────────────────────────────────────────────
+# ── HTML 截图 ────────────────────────────────────────────────────────
 def _screenshot_batch(html_paths: list[str], output_dir: str) -> list[str]:
+    if not _PLAYWRIGHT_OK:
+        return _screenshot_batch_with_chromium_cli(html_paths, output_dir)
+
     png_paths = []
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        for html_path in html_paths:
-            png_path = _screenshot_one(browser, html_path, output_dir)
-            if png_path:
-                png_paths.append(png_path)
-        browser.close()
-    return png_paths
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            for html_path in html_paths:
+                png_path = _screenshot_one(browser, html_path, output_dir)
+                if png_path:
+                    png_paths.append(png_path)
+            browser.close()
+        return png_paths
+    except Exception as exc:
+        try:
+            return _screenshot_batch_with_chromium_cli(html_paths, output_dir)
+        except Exception as fallback_exc:
+            raise RuntimeError(
+                f"Playwright 截图失败: {exc}; Chromium CLI fallback 也失败: {fallback_exc}"
+            ) from fallback_exc
 
 
 def _screenshot_one(browser, html_path: str, output_dir: str) -> str:
@@ -500,6 +936,55 @@ def _screenshot_one(browser, html_path: str, output_dir: str) -> str:
     page.screenshot(path=png_path, full_page=False)
     page.close()
     return png_path
+
+
+def _find_chromium_binary() -> str:
+    candidates = [
+        os.getenv("CHROMIUM_BIN", "").strip(),
+        "chromium",
+        "chromium-browser",
+        "google-chrome",
+        "google-chrome-stable",
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    ]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        if os.path.exists(candidate):
+            return candidate
+        found = shutil.which(candidate)
+        if found:
+            return found
+    return ""
+
+
+def _screenshot_batch_with_chromium_cli(html_paths: list[str], output_dir: str) -> list[str]:
+    chromium = _find_chromium_binary()
+    if not chromium:
+        raise RuntimeError("未找到 Chromium。请安装系统 chromium，或安装 playwright/chromium。")
+
+    png_paths = []
+    for html_path in html_paths:
+        base = Path(html_path).stem
+        png_path = str(Path(output_dir) / f"{base}.png")
+        cmd = [
+            chromium,
+            "--headless=new",
+            "--no-sandbox",
+            "--disable-gpu",
+            "--hide-scrollbars",
+            "--window-size=1080,1440",
+            f"--screenshot={png_path}",
+            Path(html_path).resolve().as_uri(),
+        ]
+        try:
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30)
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(f"Chromium 截图失败: {exc.stderr.strip() or exc.stdout.strip()}") from exc
+        if os.path.exists(png_path):
+            png_paths.append(png_path)
+    return png_paths
 
 
 # ── 笔记内容解析 ────────────────────────────────────────────────────

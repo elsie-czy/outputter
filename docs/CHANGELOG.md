@@ -16,6 +16,127 @@
 - 回滚方式：
 - 风险与注意事项：
 
+## 2026-07-06（DeepSeek 模型切换与本地 HTML 卡片 fallback）
+- 变更摘要：修复 `MODEL_PROVIDER=deepseek` 时仍误用通用 OpenAI/BigModel 配置的问题，并增强本地 HTML 卡片截图 fallback。
+- 影响范围：主流程 / 模型 / AI 评分 / HTML 卡片 / 测试
+- 行为变化：
+  - `model_adapter.py` 在 `MODEL_PROVIDER=deepseek` 时优先读取 `DEEPSEEK_API_KEY`、`DEEPSEEK_MODEL`、`DEEPSEEK_BASE_URL`
+  - `quality_scorer.py` 同步支持 DeepSeek 专用配置，避免重新评分继续请求 BigModel
+  - HTML 卡片截图在 Playwright 包存在但浏览器二进制缺失时，会自动回退到 Chromium/Chrome CLI
+  - macOS 本地 fallback 支持 `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`
+- 配置变更（.env）：使用既有 `MODEL_PROVIDER=deepseek`、`DEEPSEEK_API_KEY`、`DEEPSEEK_MODEL`；可选 `DEEPSEEK_BASE_URL`
+- 数据迁移/回填动作：无；失败任务需要手动重试才会使用新模型配置
+- 回滚方式：回退 `scripts/model_adapter.py`、`scripts/quality_scorer.py`、`scripts/html_card_generator.py`、相关测试和本条记录
+- 风险与注意事项：
+  - DeepSeek 只解决文本分析/评分链路；真实图片接口仍取决于图片 provider 的 token 和配置
+  - 若本地没有 Chrome/Chromium 且未安装 Playwright 浏览器，HTML 卡片截图仍会失败
+
+## 2026-07-06（LiblibAI 生图模型接入）
+- 变更摘要：新增 LiblibAI 星流作为 AI 生图 provider，并在任务详情、选题池提交弹窗中提供生图模型下拉。
+- 影响范围：生图 / Web / Worker / 队列 / 测试
+- 行为变化：
+  - `IMAGE_PROVIDER=liblib` 时使用 LiblibAI OpenAPI 签名、提交 text2img ultra 任务并轮询生成结果
+  - 任务详情全局生图策略支持选择 `LiblibAI 星流`、`即梦 / 火山`、`SiliconFlow`、`Mock`
+  - 选题池提交生产时会把选择的 `image_provider` 写入队列任务，worker 优先使用任务级 provider
+  - 队列任务未设置 provider 时继续回退到本地 `data/config/image_strategy.json` 或 `.env`
+- 配置变更（.env）：新增 `LIBLIB_ACCESS_KEY`、`LIBLIB_SECRET_KEY`、`LIBLIB_BASE_URL`、`LIBLIB_TEMPLATE_UUID`、`LIBLIB_IMAGE_SIZE`、`LIBLIB_STEPS`
+- 数据迁移/回填动作：无；新提交任务才会携带任务级 `image_provider`
+- 回滚方式：回退 `scripts/image_generator.py`、`scripts/image_provider.py`、`scripts/deconstruct_worker.py`、队列/API/前端相关改动、测试和本条记录
+- 风险与注意事项：
+  - LiblibAI 真实生成依赖账号额度、模板可用性和网络可达性
+  - `.env` 中密钥不纳入提交，部署环境需要单独配置
+
+## 2026-07-06（任务级 AI 生图启用与选题池弹窗优化）
+- 变更摘要：修复任务已选择 AI 生图但被 `IMAGE_GEN_ENABLED` 跳过的问题，并优化选题池提交弹窗的生图配置布局。
+- 影响范围：Worker / 生图 / Web / 选题池 / 测试
+- 行为变化：
+  - 队列任务 `image_strategy=ai` 时，worker 会按任务级 `image_provider` 进入 AI 生图，不再被旧环境开关静默跳过
+  - 调用图片 provider 时会临时设置 `IMAGE_GEN_ENABLED=true`，调用结束后恢复原环境值
+  - 选题池提交弹窗加宽，生图策略、生图模型和说明在桌面端保持一行展示
+  - 已对任务 `recvcjE9TLRej3` 补跑 LiblibAI 生图并回写 5 张图片到本地队列
+- 配置变更（.env）：无
+- 数据迁移/回填动作：仅本地运行态回写 `recvcjE9TLRej3` 的图片字段；不纳入代码提交
+- 回滚方式：回退 `scripts/deconstruct_worker.py`、选题池模板/CSS/JS、测试和本条记录
+- 风险与注意事项：
+  - 真实 AI 生图会消耗 provider 额度
+  - 已经生成空图片的旧任务需要重新生成或补跑图片才能看到新图
+
+## 2026-07-06（作品事实锚定生图提示词）
+- 变更摘要：修复 AI 生图提示词把中文作品事实替换成 `[visual scene description]`，导致图片与作品弱相关的问题。
+- 影响范围：生图 / Worker / 测试
+- 行为变化：
+  - `_build_image_prompts()` 改为从分类、简介、人物设定、冲突设计、内容简报和封面建议中抽取视觉锚点
+  - 中文事实会映射成英文视觉短语，例如快穿、系统、纯爱、虎牙、糖果、机甲、无限流等
+  - 纯爱/无女主任务不再默认生成 `Female lead`，改用双男主/主角与爱人关系表达
+  - 生图提示词仍保留 `NO text / NO words / text-free image` 等无文字约束
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无；旧任务需重新生成配图提示词或重新生图才会应用新策略
+- 回滚方式：回退 `scripts/deconstruct_daily.py`、`tests/test_image_prompt_builder.py` 和本条记录
+- 风险与注意事项：
+  - 当前是规则映射，不是完整翻译器；后续可继续扩充题材词表
+  - 真实出图效果仍受生图模型理解能力影响
+
+## 2026-07-06（空简介必填兜底与提交弹窗溢出修复）
+- 变更摘要：修复选题缺简介时飞书主表必填校验失败，以及选题池提交弹窗生图说明文字溢出的问题。
+- 影响范围：Worker / 飞书同步 / Web / 选题池 / 测试
+- 行为变化：
+  - 新增 `_ensure_required_synopsis()`，当选题池和搜索均未提供简介时，用作品名、作者、分类、平台生成最小可用简介
+  - worker 写主表前会填充兜底简介，不再因 `主表缺必填字段: ['简介']` 直接失败
+  - 选题池提交弹窗加宽并压缩生图说明文案，提示列允许在弹窗内部换行，不再横向溢出
+  - 已重试任务 `recve8iODcj95p`，飞书主表和小红书笔记库写入成功，并生成 5 张 LiblibAI 图片
+- 配置变更（.env）：无
+- 数据迁移/回填动作：仅本地运行态更新 `recve8iODcj95p`；不纳入代码提交
+- 回滚方式：回退 `scripts/deconstruct_daily.py`、`scripts/deconstruct_worker.py`、选题池 CSS/JS、测试和本条记录
+- 风险与注意事项：
+  - 兜底简介只保证流程不断，内容准确度仍弱于真实简介
+  - 后续建议在选题池同步阶段标记“缺简介”作品，提醒人工补充
+
+## 2026-07-06（生图组图风格一致性增强）
+- 变更摘要：为 AI 生图提示词增加任务级统一画风说明，减少同一篇笔记多张配图风格割裂。
+- 影响范围：生图 / 提示词 / 测试
+- 行为变化：
+  - `_build_image_prompts()` 为每个任务生成共享 `Style bible`
+  - 所有配图提示词会固定同一画风、色彩、角色五官、发型、服装语言、线稿粗细、阴影方式和渲染质量
+  - 根据作品调性自动选择风格：纯爱/甜宠偏暖色柔和，末世/无限流/惊悚偏暗色电影感，古言/仙侠偏古风幻想，科幻/机甲偏蓝银高科技
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无；旧图片不会自动重画，需要重新生成图片才会体现
+- 回滚方式：回退 `scripts/deconstruct_daily.py`、`tests/test_image_prompt_builder.py` 和本条记录
+- 风险与注意事项：
+  - 纯文本提示词只能增强一致性，不能像参考图/固定 seed 那样强约束角色完全一致
+  - 后续若 LiblibAI 支持 reference image 或 seed，可继续增强角色一致性
+
+## 2026-07-06（选题池重复提交防护）
+- 变更摘要：修复选题池提交已在生产中心的作品时提示“成功提交 0 篇”的问题。
+- 影响范围：Web / 选题池 / 生产中心 / 队列
+- 行为变化：
+  - 选题池 owner/client 模式都会读取真实队列状态，默认隐藏已在生产中心的作品
+  - `show_all=1` 查看全部时会标记“已在生产中心 · 状态”，并禁用加入生产
+  - 提交生产只提交可入队作品；没有新增任务时显示明确提示，不再显示成功 0 篇
+  - `/api/deconstruct/batch-enqueue` 返回 `requested/enqueued/skipped/skipped_duplicate/duplicate_ids`，便于前端展示跳过原因
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/web/routes/topic_pool_page.py`、`scripts/web/routes/deconstruct_api.py`、`scripts/static/js/topic_pool.js`、`scripts/static/css/topic_pool.css` 和本条记录
+- 风险与注意事项：
+  - 失败任务不会再从选题池重复入队，应在生产中心使用“重试”处理
+
+## 2026-07-05（笔记事实锚定与 HTML 卡片运行时修复）
+- 变更摘要：修复内容简报把泛化方法论写入笔记、公告信息混入“一句话剧情”、Docker HTML 卡片截图缺 Playwright 的问题。
+- 影响范围：主流程 / 模型 / 笔记正文 / HTML 卡片 / Docker / 测试
+- 行为变化：
+  - 新增 `scripts/source_cleaner.py`，在搜索/生产入口把原始简介分层为 `剧情简介`、`非剧情信息`、`原始简介`
+  - `search_work_info()`、`deconstruct_worker.py`、`deconstruct_daily.py` 优先把 `剧情简介` 传入模型，非剧情信息只保留排查，不作为生成事实
+  - 模型 prompt 将 `作品事实` 与 `风格参考笔记` 分离，参考笔记只允许学习结构、语气、节奏，禁止迁移观点、收益承诺和标题语义
+  - 模型提示词明确要求过滤出版、签名、围脖、喜马拉雅、有声剧、番外、作话等非剧情公告信息
+  - `build_xhs_note()` 会过滤不贴作品的泛化成长/方法论表达，如认知脚手架、反套路写作技巧、底层逻辑、努力方向感等
+  - “一句话剧情”只展示剧情型简介片段，避免把公告/促销文本误当剧情
+  - Docker 镜像安装 Playwright 和 Chromium，支持 `IMAGE_GEN_STRATEGY=html_card` 在容器中实际截图
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无；已有运行态任务需重新生成才会应用新过滤逻辑和卡片截图环境
+- 回滚方式：回退 `scripts/source_cleaner.py`、`scripts/search.py`、`scripts/deconstruct_worker.py`、`scripts/deconstruct_daily.py`、`scripts/model_adapter.py`、`requirements.txt`、`Dockerfile`、相关测试和本条记录
+- 风险与注意事项：
+  - Playwright/Chromium 会增加 Docker 镜像构建时间和体积
+  - 已生成的旧任务正文不会自动改写，需要重新生成或重新跑生产任务
+
 ## 2026-06-25（生产链路与卡片策略收口）
 - 变更摘要：收口选题池生图策略、HTML 卡片路径、worker 缓存补图和小红书卡片能力规划文档。
 - 影响范围：主流程 / 生图 / Web / Worker / 文档

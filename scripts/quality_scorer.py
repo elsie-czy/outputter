@@ -26,11 +26,11 @@ SCORE_PROMPT = (
     "\"suggestion\": \"一句话改进建议\""
     "}"
     "评分标准："
-    "- title_appeal: 标题是否抓人眼球，0=平淡 20=忍不住点开"
-    "- emotion_density: 是否有共鸣/好奇心/情绪钩子，0=毫无波澜 20=情绪饱满"
-    "- collection_value: 是否让人想收藏，0=毫无价值 20=干货/洞察力强"
-    "- interaction_guide: 是否有钩子引导评论互动，0=没有引导 15=强烈互动引导"
-    "- xhs_style_match: 是否像真人写的笔记而非AI生成，0=一眼AI 15=完全像真人"
+    "- title_appeal: 标题是否尖锐具体，包含题材/人群/爽点/反差/收益之一，0=平淡泛标题 20=忍不住点开"
+    "- emotion_density: 前三行是否快速给结论并制造共鸣/好奇/站队，0=先铺剧情且无波澜 20=开头三行就能留人"
+    "- collection_value: 是否让人想收藏，尤其是否有清晰阅读判断、拆解框架或避雷价值，0=毫无价值 20=干货/洞察力强"
+    "- interaction_guide: 是否有具体评论钩子，二选一/站队/求投喂优先，0=没有引导或只写欢迎评论 15=读者顺手就能回复"
+    "- xhs_style_match: 是否像真人写的小红书笔记，首图/标题/正文节奏是否原生，0=一眼AI 15=完全像真人"
     "- ai_trace: AI痕迹评分，分数越高表示AI痕迹越低（0=明显AI痕迹 10=毫无AI痕迹）"
     "- total: 六项加总"
     "- grade: total>=85→\"good\", total>=75→\"review\", total<75→\"retry\""
@@ -43,13 +43,24 @@ def score_note(note_text):
     if provider == "local":
         return _default_score("MODEL_PROVIDER=local，跳过远端评分")
     is_qwen = provider in {"qwen", "dashscope"}
+    is_deepseek = provider == "deepseek"
 
-    api_key = (os.getenv("QWEN_API_KEY", "") if is_qwen else os.getenv("OPENAI_API_KEY", "")).strip()
+    if is_qwen:
+        api_key = os.getenv("QWEN_API_KEY", "").strip()
+    elif is_deepseek:
+        api_key = os.getenv("DEEPSEEK_API_KEY", "").strip() or os.getenv("OPENAI_API_KEY", "").strip()
+    else:
+        api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         return _default_score("API Key 未配置")
 
-    model = (os.getenv("QWEN_MODEL", "") if is_qwen else os.getenv("OPENAI_MODEL", "glm-4-plus")).strip()
-    endpoints = _score_endpoints(is_qwen)
+    if is_qwen:
+        model = os.getenv("QWEN_MODEL", "").strip() or os.getenv("OPENAI_MODEL", "qwen-plus").strip()
+    elif is_deepseek:
+        model = os.getenv("DEEPSEEK_MODEL", "").strip() or os.getenv("OPENAI_MODEL", "deepseek-chat").strip()
+    else:
+        model = os.getenv("OPENAI_MODEL", "glm-4-plus").strip()
+    endpoints = _score_endpoints(provider)
 
     payload = {
         "model": model,
@@ -102,7 +113,13 @@ def score_note(note_text):
     return _default_score(f"评分失败: {last_error or '未知错误'}")
 
 
-def _score_endpoints(is_qwen):
+def _score_endpoints(provider):
+    is_qwen = provider in {"qwen", "dashscope"}
+    if provider == "deepseek":
+        base = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").strip().rstrip("/")
+        key = os.getenv("DEEPSEEK_API_KEY", "").strip() or os.getenv("OPENAI_API_KEY", "").strip()
+        return [(base, key)]
+
     if not is_qwen:
         base = os.getenv("OPENAI_BASE_URL", "https://open.bigmodel.cn/api/paas/v4").strip().rstrip("/")
         return [(base, os.getenv("OPENAI_API_KEY", "").strip())]

@@ -237,13 +237,26 @@ def analyze_work(work, reference_notes=None, recent_feedback=None):
 def _openai_analyze(work, reference_notes=None, recent_feedback=None):
     provider = os.getenv("MODEL_PROVIDER", "openai").strip().lower()
     is_qwen = provider in {"qwen", "dashscope"}
-    api_key = (os.getenv("QWEN_API_KEY", "") if is_qwen else os.getenv("OPENAI_API_KEY", "")).strip()
+    is_deepseek = provider == "deepseek"
+    if is_qwen:
+        api_key = os.getenv("QWEN_API_KEY", "").strip()
+    elif is_deepseek:
+        api_key = os.getenv("DEEPSEEK_API_KEY", "").strip() or os.getenv("OPENAI_API_KEY", "").strip()
+    else:
+        api_key = os.getenv("OPENAI_API_KEY", "").strip()
     api_key_intl = os.getenv("QWEN_API_KEY_INTL", "").strip() if is_qwen else ""
     if not api_key and not api_key_intl:
         raise RuntimeError("模型 API_KEY 未设置")
 
-    model_default = "qwen-plus" if is_qwen else "gpt-4o-mini"
-    model = (os.getenv("QWEN_MODEL", "") if is_qwen else "").strip() or os.getenv("OPENAI_MODEL", model_default).strip()
+    if is_qwen:
+        model_default = "qwen-plus"
+        model = os.getenv("QWEN_MODEL", "").strip() or os.getenv("OPENAI_MODEL", model_default).strip()
+    elif is_deepseek:
+        model_default = "deepseek-chat"
+        model = os.getenv("DEEPSEEK_MODEL", "").strip() or os.getenv("OPENAI_MODEL", model_default).strip()
+    else:
+        model_default = "gpt-4o-mini"
+        model = os.getenv("OPENAI_MODEL", model_default).strip()
 
     if is_qwen:
         raw_urls = os.getenv("QWEN_BASE_URLS", "").strip()
@@ -258,6 +271,10 @@ def _openai_analyze(work, reference_notes=None, recent_feedback=None):
                 base_urls.append("https://dashscope.aliyuncs.com/compatible-mode/v1")
             if "https://dashscope-intl.aliyuncs.com/compatible-mode/v1" not in base_urls:
                 base_urls.append("https://dashscope-intl.aliyuncs.com/compatible-mode/v1")
+    elif is_deepseek:
+        base_urls = [
+            os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").strip().rstrip("/")
+        ]
     else:
         base_default = "https://api.openai.com/v1"
         base_urls = [os.getenv("OPENAI_BASE_URL", base_default).strip().rstrip("/")]
@@ -271,6 +288,13 @@ def _openai_analyze(work, reference_notes=None, recent_feedback=None):
         "如果简介仍不够详细（如仅有标签式描述而缺少情节细节），可结合分类和题材特征做合理推断，但需在对应字段中注明推断依据（如'基于题材推测'）。"
         "不要凭空编造简介中不存在的具体人物对话或情节细节。"
         "人物设定应基于简介中的线索还原；金句应为针对该作品风格的写作方法论提炼，而非编造书中原文。"
+        "内容简报必须锚定当前作品事实：核心痛点、读者收益、封面钩子、标题候选只能围绕作品设定、人物、冲突、爽点和阅读判断展开；"
+        "不得把参考笔记中的泛化方法论、职场成长、认知脚手架、反套路写作技巧等表达迁移到不相关作品。"
+        "小红书原生运营硬约束：标题要尖，必须给出具体题材/爽点/反差/读者收益，避免'绝了''宝藏'单独撑标题；"
+        "首图要像大字报，封面钩子主标题优先控制在16个中文字符内，副标题优先控制在24个中文字符内，一眼能懂冲突或爽点；"
+        "前三行必须先给结论，不要先铺剧情，结构为：适合谁/值不值得看、最强爽点或反差、读者看完能得到什么判断；"
+        "评论钩子必须是低门槛二选一或投喂式问题，能让读者顺手回复书名/偏好/站队。"
+        "如果简介包含出版、签名、微博/围脖、有声剧、喜马拉雅、番外、作话、促销等公告信息，必须视为非剧情素材，不能写入剧情或笔记正文。"
         "内容合规要求：禁止出现导流私信、联系方式、平台外跳转、夸张医疗或违规承诺等违反小红书社区规范的内容。禁止在笔记内容中出现第三方平台名称（如'晋江'、'起点'、'番茄'、'耽美文学城'等），避免被判定为引流违规。"
         "输出字段必须包含以下结构："
         "{"
@@ -322,9 +346,22 @@ def _openai_analyze(work, reference_notes=None, recent_feedback=None):
 
     user_prompt = {
         "任务": "根据搜索到的作品信息进行网文拆解与爆款基因提取",
-        "作品信息": work,
+        "作品事实": {
+            "作品名称": work.get("作品名称", ""),
+            "作者": work.get("作者", ""),
+            "平台": work.get("平台", ""),
+            "分类": work.get("分类", ""),
+            "评分": work.get("评分", ""),
+            "字数（万）": work.get("字数（万）", ""),
+            "完结状态": work.get("完结状态", ""),
+            "取向": work.get("取向", ""),
+            "剧情简介": work.get("剧情简介") or work.get("简介", ""),
+        },
+        "已排除的非剧情信息": work.get("非剧情信息", []),
         "要求": [
-            "重要：简介是从小说网站搜索到的真实作品介绍，请基于此进行专业拆解",
+            "重要：只能基于【作品事实】中的剧情简介、分类和基础信息进行专业拆解",
+            "【已排除的非剧情信息】只供你理解哪些内容不能使用，绝对不要写入剧情、标题、内容简报或笔记文案",
+            "简介中若出现出版开售、签名、微博/围脖、有声剧、喜马拉雅、番外、作话、活动促销等公告信息，请过滤掉，不得当成剧情摘要",
             "开篇套路至少3条，基于简介中的开篇信息或题材特征分析",
             "人物设定三类均必填，基于简介中的人物线索还原；若简介无线索，写'基于题材推测'并注明",
             "冲突设计三层均必填，从简介的情节描述中提取核心矛盾",
@@ -332,6 +369,11 @@ def _openai_analyze(work, reference_notes=None, recent_feedback=None):
             "金句至少5条，为该类型作品的写作方法论提炼，不要编造书中原文",
             "小红书包装字段全部必填，可发布",
             "内容简报字段全部必填：目标人群、核心痛点、读者收益、标题候选、封面钩子、图文页结构、证据素材、禁用表达。标题候选需可直接作为小红书标题，封面钩子需给出主标题、副标题、情绪和点击理由。",
+            "标题更尖：标题候选必须各给1条【痛点型、爽点型、反差型、搜索长尾型、互动求投喂型】，优先20字内，最多不超过24字；小红书标题模板选择其中点击欲最强的一条。",
+            "首图更像大字报：封面钩子.主标题必须短、狠、具体，优先16字内；封面钩子.副标题必须补充题材+阅读收益，优先24字内；不要用空泛形容词堆叠。",
+            "前三行更快给结论：正文开头模板必须是3行短句，第一行直接结论/适合谁，第二行给最大爽点或反差，第三行给阅读判断或收藏理由。",
+            "评论钩子更强：互动话术模板只能写一个具体问题，采用二选一、站队、求投喂书单之一，不要写'欢迎评论''聊聊'这类泛互动。",
+            "内容简报必须贴合当前作品，不要写泛化成长建议、认知脚手架、反套路写作技巧、底层逻辑等与剧情无关的收益承诺",
             "小红书包装文案要有明显钩子、对比、结论，不要写成学术报告",
             "正文开头模板和互动话术模板要带平台语气，可包含少量emoji",
             "热门标签推荐要贴近题材，不要泛泛标签",
@@ -353,7 +395,12 @@ def _openai_analyze(work, reference_notes=None, recent_feedback=None):
                 f"参考笔记{i}（点赞{likes} 收藏{collects}）：\n"
                 f"标题：{title}\n标签：{labels}\n正文：{body}\n"
             )
-        user_prompt["参考笔记（请模仿其风格和结构，但内容针对当前作品）"] = ref_lines
+        user_prompt["风格参考笔记（只学习结构/语气/节奏，禁止复用观点、收益承诺、标题语义和具体内容）"] = ref_lines
+        user_prompt["风格参考使用规则"] = [
+            "只能学习开头节奏、段落组织、互动方式和语气强弱",
+            "不得把参考笔记里的读者收益、方法论、标题概念、痛点表达迁移到当前作品",
+            "当前作品的每个标题、痛点、收益和封面钩子都必须能被【作品事实】支撑",
+        ]
 
     # 反馈闭环：注入运营历史修改偏好
     if recent_feedback:
