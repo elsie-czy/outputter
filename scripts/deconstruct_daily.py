@@ -204,15 +204,83 @@ def _extract_keywords(texts, limit=8):
     return out
 
 
-def _chinese_to_english_desc(text):
-    """将中文片段替换为英文视觉描述占位符，避免图片模型渲染中文文字"""
-    s = str(text or "").strip()
-    if not s:
-        return ""
-    chinese_chars = sum(1 for c in s if '\u4e00' <= c <= '\u9fff')
-    if chinese_chars >= len(s) * 0.5:
-        return "[visual scene description]"
-    return s
+def _visual_terms_from_text(text, limit=8):
+    """把中文作品事实转成英文视觉锚点，避免把中文原文直接送进图片模型。"""
+    raw = str(text or "")
+    rules = [
+        ("快穿", "quick transmigration arcs"),
+        ("系统", "glowing mission interface"),
+        ("纯爱", "boys love romance"),
+        ("虎牙", "small fang smile"),
+        ("糖", "candy motif"),
+        ("投喂", "gentle feeding gesture"),
+        ("亲亲", "tender near-kiss tension"),
+        ("情感障碍", "reserved protagonist learning affection"),
+        ("错过", "bittersweet missed-years mood"),
+        ("十年", "long regret atmosphere"),
+        ("技术", "clean tech workspace"),
+        ("大佬", "confident genius aura"),
+        ("计划", "strategic mastermind feeling"),
+        ("现实", "real world bedroom"),
+        ("虚拟", "virtual world glow"),
+        ("小说", "story-world portal"),
+        ("重生", "second chance turning point"),
+        ("穿越", "time travel portal"),
+        ("无限流", "survival game arena"),
+        ("惊悚", "eerie suspense lighting"),
+        ("克系", "cosmic horror atmosphere"),
+        ("游戏", "dangerous game space"),
+        ("仙侠", "ancient fantasy cultivation world"),
+        ("修真", "cultivation sect courtyard"),
+        ("古言", "ancient palace courtyard"),
+        ("宫廷", "palace intrigue setting"),
+        ("侯门", "noble household setting"),
+        ("江湖", "martial arts riverside inn"),
+        ("科幻", "futuristic sci-fi city"),
+        ("星际", "space academy hangar"),
+        ("机甲", "mecha cockpit"),
+        ("末世", "post-apocalyptic street"),
+        ("甜宠", "warm romantic sweetness"),
+        ("虐心", "bittersweet emotional tension"),
+        ("治愈", "soft healing atmosphere"),
+        ("爽文", "high-energy triumph mood"),
+        ("群像", "ensemble cast composition"),
+        ("女主", "determined female protagonist"),
+        ("男主", "male protagonist"),
+        ("无女主", "no female lead"),
+        ("无（纯爱", "no female lead"),
+    ]
+    terms = []
+    for key, value in rules:
+        if key in raw and value not in terms:
+            terms.append(value)
+        if len(terms) >= limit:
+            break
+    return terms
+
+
+def _join_visual_terms(*texts, fallback="", limit=8):
+    terms = []
+    for text in texts:
+        for term in _visual_terms_from_text(text, limit=limit):
+            if term not in terms:
+                terms.append(term)
+            if len(terms) >= limit:
+                break
+        if len(terms) >= limit:
+            break
+    if not terms and fallback:
+        return fallback
+    return ", ".join(terms)
+
+
+def _is_no_female_lead(work, analysis):
+    text = " ".join([
+        str(work.get("分类", "") or ""),
+        str(work.get("取向", "") or ""),
+        str((analysis.get("人物设定") or {}).get("女主", "") or ""),
+    ])
+    return any(k in text for k in ["纯爱", "无女主", "无（纯爱", "BL", "bl"])
 
 
 def _strip_all_cjk(text):
@@ -233,7 +301,7 @@ def _sanitize_prompt_for_image_gen(prompt):
     """
     p = str(prompt or "")
     # 第一步：移除引号包裹的内容（用原始字符串避免转义问题）
-    quote_pattern = r'["\u201c\u201d\u300c\u300d\[\]''\u300a\u300b][^"\[\]''\u300a\u300b]{0,80}[["'']\u3001\u3002]'
+    quote_pattern = r'["“”「」『』《》][^"“”「」『』《》]{0,80}["“”「」『』《》]'
     p = re.sub(quote_pattern, "", p)
     # 第二步：彻底移除所有CJK字符——这是消除图片上文字的关键
     p = _strip_all_cjk(p)
@@ -259,23 +327,43 @@ def _sanitize_prompt_for_image_gen(prompt):
 def _build_image_prompts(work, analysis):
     category = str(work.get("分类", "") or "")
     intro = str(work.get("简介", "") or "")
-    lead_name = _extract_lead_name_from_intro(intro)
-    # 角色描述：中文转英文占位符，避免图片模型渲染中文
-    heroine_desc = _chinese_to_english_desc(lead_name or analysis.get("人物设定", {}).get("女主", "") or "") or "calm and determined woman"
-    hero_desc = _chinese_to_english_desc(analysis.get("人物设定", {}).get("男主", "") or "") or "cold and restrained man"
-    support_desc = _chinese_to_english_desc(analysis.get("人物设定", {}).get("亮点配角", "") or "") or "key trigger character"
+    characters = analysis.get("人物设定", {}) or {}
+    packaging = analysis.get("小红书包装", {}) or {}
+    brief = analysis.get("内容简报", {}) or {}
     conflict = analysis.get("冲突设计", {})
+    cover_hook = brief.get("封面钩子", {}) if isinstance(brief, dict) else {}
+
+    visual_source = " ".join([
+        category,
+        intro,
+        str(characters),
+        str(conflict),
+        str(packaging.get("封面图描述建议", "")),
+        str(brief.get("图文页结构", "") if isinstance(brief, dict) else ""),
+        str(brief.get("证据素材", "") if isinstance(brief, dict) else ""),
+        str(cover_hook),
+    ])
 
     scene_text = " ".join([category, intro])
     is_action_genre = any(k in scene_text for k in ["仙侠", "玄幻", "悬疑", "科幻", "末世", "无限流", "战斗"])
     is_ancient = any(k in scene_text for k in ["仙侠", "修真", "古代", "宫廷", "侯门", "朝堂", "江湖"])
+    no_female_lead = _is_no_female_lead(work, analysis)
     era_hint = "ancient fantasy era" if is_ancient else "modern era"
-    world_hint = "ancient architecture, layered silk robes, moonlight and lantern lighting" if is_ancient else "urban interior and night city lighting"
+    world_hint = (
+        "ancient architecture, layered silk robes, moonlight and lantern lighting"
+        if is_ancient else
+        _join_visual_terms(visual_source, fallback="urban interior and night city lighting", limit=5)
+    )
 
-    # 冲突描述也用英文替代
-    c1 = _chinese_to_english_desc(conflict.get("第一层", "")) or "high stakes conflict"
-    c2 = _chinese_to_english_desc(conflict.get("第二层", "")) or "emotional tension"
-    c3 = _chinese_to_english_desc(conflict.get("第三层", "")) or "final confrontation"
+    character_desc = (
+        "two male leads, one reserved protagonist, one warm strategic genius"
+        if no_female_lead else
+        "determined female protagonist and restrained male lead"
+    )
+    story_anchors = _join_visual_terms(visual_source, fallback="story-specific emotional symbols", limit=8)
+    c1 = _join_visual_terms(conflict.get("第一层", ""), visual_source, fallback="high stakes conflict", limit=5)
+    c2 = _join_visual_terms(conflict.get("第二层", ""), visual_source, fallback="emotional tension", limit=5)
+    c3 = _join_visual_terms(conflict.get("第三层", ""), visual_source, fallback="final confrontation", limit=5)
 
     # 统一风格前缀：明确的 anime/manga 插画风格，排除写实照片风
     # 关键：所有prompt只包含英文，不含任何CJK字符
@@ -283,15 +371,15 @@ def _build_image_prompts(work, analysis):
         "anime manga illustration style, 2D cel-shaded art, Japanese anime aesthetic. "
         "Vertical 3:4 composition, vibrant colors, soft shading. "
         f"Era: {era_hint}. "
-        f"Female lead: {heroine_desc}. "
-        f"Male lead: {hero_desc}. "
+        f"Main cast: {character_desc}. "
+        f"Story anchors: {story_anchors}. "
         "Style must be consistent across all images: anime illustration only. "
         "NOT realistic photo, NOT 3D render, NOT photographic, NOT live-action."
     )
 
     p1 = (
-        f"{anchor} Cover shot: female lead half-body close-up portrait, low angle camera, "
-        f"foreground blur, dramatic side-lighting, emotional expression showing {c1}."
+        f"{anchor} Cover shot: main character half-body close-up portrait, low angle camera, "
+        f"foreground blur, dramatic side-lighting, visual symbols: {c1}."
     )
     p2 = (
         f"{anchor} Worldbuilding shot: wide environmental scene, {world_hint}, "
@@ -299,27 +387,27 @@ def _build_image_prompts(work, analysis):
     )
     if is_action_genre:
         p3 = (
-            f"{anchor} Action shot: female lead in dynamic pose, male lead in background, "
+            f"{anchor} Action shot: protagonist in dynamic pose, love interest in background, "
             f"motion lines, hard split lighting, intense moment of {c1}."
         )
         p4 = (
-            f"{anchor} Emotional duel: female lead and male lead face-to-face, "
+            f"{anchor} Emotional duel: protagonist and love interest face-to-face, "
             f"eye-level medium shot, rain atmosphere, volumetric light, {c3}."
         )
     else:
         p3 = (
-            f"{anchor} Relationship shot: female lead and male lead together but distant, "
+            f"{anchor} Relationship shot: protagonist and love interest together but distant, "
             f"medium shot, warm indoor lighting, quiet daily-life moment hinting {c1}."
         )
         p4 = (
-            f"{anchor} Emotional close-up: female lead alone near window, "
+            f"{anchor} Emotional close-up: protagonist alone near window, "
             f"soft bokeh, gentle light on face, inner emotion of {c3}."
         )
     p5 = (
-        f"{anchor} Group ending: female lead with allies, emotional release, "
+        f"{anchor} Group ending: protagonist with allies, emotional release, "
         "morning warm light, shallow depth of field, particles in air."
     )
-    return [p1, p2, p3, p4, p5]
+    return [_sanitize_prompt_for_image_gen(p) for p in [p1, p2, p3, p4, p5]]
 
 
 
