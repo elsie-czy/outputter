@@ -502,7 +502,7 @@ const PAGE_SIZE = 10;
         } finally {
           syncBtn.disabled = false;
           syncBtn.innerHTML = '<i data-lucide="refresh-cw"></i> 同步选题';
-          if (typeof lucide !== "undefined") lucide.createIcons();
+          refreshIcons();
         }
       });
     }
@@ -532,7 +532,7 @@ const PAGE_SIZE = 10;
         } finally {
           archiveBtn.disabled = false;
           archiveBtn.innerHTML = '<i data-lucide="archive"></i> 归档 <span id="archiveCount">0</span>';
-          if (typeof lucide !== "undefined") lucide.createIcons();
+          refreshIcons();
         }
       });
     }
@@ -842,6 +842,14 @@ const PAGE_SIZE = 10;
   }
 
   /* ===== 工具函数 ===== */
+  function refreshIcons() {
+    if (typeof lucide !== "undefined") {
+      lucide.createIcons();
+    } else if (typeof window.createAppFallbackIcons === "function") {
+      window.createAppFallbackIcons();
+    }
+  }
+
   function esc(str) {
     if (str == null) return "";
     return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

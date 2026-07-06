@@ -39,6 +39,56 @@ class HtmlCardContentBriefTest(unittest.TestCase):
         self.assertEqual([card["page_role"] for card in plan[1:-1]], ["problem", "insight", "proof"])
         self.assertEqual(plan[1]["section_title"], "痛点提问")
 
+    def test_plan_cards_with_work_info_uses_fixed_xhs_note_rules(self):
+        analysis = {
+            "作品名称": "完美耦合",
+            "作者": "九阶幻方",
+            "分类": ["未来架空", "女强"],
+            "简介": "女主隐藏身份进入机甲学院，在规则压迫下寻找自己的选择。",
+            "金句": ["我的精神力不是工具，插谁的口，我说了算。"],
+            "情绪钩子": "她第一次公开耦合失控，全场陷入沉默。",
+            "核心冲突": "身份暴露与自由选择之间的冲突。",
+            "小红书包装": {
+                "小红书标题模板": "这本星际女强真的很上头",
+                "热门标签推荐": ["星际女强", "书荒推荐"],
+            },
+        }
+
+        plan = cards._plan_cards(
+            self._note(),
+            "warm",
+            5,
+            content_brief=self._brief(),
+            work_info={"作品名称": "完美耦合", "作者": "九阶幻方", "平台": "晋江文学城"},
+            analysis=analysis,
+        )
+
+        self.assertEqual(len(plan), 5)
+        self.assertEqual(plan[0]["plan_source"], "work_note_rules")
+        self.assertEqual(plan[0]["card_type"], "cover")
+        self.assertIn("完美耦合", plan[0]["subtitle"])
+        self.assertEqual(plan[1]["section_tag"], "作品速览")
+        self.assertIn("书名：完美耦合", plan[1]["points"][0]["text"])
+        self.assertEqual([card["page_role"] for card in plan[2:]], ["quote", "scene", "highlight"])
+        self.assertEqual(cards._validate_cards(plan), [])
+
+    def test_work_note_rules_renumbers_pages_when_some_sections_missing(self):
+        plan = cards._plan_cards(
+            self._note(),
+            "warm",
+            5,
+            work_info={"作品名称": "无金句作品", "作者": "测试作者"},
+            analysis={
+                "作品名称": "无金句作品",
+                "作者": "测试作者",
+                "情绪钩子": "女主在雨夜做出关键选择。",
+                "简介": "这是一本围绕选择和成长展开的作品。",
+            },
+        )
+
+        self.assertEqual([card["page_num"] for card in plan], ["01", "02", "03", "04", "05"])
+        self.assertEqual([card["total_pages"] for card in plan], ["05"] * 5)
+
     def test_plan_cards_skips_brief_cover_and_summary_pages(self):
         brief = self._brief()
         brief["图文页结构"] = ["封面钩子", "痛点提问", "核心洞察", "证据素材", "收藏总结"]
@@ -73,6 +123,81 @@ class HtmlCardContentBriefTest(unittest.TestCase):
             self.assertTrue(plan_path.exists())
             payload = json.loads(plan_path.read_text(encoding="utf-8"))
             self.assertEqual(payload["cards"][0]["plan_source"], "content_brief")
+
+    def test_generate_cards_on_images_returns_overlay_and_raw_images(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bg = Path(tmp) / "bg.png"
+            bg.write_bytes(b"fake")
+            expected = [str(Path(tmp) / "xhs_ai_card_01.png"), str(Path(tmp) / "xhs_ai_card_02.png")]
+
+            with patch.object(cards, "_PLAYWRIGHT_OK", True), \
+                    patch.object(cards, "_screenshot_batch", return_value=expected):
+                result = cards.generate_cards_on_images(
+                    self._note(),
+                    {"cover": str(bg), "scene1": str(bg)},
+                    style="warm",
+                    n=2,
+                    output_dir=tmp,
+                    work_info={"作品名称": "测试作品", "作者": "测试作者"},
+                    analysis={"作品名称": "测试作品", "作者": "测试作者", "简介": "测试简介"},
+                )
+
+            self.assertEqual(result["cover"], expected[0])
+            self.assertEqual(result["scene1"], expected[1])
+            self.assertEqual(result["raw_cover"], str(bg))
+            self.assertEqual(result["raw_scene1"], str(bg))
+            html = (Path(tmp) / "xhs_ai_card_01.html").read_text(encoding="utf-8")
+            self.assertIn("image-bg", html)
+
+    def test_quote_overlay_uses_one_featured_sentence(self):
+        quote_card = {
+            "card_type": "content",
+            "page_role": "quote",
+            "section_tag": "经典金句",
+            "section_title": "金句摘录",
+            "points": [
+                {"emoji": "💬", "text": "你先养活自己再说"},
+                {"emoji": "💬", "text": "第二句不应该展示"},
+            ],
+        }
+
+        cards._compact_card_for_image_overlay(quote_card)
+
+        self.assertEqual(quote_card["quote_text"], "你先养活自己再说")
+        self.assertEqual(len(quote_card["points"]), 1)
+        self.assertNotIn("第二句", quote_card["message"])
+
+    def test_work_note_rules_split_cover_meta_and_description(self):
+        plan = cards._plan_cards(
+            self._note(),
+            "warm",
+            5,
+            work_info={"作品名称": "噩梦时代", "作者": "天下飘火"},
+            analysis={"作品名称": "噩梦时代", "作者": "天下飘火", "简介": "这句描述应该单独展示，不能和作品作者挤在一起。"},
+        )
+        cover = plan[0]
+
+        self.assertEqual(cover["work_name"], "噩梦时代")
+        self.assertEqual(cover["author"], "天下飘火")
+        self.assertIn("这句描述", cover["cover_desc"])
+        self.assertNotIn("这句描述", cover["subtitle"])
+
+    def test_multiple_quotes_expand_to_separate_pages(self):
+        plan = cards._plan_cards(
+            self._note(),
+            "warm",
+            5,
+            work_info={"作品名称": "测试书", "作者": "作者"},
+            analysis={
+                "作品名称": "测试书",
+                "作者": "作者",
+                "金句": ["第一句金句", "第二句金句", "第三句金句"],
+                "简介": "简介",
+            },
+        )
+        quote_cards = [card for card in plan if card.get("page_role") == "quote"]
+
+        self.assertEqual([card["points"][0]["text"] for card in quote_cards], ["第一句金句", "第二句金句", "第三句金句"])
 
     def test_screenshot_batch_falls_back_when_playwright_launch_fails(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -69,6 +69,37 @@ def _compact_mobile(text, max_len=56):
     return s[:max_len]
 
 
+def _split_packaging_lines(text, max_lines=3, max_len=38):
+    s = str(text or "").strip()
+    if not s:
+        return []
+    raw_lines = []
+    for chunk in re.split(r"[\n\r]+", s):
+        raw_lines.extend([x.strip() for x in re.split(r"[。；;！!？?]", chunk) if x.strip()])
+    lines = []
+    for line in raw_lines:
+        if not line:
+            continue
+        lines.append(_compact_mobile(line, max_len))
+        if len(lines) >= max_lines:
+            break
+    return lines
+
+
+def _sharp_fallback_lead(content_brief, cover_hook, work, p):
+    name = work.get("作品名称", "") or "这本书"
+    category = _compact_mobile(work.get("分类", ""), 18) or "网文"
+    pain = _compact_mobile(content_brief.get("核心痛点", ""), 34)
+    benefit = _compact_mobile(content_brief.get("读者收益", ""), 34)
+    cover_title = _compact_mobile(cover_hook.get("主标题", ""), 18)
+    if pain and benefit:
+        return [f"先说结论：{name}适合书荒党", pain, benefit]
+    if cover_title:
+        return [f"先说结论：{cover_title}", f"{category}读者可以冲", f"看完能判断{name}合不合胃口"]
+    opening = _compact_mobile(p.get("正文开头模板", ""), 34)
+    return [f"先说结论：{name}值得放进书单", opening or f"{category}看点很集中", "先看这3个点再决定追不追"]
+
+
 _NON_STORY_INTRO_PATTERNS = [
     "实体书",
     "出版",
@@ -569,26 +600,26 @@ def generate_title_options(work, analysis):
         if t not in titles:
             titles.append(t)
     
-    # 公式1：痛点+解决方案
+    # 公式1：痛点型
     if pain_point:
-        titles.append(f"{pain_point}？这本{category}把答案写透了")
+        titles.append(f"{pain_point}？这本{category}给答案")
     else:
-        titles.append(f"追{category}总踩雷？这本真的不一样")
+        titles.append(f"追{category}总踩雷？先看这本")
     
-    # 公式2：提问式
-    titles.append(f"有没有那种看完就走不出来的{category}？")
+    # 公式2：爽点型
+    titles.append(f"这本{category}爽点太密了")
     
-    # 公式3：发现式
+    # 公式3：反差型
     if hook:
-        titles.append(f"我发现了个宝藏！{hook}的{category}")
+        titles.append(f"{hook}，居然写成了爽文")
     else:
-        titles.append(f"我发现了个宝藏！{name}真的绝了")
+        titles.append(f"{name}不是噱头是真上头")
     
-    # 公式4：热点词
-    titles.append(f"刷到就是赚到！这本{category}我连刷了三遍")
+    # 公式4：搜索长尾型
+    titles.append(f"书荒必看{category}推荐")
     
-    # 公式5：身份共鸣
-    titles.append(f"{category}党必备！{name}把{emotion}拉满了")
+    # 公式5：互动求投喂型
+    titles.append(f"{category}党求投喂同款")
     
     # 使用原有标题模板（如果有）
     original_title = p.get("小红书标题模板", "")
@@ -596,7 +627,7 @@ def generate_title_options(work, analysis):
         insert_at = len(brief_titles)
         titles.insert(insert_at, original_title)
     
-    return titles
+    return [_compact_mobile(t, 24) for t in titles]
 
 
 _BRIEF_UNGROUNDED_PATTERNS = [
@@ -643,12 +674,12 @@ def _safe_content_brief_for_note(work, analysis):
     safe_hook["主标题"] = _grounded_brief_value(
         cover_hook.get("主标题", ""),
         f"{name}值不值得追",
-        max_len=40,
+        max_len=16,
     )
     safe_hook["副标题"] = _grounded_brief_value(
         cover_hook.get("副标题", ""),
         f"{category}看点速览",
-        max_len=60,
+        max_len=24,
     )
     safe_hook["点击理由"] = _grounded_brief_value(
         cover_hook.get("点击理由", ""),
@@ -660,12 +691,20 @@ def _safe_content_brief_for_note(work, analysis):
 
 
 def _select_best_title(titles, work):
-    """选择最佳标题（优先选择包含作品名的标题）"""
+    """选择最佳标题：优先短、具体、带作品或题材信号。"""
     name = work.get("作品名称", "")
-    for t in titles:
-        if name and name in t:
+    category = work.get("分类", "")
+    cleaned = [_compact_mobile(t, 24) for t in titles if str(t).strip()]
+    for t in cleaned:
+        if name and name in t and len(t) <= 24:
             return t
-    return titles[0] if titles else ""
+    for t in cleaned:
+        if category and category in t and len(t) <= 22:
+            return t
+    for t in cleaned:
+        if len(t) <= 20:
+            return t
+    return cleaned[0] if cleaned else ""
 
 
 def get_title_options(work, analysis):
@@ -702,24 +741,13 @@ def build_xhs_note(work, analysis, use_formula=True):
         lines.append(f"【标题】{p.get('小红书标题模板', '')}")
     lines.append("")
     
-    # 痛点共鸣开头（参考xhs-writer-skill方法论）
-    lines.append("姐妹们我先说结论👇")
-    pain = _compact_mobile(content_brief.get("核心痛点", ""), 120)
-    benefit = _compact_mobile(content_brief.get("读者收益", ""), 120)
-    hook_bits = [
-        _compact_mobile(cover_hook.get("主标题", ""), 40),
-        _compact_mobile(cover_hook.get("副标题", ""), 60),
-        _compact_mobile(cover_hook.get("点击理由", ""), 100),
-    ]
-    hook_text = _compact_mobile("｜".join([h for h in hook_bits if h]), 140)
-    if pain:
-        lines.append(f"✨ {pain}")
-    else:
-        lines.append(f"✨ {_compact_mobile(p.get('正文开头模板', ''), 120)}")
-    if benefit:
-        lines.append(f"✅ {benefit}")
-    if hook_text:
-        lines.append(f"🎯 {hook_text}")
+    # 前三行先给结论，避免先铺剧情导致滑走。
+    lines.append("先说结论👇")
+    lead_lines = _split_packaging_lines(p.get("正文开头模板", ""), max_lines=3, max_len=38)
+    if len(lead_lines) < 3:
+        lead_lines = _sharp_fallback_lead(content_brief, cover_hook, work, p)
+    for marker, text in zip(["✅", "🔥", "📌"], lead_lines[:3]):
+        lines.append(f"{marker} {text}")
     lines.append("")
     
     # 情绪钩子（从 analysis 情绪词动态生成）
@@ -832,8 +860,14 @@ def build_xhs_note(work, analysis, use_formula=True):
     
     # CTA行动号召（参考xhs-writer-skill：点赞/收藏/关注）
     lines.append("👇 你来选")
-    lines.append(_compact_mobile(p.get("互动话术模板", "你最吃哪类开篇？评论区告诉我"), 120))
-    lines.append("我也想抄你们的书单，评论区互相投喂！")
+    cta = _compact_mobile(p.get("互动话术模板", ""), 46)
+    if not cta or any(x in cta for x in ["欢迎评论", "聊聊", "评论区告诉我"]):
+        category = _compact_mobile(work.get("分类", ""), 16) or "同款"
+        cta = f"你更吃人设拉扯，还是剧情反转？"
+        if category:
+            cta = f"{category}里你最想被投喂哪本？"
+    lines.append(cta)
+    lines.append("我会从评论区挑书继续拆。")
     lines.append("")
     
     # 增加收藏引导

@@ -10,6 +10,7 @@
 @font-face { font-family: "Noto Sans SC"; font-style: normal; font-weight: 400; font-display: swap; src: url("file://{{ font_root }}/NotoSansSC-400.woff2") format("woff2"); }
 @font-face { font-family: "Noto Sans SC"; font-style: normal; font-weight: 500; font-display: swap; src: url("file://{{ font_root }}/NotoSansSC-500.woff2") format("woff2"); }
 @font-face { font-family: "Noto Sans SC"; font-style: normal; font-weight: 700; font-display: swap; src: url("file://{{ font_root }}/NotoSansSC-700.woff2") format("woff2"); }
+@font-face { font-family: "Noto Serif SC"; font-style: normal; font-weight: 700; font-display: swap; src: url("file://{{ font_root }}/NotoSerifSC-700.woff2") format("woff2"); }
 @font-face { font-family: "ZCOOL KuaiLe"; font-style: normal; font-weight: 400; font-display: swap; src: url("file://{{ font_root }}/ZCOOLKuaiLe-400.woff2") format("woff2"); }
 @font-face { font-family: "Noto Color Emoji"; font-style: normal; font-weight: 400; font-display: swap; src: url("file://{{ font_root }}/NotoColorEmoji.woff2") format("woff2"); }
 
@@ -42,6 +43,25 @@ body {
   position: relative;
 }
 
+.image-bg {
+  position: absolute;
+  inset: 0;
+  background-image: var(--card-bg-image);
+  background-size: cover;
+  background-position: center;
+  filter: saturate(1.05) contrast(1.02);
+  opacity: 1;
+}
+
+.image-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(18,24,28,0.18) 0%, rgba(18,24,28,0.02) 36%, rgba(18,24,28,0.30) 100%),
+    radial-gradient(900px 640px at 50% 58%, rgba(18,24,28,0.02), rgba(18,24,28,0.14));
+}
+
 /* ===== 卡片容器 ===== */
 .card {
   position: absolute;
@@ -54,6 +74,222 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.card.has-image-bg {
+  inset: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #F8F4EA;
+  display: block;
+  backdrop-filter: none;
+}
+
+.image-topline {
+  position: absolute;
+  top: 28px;
+  left: 34px;
+  right: 34px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: rgba(248,244,234,0.82);
+  font-size: 22px;
+  font-weight: 500;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.35);
+}
+
+.image-hero-panel {
+  position: absolute;
+  left: 96px;
+  right: 96px;
+  bottom: 318px;
+  padding: 52px 48px 46px;
+  border-radius: 40px;
+  background: rgba(42,58,70,0.70);
+  box-shadow: 0 28px 90px rgba(0,0,0,0.24);
+  text-align: center;
+}
+
+.image-hero-panel .image-title {
+  font-family: "Noto Serif SC", "Noto Sans SC", "Noto Color Emoji", sans-serif;
+  font-size: 82px;
+  font-weight: 700;
+  line-height: 1.22;
+  color: #FCFAF2;
+  text-align: center;
+  text-shadow: 0 3px 12px rgba(0,0,0,0.35);
+}
+
+.image-hero-panel .image-subtitle {
+  margin-top: 32px;
+  display: inline-flex;
+  max-width: 100%;
+  padding: 10px 24px;
+  border-radius: 999px;
+  background: rgba(252,250,242,0.16);
+  font-size: 32px;
+  line-height: 1.42;
+  color: rgba(252,250,242,0.92);
+  text-shadow: 0 2px 8px rgba(0,0,0,0.30);
+}
+
+.image-desc {
+  position: absolute;
+  left: 126px;
+  right: 126px;
+  bottom: 174px;
+  padding: 20px 28px;
+  border-radius: 24px;
+  background: rgba(18,24,28,0.46);
+  font-size: 30px;
+  line-height: 1.5;
+  color: rgba(252,250,242,0.88);
+  text-align: center;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.30);
+  box-shadow: 0 18px 54px rgba(0,0,0,0.20);
+}
+
+.image-bottomline {
+  position: absolute;
+  left: 48px;
+  right: 48px;
+  bottom: 42px;
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+}
+
+.image-bottomline span {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(248,244,234,0.46);
+}
+
+.image-bottomline span:first-child {
+  width: 28px;
+  background: rgba(248,244,234,0.90);
+}
+
+.image-info-panel {
+  position: absolute;
+  left: 72px;
+  right: 72px;
+  bottom: 86px;
+  padding: 34px 38px 38px;
+  border-radius: 34px;
+  background: rgba(26,34,40,0.72);
+  box-shadow: 0 22px 80px rgba(0,0,0,0.25);
+}
+
+.image-info-panel .image-section-kicker {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: rgba(248,244,234,0.16);
+  color: rgba(248,244,234,0.88);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.image-info-panel .image-section-title {
+  margin-top: 22px;
+  font-size: 56px;
+  line-height: 1.16;
+  font-weight: 700;
+  color: #FCFAF2;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.28);
+}
+
+.image-info-panel .image-points {
+  margin-top: 28px;
+  display: grid;
+  gap: 16px;
+}
+
+.image-info-panel .image-point {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  align-items: start;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 22px;
+  background: rgba(248,244,234,0.12);
+}
+
+.image-info-panel .image-point .dot {
+  font-size: 34px;
+  line-height: 1.35;
+}
+
+.image-info-panel .image-point .text {
+  color: rgba(252,250,242,0.94);
+  font-size: 32px;
+  line-height: 1.42;
+  font-weight: 500;
+}
+
+.image-quote-panel {
+  position: absolute;
+  left: 86px;
+  right: 86px;
+  bottom: 178px;
+  min-height: 390px;
+  display: grid;
+  place-items: center;
+  padding: 56px 48px 62px;
+}
+
+.image-quote-emoji {
+  position: absolute;
+  left: 18px;
+  top: -42px;
+  font-size: 88px;
+  transform: rotate(-8deg);
+  filter: drop-shadow(0 12px 18px rgba(0,0,0,0.35));
+}
+
+.image-quote-mark {
+  position: absolute;
+  right: 24px;
+  top: -28px;
+  font-family: "Noto Serif SC", serif;
+  font-size: 150px;
+  line-height: 1;
+  color: rgba(255,226,120,0.34);
+  text-shadow: 0 8px 24px rgba(0,0,0,0.28);
+}
+
+.image-quote-text {
+  font-family: "ZCOOL KuaiLe", "Noto Serif SC", "Noto Sans SC", "Noto Color Emoji", sans-serif;
+  font-size: 74px;
+  line-height: 1.18;
+  color: #FFD85C;
+  text-align: center;
+  text-shadow:
+    0 4px 0 rgba(89,58,13,0.60),
+    0 12px 28px rgba(0,0,0,0.46),
+    0 0 24px rgba(255,204,56,0.42);
+}
+
+.image-quote-pill {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  padding: 8px 22px;
+  border-radius: 999px;
+  background: rgba(20,24,28,0.54);
+  color: rgba(252,250,242,0.88);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 
 /* ===== 封面卡 ===== */
@@ -264,9 +500,21 @@ body {
 </head>
 <body class="{{ card_class }}">
 
+{% if background_image %}
+<div class="image-bg" style="--card-bg-image: url('{{ background_image }}');"></div>
+{% endif %}
+
 {% if card_type == "cover" %}
 <!-- 封面卡 -->
-<div class="card cover">
+<div class="card cover{% if background_image %} has-image-bg{% endif %}">
+  {% if background_image %}
+  <div class="image-hero-panel">
+    <div class="image-title">{{ title | safe }}</div>
+    <div class="image-subtitle">{{ cover_meta | default(subtitle) | safe }}</div>
+  </div>
+  {% if cover_desc %}<div class="image-desc">{{ cover_desc | safe }}</div>{% endif %}
+  <div class="image-bottomline"><span></span><span></span><span></span><span></span><span></span></div>
+  {% else %}
   <div class="emoji-decoration">{{ decoration_emoji }}</div>
   <div class="category-tag">{{ category }}</div>
   <div class="title">{{ title | safe }}</div>
@@ -275,12 +523,38 @@ body {
     <div class="page-num">{{ page_num }} / {{ total_pages }}</div>
     <div>继续滑 →</div>
   </div>
+  {% endif %}
 </div>
 {% endif %}
 
 {% if card_type == "content" %}
 <!-- 内容卡 -->
-<div class="card content-card">
+<div class="card content-card{% if background_image %} has-image-bg{% endif %}">
+  {% if background_image %}
+  {% if page_role == "quote" %}
+  <div class="image-quote-panel">
+    <div class="image-quote-emoji">{{ quote_emoji | default("✨") }}</div>
+    <div class="image-quote-mark">“</div>
+    <div class="image-quote-text">“{{ quote_text | default(message) | safe }}”</div>
+    <div class="image-quote-pill">经典金句</div>
+  </div>
+  <div class="image-bottomline"><span></span><span></span><span></span><span></span><span></span></div>
+  {% else %}
+  <div class="image-info-panel">
+    <div class="image-section-kicker">{{ section_tag }}</div>
+    <div class="image-section-title">{{ section_title | safe }}</div>
+    <div class="image-points">
+      {% for point in points %}
+      <div class="image-point">
+        <span class="dot">{{ point.emoji }}</span>
+        <span class="text">{{ point.text | safe }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="image-bottomline"><span></span><span></span><span></span><span></span><span></span></div>
+  {% endif %}
+  {% else %}
   <div class="top-bar">
     <div class="section-tag">{{ section_tag }}</div>
     <div class="page-num">{{ page_num }} / {{ total_pages }}</div>
@@ -294,12 +568,28 @@ body {
     </div>
     {% endfor %}
   </div>
+  {% endif %}
 </div>
 {% endif %}
 
 {% if card_type == "summary" %}
 <!-- 总结卡 -->
-<div class="card summary-card">
+<div class="card summary-card{% if background_image %} has-image-bg{% endif %}">
+  {% if background_image %}
+  <div class="image-info-panel">
+    <div class="image-section-kicker">{{ section_tag }}</div>
+    <div class="image-section-title">{{ summary_title | safe }}</div>
+    <div class="image-points">
+      {% for item in takeaways %}
+      <div class="image-point">
+        <span class="dot">{{ loop.index }}</span>
+        <span class="text">{{ item | safe }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="image-bottomline"><span></span><span></span><span></span><span></span><span></span></div>
+  {% else %}
   <div class="top-bar">
     <div class="section-tag">{{ section_tag }}</div>
     <div class="page-num">{{ page_num }} / {{ total_pages }}</div>
@@ -315,6 +605,7 @@ body {
   </div>
   <div class="cta">{{ cta | safe }}</div>
   <div class="tags">{{ tags | safe }}</div>
+  {% endif %}
 </div>
 {% endif %}
 

@@ -40,7 +40,11 @@
     renderTopics(data.top_topics || []);
     renderAccount(data.account || {}, status);
     renderStatus(status);
-    if (typeof lucide !== "undefined") lucide.createIcons();
+    if (typeof lucide !== "undefined") {
+      lucide.createIcons();
+    } else if (typeof window.createAppFallbackIcons === "function") {
+      window.createAppFallbackIcons();
+    }
   }
 
   function renderTrend(rows) {

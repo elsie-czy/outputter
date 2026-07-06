@@ -390,6 +390,8 @@ def process_one(task, dry=False):
                         n=_html_count1,
                         output_dir=_out_dir,
                         content_brief=analysis.get("内容简报") if isinstance(analysis, dict) else None,
+                        work_info=work,
+                        analysis=analysis,
                     )
                     if _pngs1:
                         images = {"cover": _pngs1[0]}
@@ -418,6 +420,23 @@ def process_one(task, dry=False):
                     if img_result["ok"]:
                         images = img_result["images"]
                         _log(rid, f"图片补生成成功: {list(images.keys())}")
+                        try:
+                            from scripts.html_card_generator import generate_cards_on_images
+                            _overlay_dir = os.path.join("temp", "generated_images", rid, "ai_overlay")
+                            _overlay_count = max(_html_count1, len(images))
+                            images = generate_cards_on_images(
+                                xhs_note_dict,
+                                images,
+                                style=_html_style1,
+                                n=_overlay_count,
+                                output_dir=_overlay_dir,
+                                content_brief=analysis.get("内容简报") if isinstance(analysis, dict) else None,
+                                work_info=work,
+                                analysis=analysis,
+                            )
+                            _log(rid, f"AI图片叠加文字层成功: {len([k for k in images if not k.startswith('raw_')])} 张")
+                        except Exception as overlay_exc:
+                            _log(rid, f"AI图片叠加文字层失败，保留原图: {overlay_exc}")
                     else:
                         _log(rid, f"图片补生成失败: {img_result.get('error','未知')}")
                 except Exception as e:
@@ -587,6 +606,8 @@ def process_one(task, dry=False):
                     n=_html_count,
                     output_dir=_out_dir,
                     content_brief=analysis.get("内容简报") if isinstance(analysis, dict) else None,
+                    work_info=work,
+                    analysis=analysis,
                 )
                 if _pngs:
                     images = {"cover": _pngs[0]}
@@ -616,6 +637,23 @@ def process_one(task, dry=False):
                 if img_result["ok"]:
                     images = img_result["images"]
                     _log(rid, f"图片生成成功: {list(images.keys())}")
+                    try:
+                        from scripts.html_card_generator import generate_cards_on_images
+                        _overlay_dir = os.path.join("temp", "generated_images", rid, "ai_overlay")
+                        _overlay_count = max(_html_count, len(images))
+                        images = generate_cards_on_images(
+                            _xhs_note_for_card,
+                            images,
+                            style=_html_style,
+                            n=_overlay_count,
+                            output_dir=_overlay_dir,
+                            content_brief=analysis.get("内容简报") if isinstance(analysis, dict) else None,
+                            work_info=work,
+                            analysis=analysis,
+                        )
+                        _log(rid, f"AI图片叠加文字层成功: {len([k for k in images if not k.startswith('raw_')])} 张")
+                    except Exception as overlay_exc:
+                        _log(rid, f"AI图片叠加文字层失败，保留原图: {overlay_exc}")
                 else:
                     _log(rid, f"图片生成失败: {img_result['error']}")
                 step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}

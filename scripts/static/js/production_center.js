@@ -132,7 +132,7 @@
     tbody.innerHTML = html;
     lastTableHtml = html;
     bindRowEvents(tbody);
-    if (typeof lucide !== "undefined") lucide.createIcons();
+    refreshIcons();
   }
 
   function applyLocalFilters(items) {
@@ -446,7 +446,15 @@
       btn.disabled = selectedIds.size === 0;
       btn.innerHTML = '<i data-lucide="more-horizontal"></i> 批量操作' + (selectedIds.size ? " (" + selectedIds.size + ")" : "");
     }
-    if (typeof lucide !== "undefined") lucide.createIcons();
+    refreshIcons();
+  }
+
+  function refreshIcons() {
+    if (typeof lucide !== "undefined") {
+      lucide.createIcons();
+    } else if (typeof window.createAppFallbackIcons === "function") {
+      window.createAppFallbackIcons();
+    }
   }
 
   function showToast(type, message) {
