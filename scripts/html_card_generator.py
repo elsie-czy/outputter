@@ -479,14 +479,22 @@ def _screenshot_batch(html_paths: list[str], output_dir: str) -> list[str]:
         return _screenshot_batch_with_chromium_cli(html_paths, output_dir)
 
     png_paths = []
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        for html_path in html_paths:
-            png_path = _screenshot_one(browser, html_path, output_dir)
-            if png_path:
-                png_paths.append(png_path)
-        browser.close()
-    return png_paths
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            for html_path in html_paths:
+                png_path = _screenshot_one(browser, html_path, output_dir)
+                if png_path:
+                    png_paths.append(png_path)
+            browser.close()
+        return png_paths
+    except Exception as exc:
+        try:
+            return _screenshot_batch_with_chromium_cli(html_paths, output_dir)
+        except Exception as fallback_exc:
+            raise RuntimeError(
+                f"Playwright 截图失败: {exc}; Chromium CLI fallback 也失败: {fallback_exc}"
+            ) from fallback_exc
 
 
 def _screenshot_one(browser, html_path: str, output_dir: str) -> str:
@@ -511,10 +519,14 @@ def _find_chromium_binary() -> str:
         "chromium-browser",
         "google-chrome",
         "google-chrome-stable",
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
     ]
     for candidate in candidates:
         if not candidate:
             continue
+        if os.path.exists(candidate):
+            return candidate
         found = shutil.which(candidate)
         if found:
             return found

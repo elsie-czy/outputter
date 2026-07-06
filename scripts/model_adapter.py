@@ -237,13 +237,26 @@ def analyze_work(work, reference_notes=None, recent_feedback=None):
 def _openai_analyze(work, reference_notes=None, recent_feedback=None):
     provider = os.getenv("MODEL_PROVIDER", "openai").strip().lower()
     is_qwen = provider in {"qwen", "dashscope"}
-    api_key = (os.getenv("QWEN_API_KEY", "") if is_qwen else os.getenv("OPENAI_API_KEY", "")).strip()
+    is_deepseek = provider == "deepseek"
+    if is_qwen:
+        api_key = os.getenv("QWEN_API_KEY", "").strip()
+    elif is_deepseek:
+        api_key = os.getenv("DEEPSEEK_API_KEY", "").strip() or os.getenv("OPENAI_API_KEY", "").strip()
+    else:
+        api_key = os.getenv("OPENAI_API_KEY", "").strip()
     api_key_intl = os.getenv("QWEN_API_KEY_INTL", "").strip() if is_qwen else ""
     if not api_key and not api_key_intl:
         raise RuntimeError("模型 API_KEY 未设置")
 
-    model_default = "qwen-plus" if is_qwen else "gpt-4o-mini"
-    model = (os.getenv("QWEN_MODEL", "") if is_qwen else "").strip() or os.getenv("OPENAI_MODEL", model_default).strip()
+    if is_qwen:
+        model_default = "qwen-plus"
+        model = os.getenv("QWEN_MODEL", "").strip() or os.getenv("OPENAI_MODEL", model_default).strip()
+    elif is_deepseek:
+        model_default = "deepseek-chat"
+        model = os.getenv("DEEPSEEK_MODEL", "").strip() or os.getenv("OPENAI_MODEL", model_default).strip()
+    else:
+        model_default = "gpt-4o-mini"
+        model = os.getenv("OPENAI_MODEL", model_default).strip()
 
     if is_qwen:
         raw_urls = os.getenv("QWEN_BASE_URLS", "").strip()
@@ -258,6 +271,10 @@ def _openai_analyze(work, reference_notes=None, recent_feedback=None):
                 base_urls.append("https://dashscope.aliyuncs.com/compatible-mode/v1")
             if "https://dashscope-intl.aliyuncs.com/compatible-mode/v1" not in base_urls:
                 base_urls.append("https://dashscope-intl.aliyuncs.com/compatible-mode/v1")
+    elif is_deepseek:
+        base_urls = [
+            os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").strip().rstrip("/")
+        ]
     else:
         base_default = "https://api.openai.com/v1"
         base_urls = [os.getenv("OPENAI_BASE_URL", base_default).strip().rstrip("/")]

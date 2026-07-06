@@ -16,6 +16,21 @@
 - 回滚方式：
 - 风险与注意事项：
 
+## 2026-07-06（DeepSeek 模型切换与本地 HTML 卡片 fallback）
+- 变更摘要：修复 `MODEL_PROVIDER=deepseek` 时仍误用通用 OpenAI/BigModel 配置的问题，并增强本地 HTML 卡片截图 fallback。
+- 影响范围：主流程 / 模型 / AI 评分 / HTML 卡片 / 测试
+- 行为变化：
+  - `model_adapter.py` 在 `MODEL_PROVIDER=deepseek` 时优先读取 `DEEPSEEK_API_KEY`、`DEEPSEEK_MODEL`、`DEEPSEEK_BASE_URL`
+  - `quality_scorer.py` 同步支持 DeepSeek 专用配置，避免重新评分继续请求 BigModel
+  - HTML 卡片截图在 Playwright 包存在但浏览器二进制缺失时，会自动回退到 Chromium/Chrome CLI
+  - macOS 本地 fallback 支持 `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`
+- 配置变更（.env）：使用既有 `MODEL_PROVIDER=deepseek`、`DEEPSEEK_API_KEY`、`DEEPSEEK_MODEL`；可选 `DEEPSEEK_BASE_URL`
+- 数据迁移/回填动作：无；失败任务需要手动重试才会使用新模型配置
+- 回滚方式：回退 `scripts/model_adapter.py`、`scripts/quality_scorer.py`、`scripts/html_card_generator.py`、相关测试和本条记录
+- 风险与注意事项：
+  - DeepSeek 只解决文本分析/评分链路；真实图片接口仍取决于图片 provider 的 token 和配置
+  - 若本地没有 Chrome/Chromium 且未安装 Playwright 浏览器，HTML 卡片截图仍会失败
+
 ## 2026-07-05（笔记事实锚定与 HTML 卡片运行时修复）
 - 变更摘要：修复内容简报把泛化方法论写入笔记、公告信息混入“一句话剧情”、Docker HTML 卡片截图缺 Playwright 的问题。
 - 影响范围：主流程 / 模型 / 笔记正文 / HTML 卡片 / Docker / 测试

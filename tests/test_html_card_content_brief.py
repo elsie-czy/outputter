@@ -2,7 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from scripts import html_card_generator as cards
 
@@ -73,6 +73,23 @@ class HtmlCardContentBriefTest(unittest.TestCase):
             self.assertTrue(plan_path.exists())
             payload = json.loads(plan_path.read_text(encoding="utf-8"))
             self.assertEqual(payload["cards"][0]["plan_source"], "content_brief")
+
+    def test_screenshot_batch_falls_back_when_playwright_launch_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            html_path = Path(tmp) / "xhs_card_01.html"
+            html_path.write_text("<html><body>card</body></html>", encoding="utf-8")
+            fake_playwright = Mock()
+            fake_playwright.__enter__ = Mock(return_value=fake_playwright)
+            fake_playwright.__exit__ = Mock(return_value=None)
+            fake_playwright.chromium.launch.side_effect = RuntimeError("missing browser")
+
+            with patch.object(cards, "_PLAYWRIGHT_OK", True), \
+                    patch.object(cards, "sync_playwright", return_value=fake_playwright), \
+                    patch.object(cards, "_screenshot_batch_with_chromium_cli", return_value=["fallback.png"]) as fallback:
+                result = cards._screenshot_batch([str(html_path)], tmp)
+
+            self.assertEqual(result, ["fallback.png"])
+            fallback.assert_called_once_with([str(html_path)], tmp)
 
     def test_validate_cards_finds_empty_title_and_message(self):
         errors = cards._validate_cards([
