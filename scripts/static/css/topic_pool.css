@@ -1139,6 +1139,21 @@
   background: var(--bg-primary-light);
 }
 
+.tp-row.is-disabled {
+  cursor: not-allowed;
+  background: #fafafa;
+  opacity: 0.78;
+}
+
+.tp-row.is-disabled:hover {
+  background: #fafafa;
+}
+
+.tp-row.is-disabled .tp-card-checkbox {
+  border-color: var(--border);
+  background: #f3f4f6;
+}
+
 .tp-cell {
   min-width: 0;
   padding: 10px 12px;
@@ -1335,6 +1350,12 @@
   cursor: pointer;
 }
 
+.tp-row-action:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+  background: #f5f5f5;
+}
+
 .tp-row.selected .tp-row-action {
   color: var(--text-secondary);
 }
@@ -1412,4 +1433,8 @@
 .tp-badge--muted {
   background: #f5f5f5;
   color: #999;
+}
+.tp-badge--queued {
+  background: #fff7e6;
+  color: #ad6800;
 }

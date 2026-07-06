@@ -61,6 +61,17 @@ def batch_enqueue():
         works = data.get("works", [])
         if not works:
             return jsonify({"ok": False, "error": "works 为空"}), 400
+        requested_count = len(works)
+        requested_ids = {
+            str(w.get("record_id") or "").strip()
+            for w in works
+            if str(w.get("record_id") or "").strip()
+        }
+        existing_ids = {
+            str(i.get("record_id") or "").strip()
+            for i in get_queue(per_page=9999).get("items", [])
+            if str(i.get("record_id") or "").strip()
+        }
 
         # 安全网：从本地选题库补全简介/取向
         from scripts.local_data_manager import get_local_topics
@@ -85,7 +96,18 @@ def batch_enqueue():
             enriched.append(w)
 
         count = enqueue_works(enriched, image_strategy=data.get("image_strategy", ""))
-        return jsonify({"ok": True, "data": {"enqueued": count}})
+        duplicate_ids = sorted(requested_ids & existing_ids)
+        skipped_count = max(0, requested_count - count)
+        return jsonify({
+            "ok": True,
+            "data": {
+                "requested": requested_count,
+                "enqueued": count,
+                "skipped": skipped_count,
+                "skipped_duplicate": len(duplicate_ids),
+                "duplicate_ids": duplicate_ids,
+            },
+        })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 

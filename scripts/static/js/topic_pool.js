@@ -48,10 +48,14 @@ const PAGE_SIZE = 10;
       const json = await res.json();
       if (!json.ok) throw new Error(json.error);
       allItems = json.data.items || [];
+      selectedIds = new Set(Array.from(selectedIds).filter((rid) => {
+        const item = allItems.find((i) => i.record_id === rid);
+        return item && isSubmittable(item);
+      }));
       currentPage = 1;
       renderGrid();
       // 更新待拆作品 KPI（基于选题库实际拆解状态）
-      setText("#kpiPending", allItems.filter(i => !i.is_deconstructed).length);
+      setText("#kpiPending", allItems.filter(i => isSubmittable(i)).length);
     } catch (e) {
       grid.innerHTML =
         '<div class="tp-empty"><div class="tp-empty-icon">✕</div><div class="tp-empty-title">加载失败</div><div class="tp-empty-desc">' +
@@ -195,22 +199,23 @@ const PAGE_SIZE = 10;
     for (const item of pageItems) {
       const rid = item.record_id || "";
       const sel = selectedIds.has(rid) ? " selected" : "";
+      const disabled = !isSubmittable(item);
+      const disabledClass = disabled ? " is-disabled" : "";
       const score = item.quality_score;
       const scoreInfo = getScoreInfo(score);
       const catClass = getCategoryClass(item.category);
       const catIcon = getCategoryIcon(item.category);
       const potential = getPotentialInfo(item);
+      const statusBadge = getTopicStatusBadge(item);
 
       html +=
-        '<div class="tp-row' + sel + '" data-rid="' + esc(rid) + '">' +
+        '<div class="tp-row' + sel + disabledClass + '" data-rid="' + esc(rid) + '">' +
         '<div class="tp-cell tp-cell-select"><div class="tp-card-checkbox" aria-hidden="true">' + (sel ? "✓" : "") + "</div></div>" +
         '<div class="tp-cell tp-cell-work">' +
           '<div class="tp-card-cover">' + catIcon + '</div>' +
           '<div class="tp-card-content">' +
             '<div class="tp-card-name">' + esc(item.work_name || "未知作品") + "</div>" +
-            (item.is_deconstructed
-              ? '<span class="tp-badge tp-badge--muted">已拆解</span>'
-              : '<span class="tp-badge tp-badge--green">待拆解</span>') +
+            statusBadge +
             '<div class="tp-card-author">' + esc(item.author || "未知作者") + "</div>" +
             '<div class="tp-card-meta">' +
               '<span class="tp-card-tag tp-card-tag--platform">' + esc(item.platform || "-") + "</span>" +
@@ -243,7 +248,7 @@ const PAGE_SIZE = 10;
           '<span class="tp-potential-desc">' + potential.desc + "</span>" +
         "</div>" +
         '<div class="tp-cell tp-cell-action">' +
-          '<button class="tp-row-action" type="button" data-action="toggle">' + (sel ? "移出" : "加入生产") + "</button>" +
+          '<button class="tp-row-action" type="button" data-action="toggle"' + (disabled ? " disabled" : "") + ">" + (disabled ? "已入队" : (sel ? "移出" : "加入生产")) + "</button>" +
         "</div>" +
         "</div>";
     }
@@ -255,6 +260,11 @@ const PAGE_SIZE = 10;
       card.addEventListener("click", () => {
         const rid = card.dataset.rid;
         if (!rid) return;
+        const item = allItems.find((i) => i.record_id === rid);
+        if (!isSubmittable(item)) {
+          showToast("warning", "该作品已在生产中心，请到生产中心查看或重试");
+          return;
+        }
         if (selectedIds.has(rid)) {
           selectedIds.delete(rid);
           card.classList.remove("selected");
@@ -266,6 +276,39 @@ const PAGE_SIZE = 10;
     });
 
     updateSidebar();
+  }
+
+  function isSubmittable(item) {
+    return !!item && !item.is_deconstructed && !item.is_in_queue;
+  }
+
+  function getTopicStatusBadge(item) {
+    if (item && item.is_in_queue) {
+      const label = queueStatusLabel(item.queue_status);
+      return '<span class="tp-badge tp-badge--queued">已在生产中心' + (label ? " · " + esc(label) : "") + "</span>";
+    }
+    if (item && item.is_deconstructed) {
+      return '<span class="tp-badge tp-badge--muted">已拆解</span>';
+    }
+    return '<span class="tp-badge tp-badge--green">待拆解</span>';
+  }
+
+  function queueStatusLabel(status) {
+    const map = {
+      pending: "等待中",
+      waiting: "等待中",
+      processing: "生产中",
+      deconstructing: "拆文中",
+      generating_note: "生成笔记",
+      ai_scoring: "AI评分",
+      human_review: "待审核",
+      generating_image: "生成图片",
+      done: "已完成",
+      failed: "失败",
+      cancelled: "已取消",
+      paused: "已暂停",
+    };
+    return map[status] || status || "";
   }
 
   function getScoreInfo(score) {
@@ -687,8 +730,14 @@ const PAGE_SIZE = 10;
   }
 
   async function submitProduction() {
-    const selected = allItems.filter((i) => selectedIds.has(i.record_id));
-    if (selected.length === 0) return;
+    const selectedAll = allItems.filter((i) => selectedIds.has(i.record_id));
+    const selected = selectedAll.filter((i) => isSubmittable(i));
+    if (selected.length === 0) {
+      selectedIds.clear();
+      renderGrid();
+      showToast("warning", "所选作品已在生产中心，没有可新增的拆解任务");
+      return;
+    }
 
     const confirmBtn = $("#tpModalConfirm");
     const cancelBtn = $("#tpModalCancel");
@@ -728,8 +777,17 @@ const PAGE_SIZE = 10;
       const json = await res.json();
       if (!json.ok) throw new Error(json.error);
 
+      if (!json.data || !json.data.enqueued) {
+        if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = "确认提交"; }
+        if (cancelBtn) cancelBtn.disabled = false;
+        showToast("warning", "没有新增任务，所选作品可能已在生产中心");
+        return;
+      }
+
       closeModal();
-      showToast("success", "✓ 成功提交 " + json.data.enqueued + " 篇作品");
+      const skippedText = json.data.skipped ? "，跳过 " + json.data.skipped + " 篇已存在作品" : "";
+      showToast("success", "✓ 成功提交 " + json.data.enqueued + " 篇作品" + skippedText);
       selectedIds.clear();
       
       // 保持 loading 过渡直到跳转，避免提交成功后页面突然静止。

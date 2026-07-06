@@ -31,6 +31,20 @@
   - DeepSeek 只解决文本分析/评分链路；真实图片接口仍取决于图片 provider 的 token 和配置
   - 若本地没有 Chrome/Chromium 且未安装 Playwright 浏览器，HTML 卡片截图仍会失败
 
+## 2026-07-06（选题池重复提交防护）
+- 变更摘要：修复选题池提交已在生产中心的作品时提示“成功提交 0 篇”的问题。
+- 影响范围：Web / 选题池 / 生产中心 / 队列
+- 行为变化：
+  - 选题池 owner/client 模式都会读取真实队列状态，默认隐藏已在生产中心的作品
+  - `show_all=1` 查看全部时会标记“已在生产中心 · 状态”，并禁用加入生产
+  - 提交生产只提交可入队作品；没有新增任务时显示明确提示，不再显示成功 0 篇
+  - `/api/deconstruct/batch-enqueue` 返回 `requested/enqueued/skipped/skipped_duplicate/duplicate_ids`，便于前端展示跳过原因
+- 配置变更（.env）：无
+- 数据迁移/回填动作：无
+- 回滚方式：回退 `scripts/web/routes/topic_pool_page.py`、`scripts/web/routes/deconstruct_api.py`、`scripts/static/js/topic_pool.js`、`scripts/static/css/topic_pool.css` 和本条记录
+- 风险与注意事项：
+  - 失败任务不会再从选题池重复入队，应在生产中心使用“重试”处理
+
 ## 2026-07-05（笔记事实锚定与 HTML 卡片运行时修复）
 - 变更摘要：修复内容简报把泛化方法论写入笔记、公告信息混入“一句话剧情”、Docker HTML 卡片截图缺 Playwright 的问题。
 - 影响范围：主流程 / 模型 / 笔记正文 / HTML 卡片 / Docker / 测试

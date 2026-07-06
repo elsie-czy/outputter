@@ -62,6 +62,13 @@ def topic_pool_list():
     """获取选题列表"""
     try:
         mode = get_work_mode()
+        show_all = request.args.get("show_all") == "1"
+        queued_items = get_queue(per_page=9999).get("items", [])
+        queue_by_id = {
+            str(i.get("record_id") or "").strip(): i
+            for i in queued_items
+            if str(i.get("record_id") or "").strip()
+        }
         
         if mode == "owner":
             # owner 模式：从本地读取，过滤已拆解
@@ -77,32 +84,24 @@ def topic_pool_list():
             except Exception:
                 pass
             # 补充：队列中已完成的任务也算已拆解
-            try:
-                import json, os
-                queue_file = os.path.join(
-                    os.path.dirname(__file__), "..", "..", "data", "queue", "deconstruct_queue.jsonl"
-                )
-                if os.path.exists(queue_file):
-                    with open(queue_file) as f:
-                        for line in f:
-                            if not line.strip():
-                                continue
-                            rec = json.loads(line)
-                            if rec.get("status") == "done":
-                                n = (rec.get("work_name") or "").strip()
-                                if n:
-                                    deconstructed_names.add(n)
-            except Exception:
-                pass
+            for rec in queued_items:
+                if rec.get("status") == "done":
+                    n = (rec.get("work_name") or "").strip()
+                    if n:
+                        deconstructed_names.add(n)
             # owner 模式：只以 results.jsonl 中存在实际拆文结果为准
             # 不依赖飞书「是否拆解」字段（该字段可能为默认值/旧值）
             for item in items:
+                rid = str(item.get("record_id") or "").strip()
+                queue_item = queue_by_id.get(rid)
                 in_results = item.get("work_name", "") in deconstructed_names
                 item["is_deconstructed"] = in_results
                 item["deconstruct_status_label"] = "已拆解" if in_results else ""
+                item["is_in_queue"] = bool(queue_item)
+                item["queue_status"] = queue_item.get("status", "") if queue_item else ""
             # 默认过滤已拆解；?show_all=1 可查看全部
-            if request.args.get("show_all") != "1":
-                items = [i for i in items if not i.get("is_deconstructed")]
+            if not show_all:
+                items = [i for i in items if not i.get("is_deconstructed") and not i.get("is_in_queue")]
             source = "local"
         else:
             # client 模式：从飞书读取
@@ -127,11 +126,13 @@ def topic_pool_list():
             for r in records:
                 fields = r.get("fields", {}) or {}
                 is_deconstructed = _is_deconstructed(fields.get("是否拆解"))
+                rid = str(r.get("record_id", "") or "").strip()
+                queue_item = queue_by_id.get(rid)
                 # 默认过滤已拆解作品；?show_all=1 可查看全部
-                if is_deconstructed and request.args.get("show_all") != "1":
+                if (is_deconstructed or queue_item) and not show_all:
                     continue
                 item = {
-                    "record_id": r.get("record_id", ""),
+                    "record_id": rid,
                     "work_name": fields.get("作品名称", ""),
                     "author": fields.get("作者", ""),
                     "platform": fields.get("平台", ""),
@@ -149,6 +150,8 @@ def topic_pool_list():
                     "status": fields.get("状态", "pending"),
                     "is_deconstructed": is_deconstructed,
                     "deconstruct_status_label": fields.get("是否拆解", ""),
+                    "is_in_queue": bool(queue_item),
+                    "queue_status": queue_item.get("status", "") if queue_item else "",
                 }
                 items.append(item)
             source = "feishu"
