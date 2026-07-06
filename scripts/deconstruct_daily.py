@@ -322,11 +322,32 @@ def _sanitize_prompt_for_image_gen(prompt):
     return p.strip()
 
 
+def _ensure_required_synopsis(work):
+    """为飞书主表必填的简介字段提供最小可用兜底。"""
+    intro = str(work.get("简介") or work.get("剧情简介") or "").strip()
+    if intro:
+        return intro
+
+    name = str(work.get("作品名称") or "该作品").strip()
+    author = str(work.get("作者") or "").strip()
+    category = str(work.get("分类") or "").strip()
+    platform = str(work.get("平台") or "").strip()
+    parts = [f"《{name}》"]
+    if author:
+        parts.append(f"作者为{author}")
+    if category:
+        parts.append(f"分类为{category}")
+    if platform:
+        parts.append(f"来源平台为{platform}")
+    base = "，".join(parts)
+    return f"{base}。当前选题池未提供详细简介，先以作品名、作者、分类和平台信息作为拆解基础；后续可补充正式简介以提升内容准确度。"
+
+
 
 
 def _build_image_prompts(work, analysis):
     category = str(work.get("分类", "") or "")
-    intro = str(work.get("简介", "") or "")
+    intro = _ensure_required_synopsis(work)
     characters = analysis.get("人物设定", {}) or {}
     packaging = analysis.get("小红书包装", {}) or {}
     brief = analysis.get("内容简报", {}) or {}

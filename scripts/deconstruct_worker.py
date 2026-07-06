@@ -29,6 +29,7 @@ from scripts.source_cleaner import clean_source_synopsis
 from scripts.deconstruct_daily import (
     build_report, build_xhs_note, build_experiment_log, get_title_options,
     sync_to_feishu, sync_xhs_note_table, _build_image_prompts,
+    _ensure_required_synopsis,
 )
 
 
@@ -304,7 +305,8 @@ def process_one(task, dry=False):
         
         # 确保必填字段有默认值
         if not work.get("简介"):
-            work["简介"] = ""
+            work["简介"] = _ensure_required_synopsis(work)
+            work["简介来源"] = "fallback_required_field"
 
         if dry:
             _log(rid, "dry=True，跳过模型调用")

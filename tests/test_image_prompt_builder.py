@@ -1,6 +1,6 @@
 import unittest
 
-from scripts.deconstruct_daily import _build_image_prompts
+from scripts.deconstruct_daily import _build_image_prompts, _ensure_required_synopsis
 
 
 class ImagePromptBuilderTest(unittest.TestCase):
@@ -56,6 +56,22 @@ class ImagePromptBuilderTest(unittest.TestCase):
 
         self.assertFalse(any("\u4e00" <= ch <= "\u9fff" for ch in joined))
         self.assertIn("mecha cockpit", joined)
+
+    def test_missing_synopsis_gets_required_field_fallback(self):
+        work = {
+            "作品名称": "在末世建最强城",
+            "作者": "小鱼临渊",
+            "平台": "多个网络文学平台均有发布",
+            "分类": "科幻小说",
+            "简介": "",
+        }
+
+        synopsis = _ensure_required_synopsis(work)
+
+        self.assertIn("在末世建最强城", synopsis)
+        self.assertIn("小鱼临渊", synopsis)
+        self.assertIn("科幻小说", synopsis)
+        self.assertNotEqual(synopsis.strip(), "")
 
 
 if __name__ == "__main__":

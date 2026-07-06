@@ -774,8 +774,8 @@
   background: var(--bg-card);
   border-radius: var(--radius);
   padding: var(--space-lg);
-  max-width: 640px;
-  width: min(92vw, 640px);
+  max-width: 720px;
+  width: min(92vw, 720px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.16);
 }
 
@@ -823,7 +823,7 @@
 
 .tp-modal-strategy {
   display: grid;
-  grid-template-columns: max-content max-content minmax(180px, 1fr);
+  grid-template-columns: max-content max-content minmax(0, 1fr);
   align-items: center;
   gap: var(--space-sm);
   margin-bottom: var(--space-md);
@@ -855,7 +855,8 @@
   color: #6B7280;
   font-size: 12px;
   line-height: 1.4;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .tp-modal-actions {

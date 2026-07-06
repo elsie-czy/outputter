@@ -715,10 +715,10 @@ const PAGE_SIZE = 10;
     if (providerEl) providerEl.style.display = v === "ai" ? "" : "none";
     if (providerField) providerField.style.display = v === "ai" ? "" : "none";
     const providerHints = {
-      "liblib": "LiblibAI 星流 API 生图，适合测试新图文模型效果",
-      "jimeng": "即梦 / 火山 AI 生图，使用既有图片链路",
-      "siliconflow": "SiliconFlow 图片接口，需本地已配置密钥",
-      "mock": "Mock 图片，适合本地无成本联调",
+      "liblib": "LiblibAI 星流，适合新图文模型",
+      "jimeng": "即梦 / 火山，使用既有链路",
+      "siliconflow": "SiliconFlow，需已配置密钥",
+      "mock": "Mock，本地无成本联调",
     };
     const hints = {
       "ai": providerHints[provider] || "AI 生图，适合需要真实图片的场景",
