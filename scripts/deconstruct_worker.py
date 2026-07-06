@@ -51,14 +51,21 @@ def _read_image_strategy_config():
     }
 
 
-def _with_image_provider(provider, func):
+def _with_image_provider(provider, func, force_enabled=False):
     provider = str(provider or "").strip().lower()
     old_provider = os.getenv("IMAGE_PROVIDER")
+    old_enabled = os.getenv("IMAGE_GEN_ENABLED")
     if provider:
         os.environ["IMAGE_PROVIDER"] = provider
+    if force_enabled:
+        os.environ["IMAGE_GEN_ENABLED"] = "true"
     try:
         return func()
     finally:
+        if old_enabled is None:
+            os.environ.pop("IMAGE_GEN_ENABLED", None)
+        else:
+            os.environ["IMAGE_GEN_ENABLED"] = old_enabled
         if old_provider is None:
             os.environ.pop("IMAGE_PROVIDER", None)
         else:
@@ -395,7 +402,7 @@ def process_one(task, dry=False):
                     _log(rid, f"HTML卡片生成异常: {e}")
                     step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
                     _set_status(rid, "done", images=images, step_times=step_times)
-            elif os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
+            elif _task_strategy1 == "ai":
                 # AI 即梦生图（原有逻辑）
                 try:
                     from scripts.image_provider import generate_images_for_task
@@ -404,6 +411,7 @@ def process_one(task, dry=False):
                     img_result = _with_image_provider(
                         _image_provider1,
                         lambda: generate_images_for_task(cached_xhs),
+                        force_enabled=True,
                     )
                     if img_result["ok"]:
                         images = img_result["images"]
@@ -591,7 +599,7 @@ def process_one(task, dry=False):
                 _log(rid, f"HTML卡片生成异常: {e}")
                 step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
                 _set_status(rid, "done", images=images, step_times=step_times)
-        elif os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ("1", "true", "yes"):
+        elif _task_strategy == "ai":
             t_image = time.perf_counter()
             _log(rid, "开始生成图片...")
             try:
@@ -601,6 +609,7 @@ def process_one(task, dry=False):
                 img_result = _with_image_provider(
                     _image_provider,
                     lambda: generate_images_for_task(analysis),
+                    force_enabled=True,
                 )
                 if img_result["ok"]:
                     images = img_result["images"]

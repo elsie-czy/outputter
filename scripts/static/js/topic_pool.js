@@ -711,9 +711,9 @@ const PAGE_SIZE = 10;
     if (!selectEl || !hintEl) return;
     const v = selectEl.value;
     const provider = providerEl ? providerEl.value : "";
-    const providerLabel = $("#tpModalProviderLabel");
+    const providerField = $("#tpModalProviderField");
     if (providerEl) providerEl.style.display = v === "ai" ? "" : "none";
-    if (providerLabel) providerLabel.style.display = v === "ai" ? "" : "none";
+    if (providerField) providerField.style.display = v === "ai" ? "" : "none";
     const providerHints = {
       "liblib": "LiblibAI 星流 API 生图，适合测试新图文模型效果",
       "jimeng": "即梦 / 火山 AI 生图，使用既有图片链路",
