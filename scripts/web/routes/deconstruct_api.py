@@ -95,7 +95,11 @@ def batch_enqueue():
                     w["取向"] = local_item.get("orientation", "")
             enriched.append(w)
 
-        count = enqueue_works(enriched, image_strategy=data.get("image_strategy", ""))
+        count = enqueue_works(
+            enriched,
+            image_strategy=data.get("image_strategy", ""),
+            image_provider=data.get("image_provider", ""),
+        )
         duplicate_ids = sorted(requested_ids & existing_ids)
         skipped_count = max(0, requested_count - count)
         return jsonify({

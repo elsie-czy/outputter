@@ -677,6 +677,7 @@ const PAGE_SIZE = 10;
 
     // 读取全局策略默认值
     const strategySelect = $("#tpModalStrategy");
+    const providerSelect = $("#tpModalProvider");
     const strategyHint = $("#tpModalStrategyHint");
     if (strategySelect) {
       fetch("/api/config/image_strategy")
@@ -685,24 +686,42 @@ const PAGE_SIZE = 10;
           if (json.ok && json.data && json.data.strategy) {
             strategySelect.value = json.data.strategy;
           }
+          if (providerSelect && json.ok && json.data && json.data.provider) {
+            providerSelect.value = json.data.provider;
+          }
         })
         .catch(() => {})
         .finally(() => {
-          updateStrategyHint(strategySelect, strategyHint);
+          updateStrategyHint(strategySelect, providerSelect, strategyHint);
         });
       strategySelect.addEventListener("change", () => {
-        updateStrategyHint(strategySelect, strategyHint);
+        updateStrategyHint(strategySelect, providerSelect, strategyHint);
       });
+      if (providerSelect) {
+        providerSelect.addEventListener("change", () => {
+          updateStrategyHint(strategySelect, providerSelect, strategyHint);
+        });
+      }
     }
 
     overlay.classList.add("visible");
   }
 
-  function updateStrategyHint(selectEl, hintEl) {
+  function updateStrategyHint(selectEl, providerEl, hintEl) {
     if (!selectEl || !hintEl) return;
     const v = selectEl.value;
+    const provider = providerEl ? providerEl.value : "";
+    const providerLabel = $("#tpModalProviderLabel");
+    if (providerEl) providerEl.style.display = v === "ai" ? "" : "none";
+    if (providerLabel) providerLabel.style.display = v === "ai" ? "" : "none";
+    const providerHints = {
+      "liblib": "LiblibAI 星流 API 生图，适合测试新图文模型效果",
+      "jimeng": "即梦 / 火山 AI 生图，使用既有图片链路",
+      "siliconflow": "SiliconFlow 图片接口，需本地已配置密钥",
+      "mock": "Mock 图片，适合本地无成本联调",
+    };
     const hints = {
-      "ai": "即梦 AI 生图，适合需要真实感图片的场景",
+      "ai": providerHints[provider] || "AI 生图，适合需要真实图片的场景",
       "html_card": "HTML 卡片截图，文字 100% 可控，适合小红书图文笔记",
       "auto": "根据笔记内容自动匹配最佳风格",
     };
@@ -764,6 +783,8 @@ const PAGE_SIZE = 10;
 
       const strategySelect = $("#tpModalStrategy");
       const imageStrategy = (strategySelect ? strategySelect.value : "") || "";
+      const providerSelect = $("#tpModalProvider");
+      const imageProvider = (providerSelect ? providerSelect.value : "") || "";
 
       const res = await fetch("/api/deconstruct/batch-enqueue", {
         method: "POST",
@@ -771,6 +792,7 @@ const PAGE_SIZE = 10;
         body: JSON.stringify({
           works: works,
           image_strategy: imageStrategy || undefined,
+          image_provider: imageStrategy === "ai" ? (imageProvider || undefined) : undefined,
         }),
       });
 

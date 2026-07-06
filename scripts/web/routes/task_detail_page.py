@@ -425,10 +425,15 @@ _STRATEGY_CONFIG_FILE = _STRATEGY_CONFIG_DIR / "image_strategy.json"
 
 def _read_strategy_config():
     if not _STRATEGY_CONFIG_FILE.exists():
-        return {"strategy": "ai", "style": "warm", "count": 3}
+        return {"strategy": "ai", "style": "warm", "count": 3, "provider": _os.getenv("IMAGE_PROVIDER", "jimeng")}
     import json as _json
     with open(_STRATEGY_CONFIG_FILE, "r", encoding="utf-8") as _f:
-        return _json.load(_f)
+        config = _json.load(_f)
+    config.setdefault("strategy", "ai")
+    config.setdefault("style", "warm")
+    config.setdefault("count", 3)
+    config.setdefault("provider", _os.getenv("IMAGE_PROVIDER", "jimeng"))
+    return config
 
 def _write_strategy_config(data: dict):
     _STRATEGY_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -454,10 +459,14 @@ def set_image_strategy():
         strategy = data.get("strategy", "ai").strip().lower()
         if strategy not in ("ai", "html_card", "auto"):
             return jsonify({"ok": False, "error": "strategy must be ai, html_card or auto"}), 400
+        provider = data.get("provider", _os.getenv("IMAGE_PROVIDER", "jimeng")).strip().lower()
+        if provider not in ("jimeng", "siliconflow", "liblib", "mock"):
+            return jsonify({"ok": False, "error": "provider must be jimeng, siliconflow, liblib or mock"}), 400
         config = {
             "strategy": strategy,
             "style": data.get("style", "warm").strip(),
             "count": int(data.get("count", 3) or 3),
+            "provider": provider,
         }
         _write_strategy_config(config)
         return jsonify({"ok": True, "data": config, "warning": "需重启 jimeng_worker 生效"})

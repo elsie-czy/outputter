@@ -778,6 +778,7 @@
   /* ===== 图片生成策略切换 ===== */
   let currentStrategy = 'ai';
   let currentStyle = 'warm';
+  let currentProvider = 'jimeng';
 
   async function loadImageStrategy() {
     try {
@@ -785,6 +786,7 @@
       const data = await res.json();
       currentStrategy = data.strategy || 'ai';
       currentStyle = data.style || 'warm';
+      currentProvider = data.provider || 'jimeng';
       renderStrategySelector();
     } catch (e) {
       console.warn('加载策略失败:', e);
@@ -806,9 +808,15 @@
     container.innerHTML =
       '<label style="font-size:13px;color:var(--text-secondary,#666);">生图策略:</label>' +
       '<select id="imageStrategy" style="padding:4px 8px;border-radius:6px;font-size:13px;border:1px solid var(--border,#e0e0e0);background:var(--bg-surface,#fff);">' +
-        '<option value="ai"' + (currentStrategy==='ai'?' selected':'') + '>AI 即梦生图</option>' +
+        '<option value="ai"' + (currentStrategy==='ai'?' selected':'') + '>AI 生图</option>' +
         '<option value="html_card"' + (currentStrategy==='html_card'?' selected':'') + '>HTML 卡片截图</option>' +
         '<option value="auto"' + (currentStrategy==='auto'?' selected':'') + '>🤖 自动匹配</option>' +
+      '</select>' +
+      '<select id="imageProvider" style="padding:4px 8px;border-radius:6px;font-size:13px;border:1px solid var(--border,#e0e0e0);background:var(--bg-surface,#fff);' + (currentStrategy==='ai'?'':'display:none;') + '">' +
+        '<option value="liblib"' + (currentProvider==='liblib'?' selected':'') + '>LiblibAI 星流</option>' +
+        '<option value="jimeng"' + (currentProvider==='jimeng'?' selected':'') + '>即梦 / 火山</option>' +
+        '<option value="siliconflow"' + (currentProvider==='siliconflow'?' selected':'') + '>SiliconFlow</option>' +
+        '<option value="mock"' + (currentProvider==='mock'?' selected':'') + '>Mock</option>' +
       '</select>' +
       '<select id="imageStyle" style="padding:4px 8px;border-radius:6px;font-size:13px;border:1px solid var(--border,#e0e0e0);background:var(--bg-surface,#fff);' + (currentStrategy==='html_card'?'':'display:none;') + '">' +
         '<option value="warm"' + (currentStyle==='warm'?' selected':'') + '>暖色生活(Warm)</option>' +
@@ -820,19 +828,22 @@
       '</select>' +
       '<span id="strategyStatus" style="font-size:12px;color:var(--text-muted,#999);"></span>';
     document.getElementById('imageStrategy').addEventListener('change', onStrategyChange);
+    document.getElementById('imageProvider').addEventListener('change', onStrategyChange);
     document.getElementById('imageStyle').addEventListener('change', onStrategyChange);
   }
 
   async function onStrategyChange() {
     const strategy = document.getElementById('imageStrategy').value;
+    const provider = document.getElementById('imageProvider').value;
     const style = document.getElementById('imageStyle').value;
+    const providerEl = document.getElementById('imageProvider');
     const styleEl = document.getElementById('imageStyle');
-    // auto 或 ai 策略时隐藏风格下拉框
+    providerEl.style.display = (strategy === 'ai') ? '' : 'none';
     styleEl.style.display = (strategy === 'html_card') ? '' : 'none';
     const status = document.getElementById('strategyStatus');
     status.textContent = '保存中...';
-    // 仅 html_card 策略发送 style；auto/ai 不发送 style
     const body = { strategy };
+    if (strategy === 'ai') body.provider = provider;
     if (strategy === 'html_card') body.style = style;
     try {
       const res = await fetch('/api/config/image_strategy', {

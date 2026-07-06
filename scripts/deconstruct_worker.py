@@ -36,6 +36,35 @@ def _now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _read_image_strategy_config():
+    path = os.path.join(BASE_DIR, "data", "config", "image_strategy.json")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f) or {}
+    except Exception:
+        data = {}
+    return {
+        "strategy": str(data.get("strategy") or os.getenv("IMAGE_GEN_STRATEGY") or "ai").strip().lower(),
+        "style": str(data.get("style") or os.getenv("HTML_CARD_STYLE") or "warm").strip(),
+        "count": int(data.get("count") or os.getenv("HTML_CARD_COUNT") or 3),
+        "provider": str(data.get("provider") or os.getenv("IMAGE_PROVIDER") or "jimeng").strip().lower(),
+    }
+
+
+def _with_image_provider(provider, func):
+    provider = str(provider or "").strip().lower()
+    old_provider = os.getenv("IMAGE_PROVIDER")
+    if provider:
+        os.environ["IMAGE_PROVIDER"] = provider
+    try:
+        return func()
+    finally:
+        if old_provider is None:
+            os.environ.pop("IMAGE_PROVIDER", None)
+        else:
+            os.environ["IMAGE_PROVIDER"] = old_provider
+
+
 def _check_xhs_cache(work, need_prompts=True):
     """从小红书笔记库获取已有图片提示词和笔记内容"""
     try:
@@ -330,10 +359,12 @@ def process_one(task, dry=False):
 
             # 读取每任务策略（优先），否则读全局 .env
             _entry1 = _get_task_entry(rid) or {}
+            _image_config1 = _read_image_strategy_config()
             _task_strategy1 = _entry1.get("image_strategy") or \
-                (os.getenv("IMAGE_GEN_STRATEGY") or "ai").strip().lower()
-            _html_style1 = (os.getenv("HTML_CARD_STYLE") or "warm").strip()
-            _html_count1 = int((os.getenv("HTML_CARD_COUNT") or "3").strip() or "3")
+                _image_config1["strategy"]
+            _html_style1 = _image_config1["style"]
+            _html_count1 = _image_config1["count"]
+            _image_provider1 = _entry1.get("image_provider") or _image_config1["provider"]
 
             if _task_strategy1 in ("html_card", "auto"):
                 # HTML 卡片生图
@@ -369,7 +400,11 @@ def process_one(task, dry=False):
                 try:
                     from scripts.image_provider import generate_images_for_task
                     _set_status(rid, "generating_image")
-                    img_result = generate_images_for_task(cached_xhs)
+                    _log(rid, f"AI图片生成 provider={_image_provider1}")
+                    img_result = _with_image_provider(
+                        _image_provider1,
+                        lambda: generate_images_for_task(cached_xhs),
+                    )
                     if img_result["ok"]:
                         images = img_result["images"]
                         _log(rid, f"图片补生成成功: {list(images.keys())}")
@@ -507,10 +542,12 @@ def process_one(task, dry=False):
         images = {}
         # 读取每任务策略（优先），否则读全局 .env
         _entry = _get_task_entry(rid) or {}
+        _image_config = _read_image_strategy_config()
         _task_strategy = _entry.get("image_strategy") or \
-            (os.getenv("IMAGE_GEN_STRATEGY") or "ai").strip().lower()
-        _html_style = (os.getenv("HTML_CARD_STYLE") or "warm").strip()
-        _html_count = int((os.getenv("HTML_CARD_COUNT") or "3").strip() or "3")
+            _image_config["strategy"]
+        _html_style = _image_config["style"]
+        _html_count = _image_config["count"]
+        _image_provider = _entry.get("image_provider") or _image_config["provider"]
 
         # 构建 HTML 卡片所需的笔记字典（从 analysis 中提取结构化数据）
         _packaging = analysis.get("小红书包装") or {}
@@ -560,7 +597,11 @@ def process_one(task, dry=False):
             try:
                 from scripts.image_provider import generate_images_for_task
                 _set_status(rid, "generating_image")
-                img_result = generate_images_for_task(analysis)
+                _log(rid, f"AI图片生成 provider={_image_provider}")
+                img_result = _with_image_provider(
+                    _image_provider,
+                    lambda: generate_images_for_task(analysis),
+                )
                 if img_result["ok"]:
                     images = img_result["images"]
                     _log(rid, f"图片生成成功: {list(images.keys())}")

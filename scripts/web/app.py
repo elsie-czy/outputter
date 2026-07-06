@@ -24,7 +24,7 @@ def _validate_on_startup():
     """启动时校验关键配置"""
     # 1. 图片 Provider
     provider = os.getenv("IMAGE_PROVIDER", "").strip().lower()
-    valid_providers = {"jimeng", "siliconflow", "mock"}
+    valid_providers = {"jimeng", "siliconflow", "liblib", "mock"}
     if provider and provider not in valid_providers:
         print(f"[WARN] IMAGE_PROVIDER={provider} 未知，有效值: {valid_providers}，已降级为 mock")
     if not provider:

@@ -31,6 +31,21 @@
   - DeepSeek 只解决文本分析/评分链路；真实图片接口仍取决于图片 provider 的 token 和配置
   - 若本地没有 Chrome/Chromium 且未安装 Playwright 浏览器，HTML 卡片截图仍会失败
 
+## 2026-07-06（LiblibAI 生图模型接入）
+- 变更摘要：新增 LiblibAI 星流作为 AI 生图 provider，并在任务详情、选题池提交弹窗中提供生图模型下拉。
+- 影响范围：生图 / Web / Worker / 队列 / 测试
+- 行为变化：
+  - `IMAGE_PROVIDER=liblib` 时使用 LiblibAI OpenAPI 签名、提交 text2img ultra 任务并轮询生成结果
+  - 任务详情全局生图策略支持选择 `LiblibAI 星流`、`即梦 / 火山`、`SiliconFlow`、`Mock`
+  - 选题池提交生产时会把选择的 `image_provider` 写入队列任务，worker 优先使用任务级 provider
+  - 队列任务未设置 provider 时继续回退到本地 `data/config/image_strategy.json` 或 `.env`
+- 配置变更（.env）：新增 `LIBLIB_ACCESS_KEY`、`LIBLIB_SECRET_KEY`、`LIBLIB_BASE_URL`、`LIBLIB_TEMPLATE_UUID`、`LIBLIB_IMAGE_SIZE`、`LIBLIB_STEPS`
+- 数据迁移/回填动作：无；新提交任务才会携带任务级 `image_provider`
+- 回滚方式：回退 `scripts/image_generator.py`、`scripts/image_provider.py`、`scripts/deconstruct_worker.py`、队列/API/前端相关改动、测试和本条记录
+- 风险与注意事项：
+  - LiblibAI 真实生成依赖账号额度、模板可用性和网络可达性
+  - `.env` 中密钥不纳入提交，部署环境需要单独配置
+
 ## 2026-07-06（选题池重复提交防护）
 - 变更摘要：修复选题池提交已在生产中心的作品时提示“成功提交 0 篇”的问题。
 - 影响范围：Web / 选题池 / 生产中心 / 队列

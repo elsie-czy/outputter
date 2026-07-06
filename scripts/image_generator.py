@@ -5,6 +5,7 @@ import tempfile
 import time
 import hashlib
 import hmac
+import uuid
 from datetime import datetime
 from urllib.parse import quote, urlparse, parse_qsl, urlsplit
 
@@ -280,6 +281,115 @@ def _generate_openai_images(url, api_key, model, prompt, n, size, cache_key_pref
     return paths
 
 
+def _liblib_signed_url(base_url, path, access_key, secret_key):
+    timestamp = str(int(time.time() * 1000))
+    nonce = str(uuid.uuid4())
+    content = "&".join((path, timestamp, nonce))
+    digest = hmac.new(secret_key.encode("utf-8"), content.encode("utf-8"), hashlib.sha1).digest()
+    signature = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("utf-8")
+    sep = "&" if "?" in path else "?"
+    signed_path = (
+        f"{path}{sep}AccessKey={quote(access_key)}"
+        f"&Signature={quote(signature)}"
+        f"&Timestamp={quote(timestamp)}"
+        f"&SignatureNonce={quote(nonce)}"
+    )
+    return f"{base_url.rstrip('/')}{signed_path}"
+
+
+def _parse_size(size, default=(768, 1024)):
+    try:
+        w, h = str(size or "").lower().split("x", 1)
+        return int(w), int(h)
+    except Exception:
+        return default
+
+
+def _generate_liblib_images(base_url, access_key, secret_key, prompt, n, size):
+    """LiblibAI x 星流 OpenAPI text2img/ultra."""
+    cache_enabled = os.getenv("IMAGE_CACHE_ENABLED", "true").strip().lower() in ["1", "true", "yes"]
+    req_key = os.getenv("LIBLIB_TEMPLATE_UUID", "5d7e67009b344550bc1aa6ccbfa1d7f4").strip()
+    if cache_enabled:
+        cached = _read_cache(prompt, n, size, f"liblib:{req_key}", base_url)
+        if cached:
+            return cached
+
+    width, height = _parse_size(size)
+    submit_path = os.getenv("LIBLIB_TEXT2IMG_PATH", "/api/generate/webui/text2img/ultra").strip()
+    status_path = os.getenv("LIBLIB_STATUS_PATH", "/api/generate/webui/status").strip()
+    steps = int(os.getenv("LIBLIB_STEPS", "30"))
+    img_count = max(1, min(int(n or 1), 4))
+    payload = {
+        "templateUuid": req_key,
+        "generateParams": {
+            "prompt": prompt,
+            "imageSize": {"width": width, "height": height},
+            "imgCount": img_count,
+            "steps": steps,
+        },
+    }
+    if os.getenv("LIBLIB_PROMPT_MAGIC", "").strip():
+        payload["generateParams"]["promptMagic"] = int(os.getenv("LIBLIB_PROMPT_MAGIC", "1"))
+
+    submit_url = _liblib_signed_url(base_url, submit_path, access_key, secret_key)
+    resp = requests.post(submit_url, headers={"Content-Type": "application/json"}, json=payload, timeout=120)
+    try:
+        data = resp.json()
+    except Exception:
+        data = {"raw": resp.text}
+    if resp.status_code >= 400 or data.get("code") not in (None, 0):
+        raise RuntimeError(f"liblib submit error: status={resp.status_code}, body={json.dumps(data, ensure_ascii=False)[:500]}")
+
+    task_id = ((data.get("data") or {}).get("generateUuid")
+               or data.get("generateUuid")
+               or _extract_task_id(data))
+    if not task_id:
+        raise RuntimeError(f"liblib submit missing generateUuid: {json.dumps(data, ensure_ascii=False)[:500]}")
+
+    poll_times = int(os.getenv("LIBLIB_POLL_TIMES", "40"))
+    poll_interval = float(os.getenv("LIBLIB_POLL_INTERVAL_SEC", "3"))
+    last_payload = None
+    paths = []
+    for _ in range(poll_times):
+        status_url = _liblib_signed_url(base_url, status_path, access_key, secret_key)
+        rr = requests.post(
+            status_url,
+            headers={"Content-Type": "application/json"},
+            json={"generateUuid": task_id},
+            timeout=60,
+        )
+        try:
+            dd = rr.json()
+        except Exception:
+            dd = {"raw": rr.text}
+        last_payload = dd
+        if rr.status_code >= 400 or dd.get("code") not in (None, 0):
+            raise RuntimeError(f"liblib poll error: status={rr.status_code}, body={json.dumps(dd, ensure_ascii=False)[:500]}")
+
+        info = dd.get("data") if isinstance(dd.get("data"), dict) else dd
+        status = info.get("generateStatus")
+        images = info.get("images") if isinstance(info, dict) else []
+        if images:
+            for item in images[:img_count]:
+                img_url = item.get("imageUrl") or item.get("url")
+                if img_url:
+                    paths.append(_download_image(img_url))
+            if paths:
+                break
+        if status in [6, 7, -1, "failed", "error"]:
+            raise RuntimeError(f"liblib generation failed: {json.dumps(dd, ensure_ascii=False)[:500]}")
+        time.sleep(poll_interval)
+
+    if not paths:
+        raise RuntimeError(f"liblib generation timeout or empty response: {json.dumps(last_payload, ensure_ascii=False)[:500]}")
+
+    if cache_enabled:
+        cached_paths = _write_cache(prompt, img_count, size, f"liblib:{req_key}", base_url, paths)
+        if len(cached_paths) >= img_count:
+            return cached_paths[:img_count]
+    return paths[:img_count]
+
+
 def generate_images_from_prompt(prompt, n=2):
     """
     Generic OpenAI-compatible image generation.
@@ -290,10 +400,19 @@ def generate_images_from_prompt(prompt, n=2):
       - IMAGE_BASE_URL or JIMENG_BASE_URL
       - IMAGE_MODEL or JIMENG_MODEL  (default depends on provider)
       - IMAGE_SIZE or JIMENG_IMAGE_SIZE (default: 768x1024)
-      - IMAGE_PROVIDER: siliconflow | jimeng (default: jimeng)
+      - IMAGE_PROVIDER: siliconflow | jimeng | liblib (default: jimeng)
     Returns local file paths.
     """
     provider = os.getenv("IMAGE_PROVIDER", "jimeng").strip().lower()
+
+    if provider == "liblib":
+        access_key = os.getenv("LIBLIB_ACCESS_KEY", "").strip()
+        secret_key = os.getenv("LIBLIB_SECRET_KEY", "").strip()
+        if not access_key or not secret_key:
+            raise RuntimeError("LIBLIB_ACCESS_KEY / LIBLIB_SECRET_KEY 未设置")
+        base = os.getenv("LIBLIB_BASE_URL", "https://openapi.liblibai.cloud").strip().rstrip("/")
+        size = os.getenv("IMAGE_SIZE", "").strip() or os.getenv("LIBLIB_IMAGE_SIZE", "768x1024").strip()
+        return _generate_liblib_images(base, access_key, secret_key, prompt, n, size)
 
     api_key = os.getenv("IMAGE_API_KEY", "").strip() or os.getenv("JIMENG_API_KEY", "").strip()
     base_url = (os.getenv("IMAGE_BASE_URL", "").strip()

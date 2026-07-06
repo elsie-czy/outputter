@@ -266,9 +266,16 @@
     <div class="tp-modal-strategy">
       <label style="font-size:13px;color:#374151;font-weight:500;">生图策略：</label>
       <select id="tpModalStrategy" class="tp-select" style="margin-left:8px;">
-        <option value="ai">AI 即梦生图</option>
+        <option value="ai">AI 生图</option>
         <option value="html_card">HTML 卡片生图</option>
         <option value="auto">🤖 自动匹配(Auto)</option>
+      </select>
+      <label id="tpModalProviderLabel" style="margin-left:12px;font-size:13px;color:#374151;font-weight:500;">生图模型：</label>
+      <select id="tpModalProvider" class="tp-select" style="margin-left:8px;">
+        <option value="liblib">LiblibAI 星流</option>
+        <option value="jimeng">即梦 / 火山</option>
+        <option value="siliconflow">SiliconFlow</option>
+        <option value="mock">Mock</option>
       </select>
       <span style="margin-left:8px;font-size:12px;color:#6B7280;" id="tpModalStrategyHint"></span>
     </div>
