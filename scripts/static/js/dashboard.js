@@ -8,11 +8,67 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     if (!$("[data-dashboard-page]")) return;
+    loadAccountStrategy();
     loadDashboard();
     timer = setInterval(loadDashboard, POLL_MS);
+    window.addEventListener("account-strategy-changed", (event) => {
+      renderAccountStrategy(event.detail || {});
+    });
     window.addEventListener("pagehide", stop);
     window.addEventListener("beforeunload", stop);
   });
+
+  async function loadAccountStrategy() {
+    const el = $("#dashboardAccountStrategy");
+    if (!el) return;
+    try {
+      const res = await fetch("/api/config/account_strategies");
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "账号策略加载失败");
+      const strategies = json.strategies || [];
+      renderAccountStrategy(strategies.find((item) => item.id === json.current) || strategies[0] || {});
+    } catch (e) {
+      el.innerHTML = '<div class="dashboard-empty">当前服务账号加载失败：' + esc(e.message) + "</div>";
+    }
+  }
+
+  function renderAccountStrategy(strategy) {
+    const el = $("#dashboardAccountStrategy");
+    if (!el) return;
+    if (!strategy || !strategy.id) {
+      el.innerHTML = '<div class="dashboard-empty">尚未配置当前服务账号</div>';
+      return;
+    }
+    const pillars = strategy.content_pillars || [];
+    const audience = strategy.target_audience || [];
+    const benchmarks = strategy.benchmark_accounts || [];
+    el.innerHTML =
+      '<div class="dashboard-strategy-main">' +
+      '<div class="dashboard-strategy-icon"><i data-lucide="badge-check"></i></div>' +
+      '<div class="dashboard-strategy-copy">' +
+      '<span>当前工作台服务账号</span>' +
+      '<strong>' + esc(strategy.name || strategy.id) + "</strong>" +
+      '<p>' + esc(strategy.positioning || "未填写账号定位") + "</p>" +
+      "</div></div>" +
+      '<div class="dashboard-strategy-meta">' +
+      tagGroup("目标读者", audience) +
+      tagGroup("内容支柱", pillars) +
+      tagGroup("对标账号", benchmarks) +
+      "</div>";
+    if (typeof lucide !== "undefined") {
+      lucide.createIcons();
+    } else if (typeof window.createAppFallbackIcons === "function") {
+      window.createAppFallbackIcons(el);
+    }
+  }
+
+  function tagGroup(label, items) {
+    const values = (items || []).slice(0, 5);
+    if (!values.length) return "";
+    return '<div class="dashboard-strategy-group"><span>' + esc(label) + '</span><div>' +
+      values.map((item) => '<em>' + esc(item) + "</em>").join("") +
+      "</div></div>";
+  }
 
   async function loadDashboard() {
     try {

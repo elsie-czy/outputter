@@ -15,6 +15,17 @@ LOCAL_DATA_DIR = os.path.join(PATHS["data"], "local")
 LOCAL_TOPICS_FILE = os.path.join(LOCAL_DATA_DIR, "topics.jsonl")
 LOCAL_RESULTS_FILE = os.path.join(LOCAL_DATA_DIR, "results.jsonl")
 LOCAL_ARCHIVE_FILE = os.path.join(LOCAL_DATA_DIR, "archive_queue.jsonl")
+ACTIVE_QUEUE_STATUSES = {
+    "pending",
+    "waiting",
+    "processing",
+    "deconstructing",
+    "generating_note",
+    "ai_scoring",
+    "human_review",
+    "generating_image",
+    "paused",
+}
 
 
 def _now():
@@ -51,16 +62,19 @@ def sync_topics_from_feishu():
     try:
         records = client.list_records(topic_table_id, page_size=1000)
         
-        # 收集本地已拆解的作品名（results + queue）
-        deconstructed_names = set()
+        # 本地历史只作为提示，不再覆盖飞书选题库里的「是否拆解」。
+        # 用户把飞书状态改回「否」时，应允许该作品重新出现在选题池。
+        local_result_names = set()
         try:
             results = get_local_results()
             for r in results:
                 n = (r.get("work_name") or "").strip()
                 if n:
-                    deconstructed_names.add(n)
+                    local_result_names.add(n)
         except Exception:
             pass
+        active_queue_ids = set()
+        active_queue_names = set()
         try:
             queue_file = os.path.join(PATHS["data"], "queue", "deconstruct_queue.jsonl")
             if os.path.exists(queue_file):
@@ -69,24 +83,28 @@ def sync_topics_from_feishu():
                         if not line.strip():
                             continue
                         rec = json.loads(line)
-                        if rec.get("status") == "done":
+                        status = str(rec.get("status") or "").strip()
+                        if status in ACTIVE_QUEUE_STATUSES:
+                            rid = str(rec.get("record_id") or "").strip()
                             n = (rec.get("work_name") or "").strip()
+                            if rid:
+                                active_queue_ids.add(rid)
                             if n:
-                                deconstructed_names.add(n)
+                                active_queue_names.add(n)
         except Exception:
             pass
 
-        # 转换为本地格式，过滤已拆解
+        # 转换为本地格式，仅按飞书「是否拆解」过滤。
         items = []
         for r in records:
             fields = r.get("fields", {}) or {}
             work_name = str(fields.get("作品名称", "")).strip()
             feishu_deconstructed = _is_deconstructed(fields.get("是否拆解"))
-            local_deconstructed = work_name in deconstructed_names if work_name else False
-            if feishu_deconstructed or local_deconstructed:
+            rid = str(r.get("record_id", "") or "").strip()
+            if feishu_deconstructed:
                 continue  # 跳过已拆解的作品
             item = {
-                "record_id": r.get("record_id", ""),
+                "record_id": rid,
                 "work_name": fields.get("作品名称", ""),
                 "author": fields.get("作者", ""),
                 "platform": fields.get("平台", ""),
@@ -102,8 +120,10 @@ def sync_topics_from_feishu():
                 "rank": fields.get("排名", 0),
                 "quality_score": fields.get("评分", 0),
                 "是否拆解": fields.get("是否拆解", ""),
+                "has_local_result": work_name in local_result_names if work_name else False,
+                "is_in_active_queue": (rid in active_queue_ids) or (work_name in active_queue_names if work_name else False),
                 "synced_at": _now(),
-                "feishu_record_id": r.get("record_id", ""),
+                "feishu_record_id": rid,
             }
             items.append(item)
         

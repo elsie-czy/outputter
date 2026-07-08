@@ -22,6 +22,7 @@ from scripts.validator import validate_required
 from scripts.dedupe import find_by_title_author
 from scripts.image_generator import generate_images_from_prompt, is_image_generation_enabled
 from scripts.source_cleaner import clean_source_synopsis
+from scripts.account_strategy import get_account_strategy
 
 
 def _extract_name_hint(text):
@@ -67,6 +68,243 @@ def _extract_lead_name_from_intro(intro):
 def _compact_mobile(text, max_len=56):
     s = re.sub(r"\s+", " ", str(text or "")).strip()
     return s[:max_len]
+
+
+_PUBLISH_TRACE_PATTERNS = [
+    "基于题材推测",
+    "基于简介推测",
+    "基于题材判断",
+    "基于简介判断",
+    "基于题材特征",
+    "题材推测",
+    "简介无线索",
+    "若简介无线索",
+    "推测：",
+    "推测，",
+    "推测",
+]
+
+_PUBLISH_BANNED_TERMS = [
+    "晋江",
+    "起点",
+    "番茄",
+    "耽美文学城",
+    "喜马拉雅",
+    "微博",
+    "围脖",
+]
+
+
+def _publish_clean(text, max_len=120, fallback=""):
+    s = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not s:
+        return _compact_mobile(fallback, max_len)
+    for pattern in _PUBLISH_TRACE_PATTERNS:
+        s = s.replace(pattern, "")
+    s = re.sub(r"^[，。、：:；;\s]+", "", s)
+    s = re.sub(r"([，,；;：:])\s*(可能|可为|包括)", r"\1\2", s)
+    s = re.sub(r"\b可能\b", "", s)
+    s = re.sub(r"可能为", "偏向", s)
+    s = re.sub(r"可能是", "偏向", s)
+    s = re.sub(r"可能包括", "看点包括", s)
+    s = re.sub(r"可为", "偏向", s)
+    s = re.sub(r"，，+", "，", s)
+    s = re.sub(r"[，,、]+[。.!！?？]", "。", s)
+    s = re.sub(r"[。.!！?？]+[，,、；;]+", "。", s)
+    s = re.sub(r"：，", "：", s)
+    s = s.strip(" ，,。；;：:")
+    return _compact_mobile(s or fallback, max_len)
+
+
+def _publish_phrase(text, max_len=80, fallback=""):
+    s = _publish_clean(text, max_len=max_len, fallback=fallback)
+    s = re.sub(r"[。！？!?；;、，,\s]+$", "", s)
+    return s
+
+
+def _note_variant_seed(work):
+    raw = f"{work.get('作品名称','')}|{work.get('作者','')}"
+    return sum(ord(ch) for ch in raw) % 3
+
+
+def _clean_publish_note(text):
+    s = str(text or "")
+    for term in _PUBLISH_BANNED_TERMS:
+        s = s.replace(term, "")
+    s = re.sub(r"[ \t]+", " ", s)
+    s = re.sub(r"\n{3,}", "\n\n", s)
+    s = re.sub(r"[，,、]+([。！？!?])", r"\1", s)
+    s = re.sub(r"([。！？!?])+[，,、；;]+", r"\1", s)
+    s = re.sub(r"如果你最近想找一本([^。！？!?]{1,80})[。！？!?]的文", r"如果你最近想找一本\1的文", s)
+    return s.strip()
+
+
+def _safe_publish_tags(tags):
+    out = []
+    for tag in tags or []:
+        text = str(tag or "").strip().lstrip("#")
+        if not text:
+            continue
+        if any(term in text for term in _PUBLISH_BANNED_TERMS):
+            continue
+        if text not in out:
+            out.append(text)
+    return out[:5]
+
+
+def _strip_emotion_label(text):
+    s = _publish_phrase(text, max_len=36)
+    s = re.sub(r"^[^：:]{1,8}[：:]", "", s).strip()
+    return _publish_phrase(s, max_len=28)
+
+
+def _is_publish_unsafe_fact(text):
+    """Return True for analysis-only or weakly grounded facts."""
+    s = str(text or "").strip()
+    if not s:
+        return True
+    unsafe_terms = [
+        "可能",
+        "推测",
+        "无明确",
+        "无线索",
+        "未明确",
+        "无具体",
+        "可为",
+        "泛化",
+        "题材特征",
+    ]
+    return any(term in s for term in unsafe_terms)
+
+
+def _publish_fact_list(items, limit=3, max_len=52):
+    out = []
+    for item in items or []:
+        text = _publish_phrase(item, max_len=max_len)
+        if not text or _is_publish_unsafe_fact(text):
+            continue
+        if text not in out:
+            out.append(text)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _evidence_points_for_note(work, analysis):
+    """Use only synopsis-backed evidence for public notes."""
+    intro = str(work.get("简介", "") or "")
+    grounded = []
+    if all(key in intro for key in ["明鹰", "吃货", "城主"]):
+        grounded.append("明鹰想当吃货，却被推成了城主，这个反差挺抓人")
+    if any(key in intro for key in ["清理废墟", "规划城区", "修复设施", "建立卫队", "恢复生产"]):
+        grounded.append("清废墟、修设施、建卫队，基建线不是空喊口号")
+    if any(key in intro for key in ["丧尸", "变异兽"]):
+        grounded.append("丧尸和变异兽把末世压力先压出来了")
+    if "希望" in intro and "幸存者" in intro:
+        grounded.append("新城最后成了幸存者的希望，情绪落点比较稳")
+    if grounded:
+        return grounded[:4]
+
+    content_brief = analysis.get("内容简报", {}) if isinstance(analysis, dict) else {}
+    evidence = []
+    if isinstance(content_brief, dict):
+        raw = content_brief.get("证据素材", [])
+        if not isinstance(raw, list):
+            raw = [raw] if raw else []
+        evidence.extend(raw)
+    if not evidence:
+        evidence.extend(_mobile_lines(work.get("简介", ""), max_len=42, max_lines=4))
+    return _publish_fact_list(evidence, limit=4, max_len=58)
+
+
+def _emoji_for_note(work, analysis):
+    text = " ".join([
+        str(work.get("作品名称", "")),
+        str(work.get("分类", "")),
+        str(work.get("简介", "")),
+        " ".join(str(t) for t in analysis.get("情绪触发", [])[:3]),
+    ])
+    if any(key in text for key in ["末世", "废土", "丧尸", "变异"]):
+        return ["🏚️", "🧱", "🔥", "🍲", "📌"]
+    if any(key in text for key in ["修仙", "仙侠", "宗门", "师尊"]):
+        return ["⚔️", "🌙", "✨", "📌", "💬"]
+    if any(key in text for key in ["星际", "机甲", "未来"]):
+        return ["🚀", "🛡️", "🌌", "📌", "💬"]
+    return ["📚", "✨", "📝", "📌", "💬"]
+
+
+def _reader_verdict_line(work, analysis, evidence):
+    name = work.get("作品名称", "") or "这本"
+    category = _category_title_signal(work, analysis)
+    joined = " ".join(evidence) + " " + str(work.get("简介", ""))
+    if "基建" in joined or "建城" in joined or "城市建设" in joined:
+        return f"{category}书荒可以先码住，《{name}》卖点是末世里从零建城"
+    if "囤货" in joined:
+        return f"{category}书荒可以先码住，《{name}》吃的是囤货和生存爽点"
+    if "穿书" in joined or "炮灰" in joined:
+        return f"{category}书荒可以先码住，《{name}》主打穿书后的反转感"
+    return f"{category}书荒可以先码住，《{name}》先看这几个真实看点"
+
+
+def _grounded_angle_points(work):
+    intro = str(work.get("简介", "") or "")
+    points = []
+    if any(key in intro for key in ["丧尸", "变异兽", "末世", "废土"]):
+        points.append("末世环境：丧尸与变异兽横行，生存压力先立住")
+    if any(key in intro for key in ["清理废墟", "规划城区", "修复设施", "建立卫队", "恢复生产"]):
+        points.append("基建线：清废墟、修设施、建卫队、恢复生产，爽点很具体")
+    if any(key in intro for key in ["吃货", "烹煮", "城主"]):
+        points.append("反差点：明鹰本来想当吃货，最后却成了城主")
+    if any(key in intro for key in ["希望", "幸存者"]):
+        points.append("情绪落点：新城成了幸存者的希望，不只是打怪升级")
+    return points[:4]
+
+
+def _grounded_emotion_points(work):
+    intro = str(work.get("简介", "") or "")
+    points = []
+    if "末世" in intro:
+        points.append("末世生存压力")
+    if any(key in intro for key in ["清理废墟", "规划城区", "修复设施", "建立卫队", "恢复生产"]):
+        points.append("从零建城的成就感")
+    if any(key in intro for key in ["吃货", "烹煮", "城主"]):
+        points.append("吃货城主的反差感")
+    return points[:3]
+
+
+def _grounded_story_take(work):
+    """Write a human-sounding, synopsis-grounded recommendation paragraph."""
+    intro = str(work.get("简介", "") or "")
+    name = work.get("作品名称", "") or "这本"
+    if all(key in intro for key in ["末世", "明鹰", "城主"]) and any(key in intro for key in ["清理废墟", "规划城区", "修复设施", "建立卫队"]):
+        return [
+            "🍲 最有意思的地方，不是又来一套末世打怪升级。",
+            "明鹰重生回来，心愿其实很离谱：当个简单粗暴的吃货，把前世那些变异兽都端上桌。结果命运没让他闲着，直接把人推到城主的位置上。",
+            "🧱 所以它更像“安全感慢慢搭起来”的文：清废墟、规划城区、修设施、建卫队、恢复生产。喜欢看基地从零到一的人，应该会比较吃这一口。",
+        ]
+    if "囤货" in intro:
+        return [
+            f"🍲 《{name}》不是只靠末世两个字撑场面。",
+            "它好看的点在于，危机压下来之前，主角已经开始做准备。那种“别人还没反应过来，我已经把安全感攒起来了”的爽感，会很适合囤货文爱好者。",
+        ]
+    if "穿书" in intro or "炮灰" in intro:
+        return [
+            f"✨ 《{name}》吃的是开局身份差和反转感。",
+            "主角不是站在舒服的位置上开挂，而是先被扔进一个麻烦身份里，再一点点把局面扳回来。喜欢看逆风翻盘的人，可以先码住。",
+        ]
+    return [
+        f"📚 《{name}》我会先看它的核心设定够不够抓人。",
+        "目前简介给到的信息不算特别长，所以这篇只按已有剧情线判断，不把没写出来的关系线硬补上。",
+    ]
+
+
+def _grounded_save_value_line(work):
+    intro = str(work.get("简介", "") or "")
+    if any(key in intro for key in ["清理废墟", "规划城区", "修复设施", "建立卫队", "恢复生产"]):
+        return "判断它合不合口味，就看你吃不吃“末世基建一步步变强”这条线。"
+    if "囤货" in intro:
+        return "判断它合不合口味，就看你吃不吃“提前准备，把安全感攒满”这类爽点。"
+    return "判断它合不合口味，可以先看人设、核心冲突和情绪落点。"
 
 
 def _split_packaging_lines(text, max_lines=3, max_len=38):
@@ -271,6 +509,20 @@ def _visual_terms_from_text(text, limit=8):
         ("星际", "space academy hangar"),
         ("机甲", "mecha cockpit"),
         ("末世", "post-apocalyptic street"),
+        ("囤货", "survival supply warehouse with stacked food, water bottles, medical kits"),
+        ("屯货", "survival supply warehouse with stacked food, water bottles, medical kits"),
+        ("安全屋", "fortified safe house base with reinforced doors and storage shelves"),
+        ("物资", "organized survival supplies and emergency boxes"),
+        ("物品改造", "enchanted everyday objects transforming into helpful companions"),
+        ("物品成精", "cute anthropomorphic household objects with lively expressions"),
+        ("拟人化", "cute anthropomorphic objects with expressive faces"),
+        ("洁癖花洒", "clean freak shower head character spraying sparkling water"),
+        ("花洒", "animated shower head companion spraying sparkling water"),
+        ("小刀", "small knife companion refusing to become a weapon"),
+        ("手电筒", "flashlight companion glowing warmly with hopeful light"),
+        ("奶妈", "support healer heroine protecting teammates with warm defensive aura"),
+        ("辅助", "support role heroine protecting allies from behind the front line"),
+        ("丧尸", "distant zombie silhouettes outside barricaded windows"),
         ("甜宠", "warm romantic sweetness"),
         ("虐心", "bittersweet emotional tension"),
         ("治愈", "soft healing atmosphere"),
@@ -305,6 +557,47 @@ def _join_visual_terms(*texts, fallback="", limit=8):
     return ", ".join(terms)
 
 
+def _story_visual_anchors(work, analysis, limit=12):
+    packaging = analysis.get("小红书包装", {}) if isinstance(analysis.get("小红书包装"), dict) else {}
+    brief = analysis.get("内容简报", {}) if isinstance(analysis.get("内容简报"), dict) else {}
+    characters = analysis.get("人物设定", {}) if isinstance(analysis.get("人物设定"), dict) else {}
+    conflict = analysis.get("冲突设计", {}) if isinstance(analysis.get("冲突设计"), dict) else {}
+    texts = [
+        work.get("作品名称", ""),
+        work.get("分类", ""),
+        _ensure_required_synopsis(work),
+        packaging.get("小红书标题模板", ""),
+        packaging.get("封面图描述建议", ""),
+        packaging.get("正文开头模板", ""),
+        packaging.get("视觉风格建议", ""),
+        packaging.get("热门标签推荐", ""),
+        brief.get("核心痛点", "") if isinstance(brief, dict) else "",
+        brief.get("读者收益", "") if isinstance(brief, dict) else "",
+        brief.get("证据素材", "") if isinstance(brief, dict) else "",
+        characters,
+        conflict,
+    ]
+    anchors = []
+    for text in texts:
+        for term in _visual_terms_from_text(text, limit=limit):
+            if term not in anchors:
+                anchors.append(term)
+            if len(anchors) >= limit:
+                break
+    if any("safe house" in a or "warehouse" in a or "survival supplies" in a for a in anchors):
+        noisy = {"futuristic sci-fi city", "glowing mission interface"}
+        anchors = [a for a in anchors if a not in noisy]
+    return anchors[:limit]
+
+
+def _pick_anchor(anchors, keywords, fallback):
+    for keyword in keywords:
+        for anchor in anchors:
+            if keyword.lower() in anchor.lower():
+                return anchor
+    return fallback
+
+
 def _is_no_female_lead(work, analysis):
     text = " ".join([
         str(work.get("分类", "") or ""),
@@ -312,6 +605,16 @@ def _is_no_female_lead(work, analysis):
         str((analysis.get("人物设定") or {}).get("女主", "") or ""),
     ])
     return any(k in text for k in ["纯爱", "无女主", "无（纯爱", "BL", "bl"])
+
+
+def _character_desc_for_image(work, analysis):
+    if _is_no_female_lead(work, analysis):
+        return "two male leads, one reserved protagonist, one warm strategic genius"
+    characters = analysis.get("人物设定", {}) if isinstance(analysis.get("人物设定"), dict) else {}
+    male_text = str(characters.get("男主", "") or "")
+    if not male_text or "推测" in male_text or "可能" in male_text:
+        return "determined female survival protagonist, cute anthropomorphic object companions, supportive allies"
+    return "determined female protagonist and restrained male lead"
 
 
 def _style_bible_for_image_prompts(scene_text, visual_source):
@@ -388,6 +691,55 @@ def _sanitize_prompt_for_image_gen(prompt):
     return p.strip()
 
 
+def _normalize_visual_storyboard(value):
+    if not isinstance(value, list):
+        return []
+    shots = []
+    for i, item in enumerate(value[:5], 1):
+        if isinstance(item, str):
+            item = {"英文画面提示词": item, "剧情依据": item}
+        if not isinstance(item, dict):
+            continue
+        prompt_en = (
+            item.get("英文画面提示词")
+            or item.get("visual_prompt_en")
+            or item.get("prompt_en")
+            or item.get("prompt")
+            or ""
+        )
+        prompt_en = str(prompt_en or "").strip()
+        # A usable storyboard must carry an English visual prompt. Chinese-only
+        # fields are kept for traceability but not sent to image generation.
+        if len(_strip_all_cjk(prompt_en)) < 40:
+            continue
+        shot = dict(item)
+        shot["页码"] = i
+        shot["英文画面提示词"] = prompt_en
+        shots.append(shot)
+    return shots
+
+
+def _prompt_from_visual_shot(shot, work, analysis, index, style_bible):
+    role = str(shot.get("作用") or "").strip()
+    basis = str(shot.get("剧情依据") or "").strip()
+    avoid = str(shot.get("避免") or "").strip()
+    prompt_en = str(shot.get("英文画面提示词") or "").strip()
+    prompt = (
+        f"{prompt_en}. {style_bible} "
+        f"Carousel page {index + 1}, role: {_strip_all_cjk(role) or 'story beat'}. "
+        "Keep the same protagonist design and visual language as other pages. "
+    )
+    if basis:
+        prompt += "This image is based on the provided synopsis, avoid invented relationships. "
+    if avoid:
+        prompt += "Avoid unsupported story elements. "
+    prompt += (
+        "No book cover mockup, no UI, no panels, no speech bubbles, no signs, "
+        "no text, no words, no letters, completely text-free image."
+    )
+    return _sanitize_prompt_for_image_gen(prompt)
+
+
 def _ensure_required_synopsis(work):
     """为飞书主表必填的简介字段提供最小可用兜底。"""
     intro = str(work.get("简介") or work.get("剧情简介") or "").strip()
@@ -430,28 +782,32 @@ def _build_image_prompts(work, analysis):
         str(brief.get("证据素材", "") if isinstance(brief, dict) else ""),
         str(cover_hook),
     ])
+    style_bible = _style_bible_for_image_prompts(" ".join([category, intro]), visual_source)
+    storyboard = _normalize_visual_storyboard(analysis.get("视觉分镜"))
+    if len(storyboard) >= 4:
+        return [_prompt_from_visual_shot(shot, work, analysis, i, style_bible) for i, shot in enumerate(storyboard[:5])]
 
     scene_text = " ".join([category, intro])
     is_action_genre = any(k in scene_text for k in ["仙侠", "玄幻", "悬疑", "科幻", "末世", "无限流", "战斗"])
     is_ancient = any(k in scene_text for k in ["仙侠", "修真", "古代", "宫廷", "侯门", "朝堂", "江湖"])
     no_female_lead = _is_no_female_lead(work, analysis)
     era_hint = "ancient fantasy era" if is_ancient else "modern era"
+    anchors = _story_visual_anchors(work, analysis)
     world_hint = (
         "ancient architecture, layered silk robes, moonlight and lantern lighting"
         if is_ancient else
-        _join_visual_terms(visual_source, fallback="urban interior and night city lighting", limit=5)
+        ", ".join(anchors[:5]) or _join_visual_terms(visual_source, fallback="urban interior and night city lighting", limit=5)
     )
 
-    character_desc = (
-        "two male leads, one reserved protagonist, one warm strategic genius"
-        if no_female_lead else
-        "determined female protagonist and restrained male lead"
-    )
-    story_anchors = _join_visual_terms(visual_source, fallback="story-specific emotional symbols", limit=8)
-    style_bible = _style_bible_for_image_prompts(scene_text, visual_source)
-    c1 = _join_visual_terms(conflict.get("第一层", ""), visual_source, fallback="high stakes conflict", limit=5)
-    c2 = _join_visual_terms(conflict.get("第二层", ""), visual_source, fallback="emotional tension", limit=5)
-    c3 = _join_visual_terms(conflict.get("第三层", ""), visual_source, fallback="final confrontation", limit=5)
+    character_desc = _character_desc_for_image(work, analysis)
+    story_anchors = ", ".join(anchors[:8]) or _join_visual_terms(visual_source, fallback="story-specific emotional symbols", limit=8)
+    safe_house = _pick_anchor(anchors, ["safe house", "warehouse", "supplies"], "fortified safe house base with organized survival supplies")
+    object_magic = _pick_anchor(anchors, ["anthropomorphic", "shower", "knife", "flashlight"], "cute anthropomorphic household objects becoming helpful companions")
+    support_role = _pick_anchor(anchors, ["support", "healer", "defensive"], "support heroine protecting teammates with a warm defensive aura")
+    threat = _pick_anchor(anchors, ["zombie", "post-apocalyptic", "survival"], "distant zombie silhouettes outside barricaded windows")
+    c1 = _join_visual_terms(conflict.get("第一层", ""), visual_source, fallback=threat, limit=5)
+    c2 = _join_visual_terms(conflict.get("第二层", ""), visual_source, fallback=object_magic, limit=5)
+    c3 = _join_visual_terms(conflict.get("第三层", ""), visual_source, fallback=support_role, limit=5)
 
     # 统一风格前缀：明确的 anime/manga 插画风格，排除写实照片风
     # 关键：所有prompt只包含英文，不含任何CJK字符
@@ -467,21 +823,23 @@ def _build_image_prompts(work, analysis):
     )
 
     p1 = (
-        f"{anchor} Cover shot: main character half-body close-up portrait, low angle camera, "
-        f"foreground blur, dramatic side-lighting, visual symbols: {c1}."
+        f"{anchor} Cover shot: confident female survival protagonist in a supply warehouse, half-body portrait, "
+        f"she holds a clipboard and stands before stacked water bottles, canned food, medical kits, "
+        f"with a fortified safe house mood and subtle cute object companions nearby. Visual symbols: {safe_house}, {object_magic}."
     )
     p2 = (
-        f"{anchor} Worldbuilding shot: wide environmental scene, {world_hint}, "
-        f"atmospheric depth showing {c2}, cool color palette with rim light."
+        f"{anchor} Worldbuilding shot: wide view of the fortified safe house base, storage shelves full of survival supplies, "
+        f"reinforced door, barricaded windows, distant danger outside. Atmospheric depth showing {world_hint}."
     )
     if is_action_genre:
         p3 = (
-            f"{anchor} Action shot: protagonist in dynamic pose, love interest in background, "
-            f"motion lines, hard split lighting, intense moment of {c1}."
+            f"{anchor} Magic-object gag shot: anthropomorphic household objects become companions, "
+            f"a clean freak shower head sprays sparkling water, a small knife companion refuses to be a weapon, "
+            f"a flashlight glows warmly. Comedic contrast inside the safe house, {object_magic}."
         )
         p4 = (
-            f"{anchor} Emotional duel: protagonist and love interest face-to-face, "
-            f"eye-level medium shot, rain atmosphere, volumetric light, {c3}."
+            f"{anchor} Survival support shot: heroine protects allies from behind the front line with warm defensive aura, "
+            f"zombie silhouettes and broken city lights outside the barricade, tense but funny contrast, {support_role}, {threat}."
         )
     else:
         p3 = (
@@ -493,8 +851,8 @@ def _build_image_prompts(work, analysis):
             f"soft bokeh, gentle light on face, inner emotion of {c3}."
         )
     p5 = (
-        f"{anchor} Group ending: protagonist with allies, emotional release, "
-        "morning warm light, shallow depth of field, particles in air."
+        f"{anchor} Group ending: heroine, allies, and cute anthropomorphic objects gather inside the safe house, "
+        "morning light through reinforced windows, supplies neatly stacked, hopeful survival comedy mood."
     )
     return [_sanitize_prompt_for_image_gen(p) for p in [p1, p2, p3, p4, p5]]
 
@@ -566,8 +924,20 @@ def build_report(work, search_info, analysis):
     return "\n".join(lines)
 
 
-def generate_title_options(work, analysis):
-    """基于xhs-writer-skill的5种标题公式生成标题选项"""
+def _format_strategy_template(template, **values):
+    class _SafeDict(dict):
+        def __missing__(self, key):
+            return ""
+
+    try:
+        return str(template or "").format_map(_SafeDict(values))
+    except Exception:
+        return str(template or "")
+
+
+def generate_title_options(work, analysis, account_strategy=None):
+    """生成足量标题选项，混合模型候选、账号公式和网文号补充角度。"""
+    account_strategy = account_strategy or get_account_strategy()
     name = work.get("作品名称", "")
     category = work.get("分类", "")
     p = analysis.get("小红书包装", {})
@@ -588,38 +958,62 @@ def generate_title_options(work, analysis):
     
     # 提取关键词（去除冗余描述）
     def _extract_keyword(text, max_len=8):
-        s = re.sub(r"[\s，。、；]", "", str(text))
+        s = re.split(r"[/、,，;；：:。！？?]", str(text or ""))[0]
+        s = re.sub(r"\s+", "", s)
         return s[:max_len] if s else ""
     
     hook = _extract_keyword(opening)
     pain_point = _extract_keyword(conflict)
     
-    # 5种标题公式（来自xhs-writer-skill）
+    # 账号策略标题公式优先，避免把某个账号的爆款经验写死在通用流程里。
     titles = []
     for t in brief_titles:
         if t not in titles:
             titles.append(t)
-    
-    # 公式1：痛点型
-    if pain_point:
-        titles.append(f"{pain_point}？这本{category}给答案")
+
+    category_signal = _category_title_signal(work, analysis)
+    formula_values = {
+        "name": name,
+        "category": category_signal,
+        "hook": hook or name or category or "这个设定",
+        "pain_point": f"追{category_signal}总踩雷",
+        "emotion": emotion,
+    }
+    formulas = account_strategy.get("title_formulas") or []
+    if formulas:
+        for formula in formulas:
+            template = formula.get("template") if isinstance(formula, dict) else str(formula)
+            title = _format_strategy_template(template, **formula_values).strip()
+            if title:
+                titles.append(title)
     else:
-        titles.append(f"追{category}总踩雷？先看这本")
-    
-    # 公式2：爽点型
-    titles.append(f"这本{category}爽点太密了")
-    
-    # 公式3：反差型
-    if hook:
-        titles.append(f"{hook}，居然写成了爽文")
-    else:
-        titles.append(f"{name}不是噱头是真上头")
-    
-    # 公式4：搜索长尾型
-    titles.append(f"书荒必看{category}推荐")
-    
-    # 公式5：互动求投喂型
-    titles.append(f"{category}党求投喂同款")
+        titles.extend([
+            f"{formula_values['pain_point']}？先看这本",
+            f"这本{formula_values['category']}爽点太密了",
+            f"{formula_values['hook']}，结果更上头",
+            f"{formula_values['category']}新手必看",
+            f"{formula_values['category']}你更想看哪种",
+        ])
+
+    hook_signal = _title_signal(hook or name, "这本书")
+    pain_signal = f"追{category_signal}总踩雷"
+    supplemental_titles = [
+        f"书荒别急，{name}先看这几个点" if name else f"书荒别急，这本{category_signal}先看这几个点",
+        f"{category_signal}值不值得追？先看爽点",
+        f"{category_signal}避雷：适合谁先说清",
+        f"{hook_signal}，这设定有点上头",
+        f"喜欢{category_signal}的可以试试这本",
+        f"{category_signal}党求投喂同款",
+        f"这本{category_signal}我会为爽点收藏",
+        f"{pain_signal}？这本先帮你试了",
+        f"想看{category_signal}，这本有反差",
+        f"{name}到底香不香？我先拆完了" if name else f"这本{category_signal}到底香不香",
+        f"{category_signal}书荒党可以冲吗",
+        f"这本{category_signal}反差点很会抓人",
+    ]
+    for title in supplemental_titles:
+        if title:
+            titles.append(title)
     
     # 使用原有标题模板（如果有）
     original_title = p.get("小红书标题模板", "")
@@ -627,7 +1021,61 @@ def generate_title_options(work, analysis):
         insert_at = len(brief_titles)
         titles.insert(insert_at, original_title)
     
-    return [_compact_mobile(t, 24) for t in titles]
+    return _dedupe_titles([_compact_mobile(t, 26) for t in titles], limit=12)
+
+
+def _title_signal(text, fallback, max_len=8):
+    s = re.sub(r"[《》【】\[\]\s]+", "", str(text or ""))
+    s = re.split(r"[/、,，;；：:。！？?]", s)[0].strip()
+    return s[:max_len] if s else fallback
+
+
+def _category_title_signal(work, analysis):
+    candidates = []
+    packaging = analysis.get("小红书包装", {}) if isinstance(analysis, dict) else {}
+    if isinstance(packaging, dict):
+        tags = packaging.get("热门标签推荐") or []
+        if not isinstance(tags, list):
+            tags = [tags]
+        candidates.extend(tags)
+    category = work.get("分类", "") if isinstance(work, dict) else ""
+    candidates.append(category)
+    for raw in candidates:
+        text = str(raw or "").strip().lstrip("#")
+        if not text:
+            continue
+        if "/" in text:
+            continue
+        if any(key in text for key in ["文", "书", "安全屋", "囤货", "末世"]):
+            return _title_signal(text, "网文", max_len=6)
+    return _title_signal(category, "网文", max_len=6)
+
+
+def _dedupe_titles(titles, limit=None):
+    seen = set()
+    out = []
+    for title in titles:
+        t = str(title or "").strip()
+        if not t:
+            continue
+        if "/" in t or " / " in t:
+            continue
+        if re.search(r"[到成是把在了的]，", t):
+            continue
+        if "推荐推荐" in t:
+            continue
+        key = re.sub(r"[\s，。！？!?：:、,.]+", "", t).lower()
+        near_key = key[:16]
+        if key in seen:
+            continue
+        if near_key and near_key in seen:
+            continue
+        seen.add(key)
+        seen.add(near_key)
+        out.append(t)
+        if limit and len(out) >= limit:
+            break
+    return out
 
 
 _BRIEF_UNGROUNDED_PATTERNS = [
@@ -707,177 +1155,147 @@ def _select_best_title(titles, work):
     return cleaned[0] if cleaned else ""
 
 
-def get_title_options(work, analysis):
+def get_title_options(work, analysis, account_strategy=None):
     """返回备选标题列表（不含最佳标题），供前端选择器使用"""
     try:
-        title_options = generate_title_options(work, analysis)
+        title_options = generate_title_options(work, analysis, account_strategy=account_strategy)
         best_title = _select_best_title(title_options, work)
-        return [t for t in title_options if t != best_title][:5]
+        return _dedupe_titles([t for t in title_options if t != best_title], limit=10)
     except Exception:
         return []
 
 
-def build_xhs_note(work, analysis, use_formula=True):
+def build_xhs_note(work, analysis, use_formula=True, account_strategy=None):
+    account_strategy = account_strategy or get_account_strategy()
     p = analysis["小红书包装"]
     content_brief = _safe_content_brief_for_note(work, analysis)
-    cover_hook = content_brief.get("封面钩子", {})
-    if not isinstance(cover_hook, dict):
-        cover_hook = {}
     tags = p.get("热门标签推荐", [])
     if not isinstance(tags, list):
         tags = [str(tags)] if tags else []
-    intro_lines = _mobile_lines(work.get("简介", ""), max_len=36, max_lines=3)
+    tags = _safe_publish_tags(tags)
+    intro_lines = _mobile_lines(work.get("简介", ""), max_len=96, max_lines=2)
     words = str(work.get("字数（万）") or work.get("字数") or "").strip()
     score = str(work.get("评分", "")).strip()
     finish = str(work.get("完结状态", "")).strip()
+    evidence = _evidence_points_for_note(work, analysis)
+    note_emoji = _emoji_for_note(work, analysis)
     lines = []
-    
-    # 使用5种标题公式生成标题
+
     if use_formula:
-        title_options = generate_title_options(work, analysis)
+        title_options = generate_title_options(work, analysis, account_strategy=account_strategy)
         best_title = _select_best_title(title_options, work)
         lines.append(f"【标题】{best_title}")
     else:
         lines.append(f"【标题】{p.get('小红书标题模板', '')}")
     lines.append("")
-    
-    # 前三行先给结论，避免先铺剧情导致滑走。
-    lines.append("先说结论👇")
-    lead_lines = _split_packaging_lines(p.get("正文开头模板", ""), max_lines=3, max_len=38)
-    if len(lead_lines) < 3:
-        lead_lines = _sharp_fallback_lead(content_brief, cover_hook, work, p)
-    for marker, text in zip(["✅", "🔥", "📌"], lead_lines[:3]):
-        lines.append(f"{marker} {text}")
+
+    lead_lines = [
+        _reader_verdict_line(work, analysis, evidence),
+        evidence[0] if evidence else _publish_phrase(content_brief.get("读者收益", ""), 44),
+        evidence[1] if len(evidence) > 1 else _publish_phrase(analysis.get("卖点分析", {}).get("核心卖点", ""), 44),
+    ]
+    for marker, text in zip(note_emoji[:3], lead_lines):
+        if text:
+            lines.append(f"{marker} {_publish_clean(text, 52)}")
     lines.append("")
-    
-    # 情绪钩子（从 analysis 情绪词动态生成）
-    import random
-    emotion_words = [e for e in analysis.get("情绪触发", []) if e and str(e).strip()]
-    if emotion_words:
-        ew = _compact_mobile(emotion_words[0], 20)
-        lines.append(f"这本真的{ew}😭 刷到就是缘分")
+
+    emotion_words = _grounded_emotion_points(work)
+    variant = _note_variant_seed(work)
+    category = _compact_mobile(work.get("分类", ""), 18) or "网文"
+    name = work.get("作品名称", "")
+    core_sell = _publish_phrase(analysis.get("卖点分析", {}).get("核心卖点", ""), 44)
+    if _is_publish_unsafe_fact(core_sell):
+        core_sell = ""
+
+    if variant == 0:
+        lines.append("我会把它放进“先收藏，书荒时翻出来”的那一类。")
+    elif variant == 1:
+        lines.append(f"这本适合想看{category}，但又怕踩雷的人先做判断。")
     else:
-        lines.append("刷到就是缘分，这本绝了")
+        lines.append("我不想把它夸成神作，但这个设定确实有记忆点。")
+    if core_sell:
+        lines.append(f"抓人的地方很直接：{core_sell}。")
     lines.append("")
-    structure = _compact_mobile(p.get('正文结构建议', ''), 80)
-    if structure:
-        lines.append("这本不是靠设定噱头撑着走的，是真有阅读粘性的那种。")
-    else:
-        lines.append("这本不是靠设定噱头撑着走的，是真有阅读粘性的那种。")
-    lines.append("我本来只想看几章，结果直接连着刷下去。")
-    lines.append("")
-    lines.append("📚 作品速览")
-    lines.append(f"- 书名：{work.get('作品名称','')}")
-    lines.append(f"- 作者：{work.get('作者','')}")
+
+    lines.append(f"书名：《{name}》")
+    lines.append(f"作者：{work.get('作者','')}")
     if words:
-        lines.append(f"- 字数：{words}")
+        lines.append(f"字数：{words}")
     if score:
-        lines.append(f"- 评分：{score}")
+        lines.append(f"评分：{score}")
     if finish:
-        lines.append(f"- 完结状态：{finish}")
-    lines.append(f"- 标签：{_compact_mobile(work.get('分类',''), 48)}")
+        lines.append(f"状态：{finish}")
+    lines.append(f"标签：{_compact_mobile(work.get('分类',''), 48)}")
     lines.append("")
+
     if intro_lines:
-        lines.append("🧾 一句话剧情")
+        lines.append("📖 先把剧情底子说清楚：")
         for t in intro_lines:
             lines.append(f"- {t}")
         lines.append("")
 
-    lines.append("✨ 核心亮点")
-    lines.append("")
-    
-    # 聚焦核心卖点（参考xhs-writer-skill：只讲1-2个最稀缺的功能）
-    lines.append("🔹 开篇抓人：先抛生存题，再给反转")
-    for i, item in enumerate(analysis["开篇套路"][:3], 1):
-        lines.append(f"{i}. {_compact_mobile(item, 120)}")
+    for paragraph in _grounded_story_take(work):
+        lines.append(paragraph)
     lines.append("")
 
-    lines.append("🔹 人设不扁平，关系有拉扯感")
-    lines.append(f"- 女主：{_compact_mobile(analysis['人物设定']['女主'], 160)}")
-    lines.append(f"- 男主：{_compact_mobile(analysis['人物设定']['男主'], 150)}")
-    lines.append(f"- 配角：{_compact_mobile(analysis['人物设定']['亮点配角'], 140)}")
-    lines.append("")
+    if emotion_words:
+        lines.append("🌶️ 这本的情绪口味更像：")
+        lines.append(" / ".join(emotion_words))
+        lines.append("")
 
-    lines.append("🔹 冲突是递进的，不是单点吵架")
-    lines.append(f"- 第一层：{_compact_mobile(analysis['冲突设计']['第一层'], 150)}")
-    lines.append(f"- 第二层：{_compact_mobile(analysis['冲突设计']['第二层'], 150)}")
-    lines.append(f"- 第三层：{_compact_mobile(analysis['冲突设计']['第三层'], 150)}")
-    lines.append("")
-
-    lines.append("🔹 情绪反馈稳定，容易追更")
-    lines.append(f"- 情绪关键词：{_compact_mobile(' / '.join(analysis['情绪触发']), 160)}")
-    lines.append(f"- 结构节奏：{_compact_mobile(p.get('正文结构建议', ''), 120)}")
-    lines.append("")
-    
-    # 个人推荐点（从卖点分析动态生成）
-    lines.append("🔹 我个人最吃的一点")
     sell_point = analysis.get("卖点分析", {})
-    core_sell = _compact_mobile(sell_point.get("核心卖点", ""), 120)
-    if core_sell:
-        lines.append(core_sell)
+    core_sell_long = _publish_clean(sell_point.get("核心卖点", ""), 120)
+    if any(term in core_sell_long for term in ["姐妹们", "瞳孔地震", "人间清醒", "小红书", "爆款笔记"]) or _is_publish_unsafe_fact(core_sell_long):
+        core_sell_long = ""
+    lines.append("💘 我个人最吃的一点：")
+    if core_sell_long:
+        lines.append(core_sell_long)
     else:
-        lines.append(_compact_mobile(p.get("正文开头模板", ""), 120))
-    aux_sells = sell_point.get("辅助卖点", [])
-    if isinstance(aux_sells, list) and aux_sells:
-        lines.append(f"辅助亮点：{_compact_mobile('、'.join(str(s) for s in aux_sells[:2]), 100)}")
+        lines.append(_publish_clean(content_brief.get("读者收益", ""), 100, "它的爽点不是喊口号，而是能让你快速判断合不合口味。"))
+    lines.append(_grounded_save_value_line(work))
     lines.append("")
 
-    lines.append("📝 可抄作业句子（收藏版）")
-    for item in analysis["金句"][:3]:
-        lines.append(f"- {_compact_mobile(item, 90)}")
-    lines.append("")
-
-    lines.append("📖 阅读建议")
+    lines.append("✅ 适合谁看：")
     audience = p.get("受众画像关键词", [])
     if not isinstance(audience, list):
         audience = [str(audience)] if audience else []
     audience_str = _compact_mobile("、".join(str(a) for a in audience[:3]), 60)
-    category = _compact_mobile(work.get("分类", ""), 20)
     if audience_str:
-        lines.append(f"- 适合：{audience_str}")
+        lines.append(audience_str)
     else:
-        lines.append(f"- 适合：喜欢{category}题材的读者")
+        lines.append(f"喜欢{category}、想找一本文风稳定的读者。")
     expand = _compact_mobile(p.get("内容扩展方向", ""), 80)
-    if expand:
-        lines.append(f"- 如果你喜欢{expand}，这本也值得看")
+    if expand and not _is_publish_unsafe_fact(expand):
+        lines.append(f"如果你喜欢{_publish_phrase(expand, 72)}，这本也值得看。")
     else:
-        lines.append("- 避雷：如果只想看极速爽点，可能会觉得铺垫稍多")
+        lines.append("避雷：如果只想看极速爽点，可能会觉得铺垫稍多。")
     lines.append("")
 
-    lines.append("💬 我的结论")
-    core_sell = _compact_mobile(analysis.get("卖点分析", {}).get("核心卖点", ""), 100)
-    potential = _compact_mobile(p.get("爆款潜力评分", ""), 10)
+    lines.append("📝 我的结论：")
     if core_sell:
-        lines.append(f"如果你最近想找一本{core_sell}的文，这本真的可以试。")
+        lines.append(f"想找{core_sell}，这本可以先放进书单。")
     else:
-        lines.append("如果你最近书荒想找一本有阅读粘性的文，这本真的可以试。")
-    emotion_tail = _compact_mobile('、'.join(analysis.get("情绪触发", [])[:2]), 30)
-    if emotion_tail:
-        lines.append(f"它不只是爽，更靠{emotion_tail}把人留住。")
-    else:
-        lines.append("它不是喊口号式的，而是一步步把命运拿回来的过程。")
+        lines.append("最近书荒，又想先避开空泛推荐，这本可以先放进书单。")
     lines.append("")
-    
-    # CTA行动号召（参考xhs-writer-skill：点赞/收藏/关注）
-    lines.append("👇 你来选")
+
+    lines.append("💬 你来选")
     cta = _compact_mobile(p.get("互动话术模板", ""), 46)
     if not cta or any(x in cta for x in ["欢迎评论", "聊聊", "评论区告诉我"]):
         category = _compact_mobile(work.get("分类", ""), 16) or "同款"
-        cta = f"你更吃人设拉扯，还是剧情反转？"
-        if category:
-            cta = f"{category}里你最想被投喂哪本？"
+        if account_strategy.get("id") == "yuanzi_webnovel" and category:
+            cta = f"{category}里你最想被投喂哪本？报书名我去拆"
+        else:
+            cta = f"{category}你更想看哪种？"
     lines.append(cta)
     lines.append("我会从评论区挑书继续拆。")
     lines.append("")
-    
-    # 增加收藏引导
+
     lines.append("📌 觉得有用就收藏一下，下次书荒不迷路！")
     lines.append("")
-    
+
     lines.append("🏷️ 标签")
     lines.append(" ".join(tags))
-    # Keep note attachment mobile-friendly; prompts are stored in dedicated Feishu fields.
-    return "\n".join(lines)
+    return _clean_publish_note("\n".join(lines))
 
 
 def build_experiment_log(work, analysis):

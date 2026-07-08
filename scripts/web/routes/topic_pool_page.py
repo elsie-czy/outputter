@@ -11,6 +11,18 @@ pass  # module loaded
 
 bp = Blueprint("web_topic_pool", __name__)
 
+ACTIVE_QUEUE_STATUSES = {
+    "pending",
+    "waiting",
+    "processing",
+    "deconstructing",
+    "generating_note",
+    "ai_scoring",
+    "human_review",
+    "generating_image",
+    "paused",
+}
+
 
 @bp.get("/topic-pool")
 def topic_pool_page():
@@ -68,35 +80,31 @@ def topic_pool_list():
             str(i.get("record_id") or "").strip(): i
             for i in queued_items
             if str(i.get("record_id") or "").strip()
+            and str(i.get("status") or "").strip() in ACTIVE_QUEUE_STATUSES
         }
         
         if mode == "owner":
             # owner 模式：从本地读取，过滤已拆解
             items = get_local_topics()
-            # 收集所有已拆解的作品名（从 results.jsonl + deconstruct_queue.jsonl）
-            deconstructed_names = set()
+            # 飞书「是否拆解」是重新出现/隐藏选题的主开关；
+            # 本地 results 只作为历史提示，不再覆盖用户在飞书里改回「否」的操作。
+            local_result_names = set()
             try:
                 results = get_local_results()
                 for r in results:
                     n = (r.get("work_name") or "").strip()
                     if n:
-                        deconstructed_names.add(n)
+                        local_result_names.add(n)
             except Exception:
                 pass
-            # 补充：队列中已完成的任务也算已拆解
-            for rec in queued_items:
-                if rec.get("status") == "done":
-                    n = (rec.get("work_name") or "").strip()
-                    if n:
-                        deconstructed_names.add(n)
-            # owner 模式：只以 results.jsonl 中存在实际拆文结果为准
-            # 不依赖飞书「是否拆解」字段（该字段可能为默认值/旧值）
             for item in items:
                 rid = str(item.get("record_id") or "").strip()
                 queue_item = queue_by_id.get(rid)
-                in_results = item.get("work_name", "") in deconstructed_names
-                item["is_deconstructed"] = in_results
-                item["deconstruct_status_label"] = "已拆解" if in_results else ""
+                feishu_deconstructed = _is_deconstructed(item.get("是否拆解"))
+                has_local_result = item.get("work_name", "") in local_result_names
+                item["is_deconstructed"] = feishu_deconstructed
+                item["deconstruct_status_label"] = item.get("是否拆解", "")
+                item["has_local_result"] = has_local_result
                 item["is_in_queue"] = bool(queue_item)
                 item["queue_status"] = queue_item.get("status", "") if queue_item else ""
             # 默认过滤已拆解；?show_all=1 可查看全部

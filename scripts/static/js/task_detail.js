@@ -18,6 +18,7 @@
   let editorHasFocus = false;
   let currentTaskId = null;
   const AUTO_REFRESH_MS = 5000;
+  const AUTO_REFRESH_STORAGE_KEY = "taskDetailAutoRefresh";
 
   /* ===== DOM 缓存 ===== */
   const $ = (sel) => document.querySelector(sel);
@@ -35,7 +36,7 @@
     bindActions();
     bindCollapses();
     bindEditor();
-    startAutoRefresh(taskId);
+    initAutoRefreshToggle(taskId);
     window.addEventListener("pagehide", stopAutoRefresh);
     window.addEventListener("beforeunload", stopAutoRefresh);
     renderHistory();
@@ -61,9 +62,10 @@
       }
       renderDeconstruct();
       renderScore();
+      renderGenerationStrategy();
       renderImages();
       renderHistory();
-      updateRefreshStatus(options.auto ? "自动刷新中" : "已刷新");
+      updateRefreshStatus(options.auto ? "自动刷新已更新" : "已刷新");
     } catch (e) {
       updateRefreshStatus("刷新失败");
       showToast("error", "加载失败: " + e.message);
@@ -72,7 +74,7 @@
 
   function startAutoRefresh(taskId) {
     stopAutoRefresh();
-    updateRefreshStatus("自动刷新中");
+    updateRefreshStatus("自动刷新已开启");
     autoRefreshTimer = window.setInterval(function() {
       if (document.hidden) return;
       loadTaskDetail(taskId, { auto: true, preserveDraft: shouldPreserveDraft() });
@@ -86,13 +88,37 @@
     }
   }
 
+  function initAutoRefreshToggle(taskId) {
+    const toggle = $("#autoRefreshToggle");
+    const saved = window.localStorage.getItem(AUTO_REFRESH_STORAGE_KEY);
+    const enabled = saved === "1";
+    if (toggle) {
+      toggle.checked = enabled;
+      toggle.addEventListener("change", function() {
+        const isEnabled = !!toggle.checked;
+        window.localStorage.setItem(AUTO_REFRESH_STORAGE_KEY, isEnabled ? "1" : "0");
+        if (isEnabled) {
+          startAutoRefresh(taskId);
+        } else {
+          stopAutoRefresh();
+          updateRefreshStatus("自动刷新已关闭");
+        }
+      });
+    }
+    if (enabled) {
+      startAutoRefresh(taskId);
+    } else {
+      updateRefreshStatus("自动刷新已关闭");
+    }
+  }
+
   function shouldPreserveDraft() {
     return editorHasFocus || isDraftDirty;
   }
 
   function updateRefreshStatus(text) {
-    setText("#autoRefreshStatus", text || "自动刷新中");
-    setText("#footerRefreshStatus", text === "刷新失败" ? "异常" : "运行中");
+    setText("#autoRefreshStatus", text || "自动刷新已关闭");
+    setText("#footerRefreshStatus", text === "刷新失败" ? "异常" : (autoRefreshTimer ? "运行中" : "已暂停"));
     const last = $("#lastRefresh");
     if (last) last.textContent = new Date().toLocaleTimeString("zh-CN", { hour12: false });
   }
@@ -168,7 +194,7 @@
   }
 
   function getStatusLabel(status, fallback) {
-    if (status === "done" || status === "completed") return "已完成";
+    if (status === "done" || status === "completed") return "已审核";
     if (status === "failed") return "失败";
     if (status === "cancelled" || status === "terminated") return "已终止";
     if (status === "human_review") return "待审核";
@@ -448,10 +474,12 @@
     }
     const result = taskData.deconstruct_result;
 
+    renderStrategyCollapse();
     setCollapseContent("collapseOpenings", result.openings);
     setCollapseContent("collapseCharacters", result.characters);
     setCollapseContent("collapseConflicts", result.conflicts);
     setCollapseContent("collapseEmotions", result.emotions);
+    renderVisualStoryboard(result.visual_storyboard || result.visualStoryboard || []);
 
     // 金句特殊处理
     const quotesEl = $("#collapseQuotes");
@@ -463,6 +491,77 @@
         ).join("") +
         "</div>";
     }
+  }
+
+  function renderVisualStoryboard(items) {
+    const el = $("#collapseStoryboard");
+    if (!el) return;
+    const body = el.querySelector(".td-collapse-content");
+    if (!body) return;
+    if (!Array.isArray(items) || !items.length) {
+      body.innerHTML = '<div class="td-empty-state td-empty-state--compact">暂无视觉分镜，新任务生成后会显示图片依据</div>';
+      return;
+    }
+    body.innerHTML = '<div class="td-storyboard-list">' + items.slice(0, 5).map(function(item, idx) {
+      if (typeof item === "string") {
+        return '<div class="td-storyboard-item"><strong>第' + (idx + 1) + '页</strong><p>' + esc(item) + '</p></div>';
+      }
+      item = item || {};
+      const role = item["作用"] || item.role || "分镜";
+      const basis = item["剧情依据"] || item.basis || "";
+      const subject = item["画面主体"] || item.subject || "";
+      const scene = item["场景"] || item.scene || "";
+      const action = item["动作"] || item.action || "";
+      const mood = item["情绪"] || item.mood || "";
+      return '<div class="td-storyboard-item">' +
+        '<strong>第' + (idx + 1) + '页 · ' + esc(role) + '</strong>' +
+        '<p><span>剧情依据</span>' + esc(basis || "未填写") + '</p>' +
+        '<p><span>画面</span>' + esc([subject, scene, action, mood].filter(Boolean).join(" · ") || "未填写") + '</p>' +
+        '</div>';
+    }).join("") + '</div>';
+  }
+
+  function renderGenerationStrategy() {
+    const el = $("#generationStrategyCard");
+    if (!el) return;
+    const strategy = taskData && taskData.generation_strategy ? taskData.generation_strategy : null;
+    if (!strategy || !strategy.id) {
+      el.innerHTML = '<div class="td-empty-state td-empty-state--compact">暂无生成策略信息</div>';
+      return;
+    }
+    el.innerHTML =
+      '<div class="td-strategy-card-head">' +
+      '<strong>' + esc(strategy.name || strategy.id) + "</strong>" +
+      '<span>' + esc(strategy.id || "") + "</span>" +
+      "</div>" +
+      '<p>' + esc(strategy.positioning || "未填写账号定位") + "</p>" +
+      strategyPills(strategy.quality_focus || [], "质量关注");
+  }
+
+  function renderStrategyCollapse() {
+    const el = $("#collapseStrategy");
+    if (!el) return;
+    const strategy = taskData && taskData.generation_strategy ? taskData.generation_strategy : null;
+    if (!strategy || !strategy.id) {
+      el.querySelector(".td-collapse-content").innerHTML = '<div class="td-empty-state td-empty-state--compact">暂无生成依据</div>';
+      return;
+    }
+    el.querySelector(".td-collapse-content").innerHTML =
+      '<div class="td-strategy-trace">' +
+      '<div class="td-strategy-trace-main"><span>账号策略</span><strong>' + esc(strategy.name || strategy.id) + '</strong><p>' + esc(strategy.positioning || "") + "</p></div>" +
+      strategyPills(strategy.platform_rules || [], "平台规则") +
+      strategyPills(strategy.quality_focus || [], "质量关注") +
+      strategyPills(strategy.benchmark_accounts || [], "对标账号") +
+      '<div class="td-strategy-note">' + (strategy.content_fact_first ? "内容事实优先：标题、正文和封面钩子必须能被作品信息支撑。" : "内容事实优先未开启。") + "</div>" +
+      "</div>";
+  }
+
+  function strategyPills(items, label) {
+    const values = (items || []).filter(Boolean).slice(0, 8);
+    if (!values.length) return "";
+    return '<div class="td-strategy-pills"><span>' + esc(label) + '</span><div>' +
+      values.map(function(item) { return '<em>' + esc(item) + "</em>"; }).join("") +
+      "</div></div>";
   }
 
   function setCollapseContent(id, items) {
@@ -542,6 +641,14 @@
       return;
     }
     adviceList.innerHTML = suggestions.map(function(s) {
+      if (s && typeof s === "object") {
+        return '<div class="td-suggestion-item td-suggestion-item--structured">' +
+          '<div class="td-suggestion-head"><strong>' + esc(s.dimension || "编辑建议") + '</strong></div>' +
+          (s.problem ? '<p><span>问题</span>' + esc(s.problem) + "</p>" : "") +
+          (s.action ? '<p><span>动作</span>' + esc(s.action) + "</p>" : "") +
+          (s.reason ? '<p><span>依据</span>' + esc(s.reason) + "</p>" : "") +
+          "</div>";
+      }
       return '<div class="td-suggestion-item">' + esc(s) + "</div>";
     }).join("");
   }
@@ -671,25 +778,50 @@
 
     // 通过审核
     bindBtn("#btnApprove", async () => {
-      if (!confirm("确认通过审核？通过后任务将标记为「已完成」")) return;
-      const result = await apiCall("/api/task/" + taskData.record_id + "/approve", "已通过审核");
+      if (!confirm("确认通过审核？通过后任务将标记为「已审核」")) return;
+      const result = await apiCall("/api/task/" + taskData.record_id + "/approve", "已通过审核并回写飞书", getDraftPayload());
       if (result && result.ok) {
         isDraftDirty = false;
+        if (result.warning) showToast("error", result.warning);
         await loadTaskDetail(taskData.record_id);
       }
     });
 
-    // 重新生成
-    bindBtn("#btnRegenerate", async () => {
-      await apiCall("/api/task/" + taskData.record_id + "/regenerate-note", "重新生成中...");
-      loadTaskDetail(taskData.record_id);
+    bindBtn("#btnCopyNote", async () => {
+      const payload = getDraftPayload();
+      const text = composeCopyText(payload);
+      if (!text.trim()) {
+        showToast("error", "暂无可复制内容");
+        return;
+      }
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          ta.style.position = "fixed";
+          ta.style.left = "-9999px";
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          document.execCommand("copy");
+          document.body.removeChild(ta);
+        }
+        showToast("success", "笔记已复制");
+      } catch (e) {
+        showToast("error", "复制失败: " + e.message);
+      }
     });
 
+    // 重新生成
+    bindBtn("#btnRegenerate", async (event) => regenerateNote(event.currentTarget));
+
     // 重新生成笔记
-    bindBtn("#btnRegenerateNote", async () => {
-      await apiCall("/api/task/" + taskData.record_id + "/regenerate-note", "重新生成中...");
-      loadTaskDetail(taskData.record_id);
-    });
+    bindBtn("#btnRegenerateNote", async (event) => regenerateNote(event.currentTarget));
+
+    // 重新生成配图
+    bindBtn("#btnRegenerateImages", async (event) => regenerateImages(event.currentTarget));
 
     // 重新评分
     bindBtn("#btnRescore", async () => {
@@ -712,6 +844,63 @@
         return (el.childNodes[0] ? el.childNodes[0].textContent : el.textContent).replace("×", "").trim();
       }).filter(Boolean)
     };
+  }
+
+  function composeCopyText(payload) {
+    const parts = [];
+    if (payload.title) parts.push(payload.title.trim());
+    if (payload.content) parts.push(payload.content.trim());
+    if (payload.tags && payload.tags.length) {
+      parts.push(payload.tags.map(function(tag) {
+        tag = String(tag || "").trim();
+        return tag ? (tag.charAt(0) === "#" ? tag : "#" + tag) : "";
+      }).filter(Boolean).join(" "));
+    }
+    return parts.filter(Boolean).join("\n\n");
+  }
+
+  async function regenerateNote(button) {
+    if (!taskData || !taskData.record_id) return;
+    setButtonBusy(button, true, "生成中...");
+    showToast("success", "正在重新生成笔记，模型返回前请稍等");
+    const result = await apiCall("/api/task/" + taskData.record_id + "/regenerate-note", "笔记已重新生成");
+    setButtonBusy(button, false);
+    if (result) {
+      isDraftDirty = false;
+      await loadTaskDetail(taskData.record_id);
+    }
+  }
+
+  async function regenerateImages(button) {
+    if (!taskData || !taskData.record_id) return;
+    if (!confirm("确认重新生成配图？当前封面和配图会被新结果替换。")) return;
+    setButtonBusy(button, true, "生图中...");
+    showToast("success", "正在重新生成配图，图片服务返回前请稍等");
+    const result = await apiCall("/api/task/" + taskData.record_id + "/regenerate-images", "配图已重新生成");
+    setButtonBusy(button, false);
+    if (result) {
+      await loadTaskDetail(taskData.record_id);
+    }
+  }
+
+  function setButtonBusy(button, busy, label) {
+    if (!button) return;
+    if (busy) {
+      button.dataset.originalHtml = button.innerHTML;
+      button.disabled = true;
+      button.classList.add("is-loading");
+      const icon = button.querySelector("i") ? '<i data-lucide="loader-circle"></i>' : "";
+      button.innerHTML = icon + "<span>" + esc(label || "处理中...") + "</span>";
+      if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
+      return;
+    }
+    button.disabled = false;
+    button.classList.remove("is-loading");
+    if (button.dataset.originalHtml) {
+      button.innerHTML = button.dataset.originalHtml;
+      delete button.dataset.originalHtml;
+      if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
+    }
   }
 
   async function apiCall(url, successMsg, payload) {

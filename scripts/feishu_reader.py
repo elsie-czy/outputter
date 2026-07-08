@@ -7,23 +7,36 @@ from scripts.config import PATHS
 def _is_deconstructed(value):
     if value is None:
         return False
+    false_values = {"", "否", "未", "未拆解", "待拆解", "0", "false", "False", "FALSE", "no", "No", "NO"}
+    true_values = {"是", "已", "已拆解", "1", "true", "True", "TRUE", "yes", "Yes", "YES"}
     if isinstance(value, bool):
         return value
     if isinstance(value, (int, float)):
         return value != 0
     if isinstance(value, str):
         v = value.strip()
-        if v in ["", "否", "未", "未拆解", "0", "false", "False"]:
+        if v in false_values:
             return False
-        if v in ["是", "已", "已拆解", "1", "true", "True"]:
+        if v in true_values:
             return True
         # default: non-empty string treated as true
         return True
     if isinstance(value, list):
-        # any non-empty selection treated as true
-        return len(value) > 0
+        if not value:
+            return False
+        return any(_is_deconstructed(item) for item in value)
     if isinstance(value, dict):
-        return True
+        raw = (
+            value.get("name")
+            or value.get("text")
+            or value.get("value")
+            or value.get("label")
+            or value.get("id")
+            or value.get("option_id")
+        )
+        if raw is None:
+            return False
+        return _is_deconstructed(raw)
     return bool(value)
 from scripts.feishu_client import FeishuClient
 

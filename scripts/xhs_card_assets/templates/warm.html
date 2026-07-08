@@ -104,10 +104,10 @@ body {
 
 .image-hero-panel {
   position: absolute;
-  left: 96px;
-  right: 96px;
-  bottom: 318px;
-  padding: 52px 48px 46px;
+  left: 70px;
+  right: 70px;
+  bottom: 300px;
+  padding: 58px 42px 54px;
   border-radius: 40px;
   background: rgba(42,58,70,0.70);
   box-shadow: 0 28px 90px rgba(0,0,0,0.24);
@@ -115,64 +115,46 @@ body {
 }
 
 .image-hero-panel .image-title {
-  font-family: "Noto Serif SC", "Noto Sans SC", "Noto Color Emoji", sans-serif;
-  font-size: 82px;
-  font-weight: 700;
-  line-height: 1.22;
+  font-family: "ZCOOL KuaiLe", "Noto Sans SC", "Noto Color Emoji", sans-serif;
+  font-size: 116px;
+  font-weight: 400;
+  line-height: 1.18;
   color: #FCFAF2;
   text-align: center;
-  text-shadow: 0 3px 12px rgba(0,0,0,0.35);
+  text-shadow:
+    0 4px 0 rgba(22,28,32,0.42),
+    0 12px 26px rgba(0,0,0,0.46);
 }
 
 .image-hero-panel .image-subtitle {
-  margin-top: 32px;
+  margin-top: 30px;
   display: inline-flex;
   max-width: 100%;
-  padding: 10px 24px;
+  padding: 12px 26px;
   border-radius: 999px;
   background: rgba(252,250,242,0.16);
-  font-size: 32px;
-  line-height: 1.42;
+  font-size: 44px;
+  line-height: 1.36;
+  font-weight: 700;
   color: rgba(252,250,242,0.92);
   text-shadow: 0 2px 8px rgba(0,0,0,0.30);
 }
 
 .image-desc {
   position: absolute;
-  left: 126px;
-  right: 126px;
-  bottom: 174px;
-  padding: 20px 28px;
+  left: 92px;
+  right: 92px;
+  bottom: 142px;
+  padding: 28px 34px;
   border-radius: 24px;
   background: rgba(18,24,28,0.46);
-  font-size: 30px;
-  line-height: 1.5;
-  color: rgba(252,250,242,0.88);
+  font-size: 46px;
+  line-height: 1.38;
+  font-weight: 800;
+  color: rgba(252,250,242,0.94);
   text-align: center;
   text-shadow: 0 2px 8px rgba(0,0,0,0.30);
   box-shadow: 0 18px 54px rgba(0,0,0,0.20);
-}
-
-.image-bottomline {
-  position: absolute;
-  left: 48px;
-  right: 48px;
-  bottom: 42px;
-  display: flex;
-  justify-content: center;
-  gap: 14px;
-}
-
-.image-bottomline span {
-  width: 9px;
-  height: 9px;
-  border-radius: 999px;
-  background: rgba(248,244,234,0.46);
-}
-
-.image-bottomline span:first-child {
-  width: 28px;
-  background: rgba(248,244,234,0.90);
 }
 
 .image-info-panel {
@@ -276,20 +258,6 @@ body {
     0 4px 0 rgba(89,58,13,0.60),
     0 12px 28px rgba(0,0,0,0.46),
     0 0 24px rgba(255,204,56,0.42);
-}
-
-.image-quote-pill {
-  position: absolute;
-  left: 50%;
-  bottom: 18px;
-  transform: translateX(-50%);
-  padding: 8px 22px;
-  border-radius: 999px;
-  background: rgba(20,24,28,0.54);
-  color: rgba(252,250,242,0.88);
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: 0;
 }
 
 /* ===== 封面卡 ===== */
@@ -513,7 +481,6 @@ body {
     <div class="image-subtitle">{{ cover_meta | default(subtitle) | safe }}</div>
   </div>
   {% if cover_desc %}<div class="image-desc">{{ cover_desc | safe }}</div>{% endif %}
-  <div class="image-bottomline"><span></span><span></span><span></span><span></span><span></span></div>
   {% else %}
   <div class="emoji-decoration">{{ decoration_emoji }}</div>
   <div class="category-tag">{{ category }}</div>
@@ -536,9 +503,7 @@ body {
     <div class="image-quote-emoji">{{ quote_emoji | default("✨") }}</div>
     <div class="image-quote-mark">“</div>
     <div class="image-quote-text">“{{ quote_text | default(message) | safe }}”</div>
-    <div class="image-quote-pill">经典金句</div>
   </div>
-  <div class="image-bottomline"><span></span><span></span><span></span><span></span><span></span></div>
   {% else %}
   <div class="image-info-panel">
     <div class="image-section-kicker">{{ section_tag }}</div>
@@ -552,7 +517,6 @@ body {
       {% endfor %}
     </div>
   </div>
-  <div class="image-bottomline"><span></span><span></span><span></span><span></span><span></span></div>
   {% endif %}
   {% else %}
   <div class="top-bar">
@@ -588,7 +552,6 @@ body {
       {% endfor %}
     </div>
   </div>
-  <div class="image-bottomline"><span></span><span></span><span></span><span></span><span></span></div>
   {% else %}
   <div class="top-bar">
     <div class="section-tag">{{ section_tag }}</div>

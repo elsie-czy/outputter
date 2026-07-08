@@ -55,6 +55,14 @@ def create_app():
 
     register_routes(legacy_app)
     _validate_on_startup()
+    if os.getenv("WEB_AUTO_START_WORKER", "1").strip().lower() in ("1", "true", "yes"):
+        try:
+            from scripts.web.routes.health import ensure_worker_running
+
+            result = ensure_worker_running()
+            print(f"[startup] worker ensure: {result}")
+        except Exception as e:
+            print(f"[WARN] worker ensure failed: {e}")
     return legacy_app
 
 

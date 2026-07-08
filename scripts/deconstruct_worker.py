@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import time
+import traceback
 from datetime import datetime
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -24,6 +25,7 @@ from scripts.quality_scorer import score_note
 from scripts.data_normalizer import normalize_feishu_record, normalize_feishu_value
 from scripts.generation_context import build_generation_context, context_counts
 from scripts.source_cleaner import clean_source_synopsis
+from scripts.account_strategy import get_account_strategy
 
 # Import from deconstruct_daily
 from scripts.deconstruct_daily import (
@@ -35,6 +37,17 @@ from scripts.deconstruct_daily import (
 
 def _now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _has_story_source(work, search_info):
+    intro = str(work.get("剧情简介") or work.get("简介") or "").strip()
+    source = str(work.get("简介来源") or search_info.get("搜索来源链接") or search_info.get("搜索模式") or "").strip()
+    if not intro or len(intro) < 30:
+        return False
+    if source == "fallback_required_field":
+        return False
+    fallback_marker = "当前选题池未提供详细简介"
+    return fallback_marker not in intro
 
 
 def _read_image_strategy_config():
@@ -232,11 +245,11 @@ def _acquire_worker_lock():
     return False
 
 
-def _score_note_for_task(rid, note_text, step_times):
+def _score_note_for_task(rid, note_text, step_times, account_strategy=None):
     t_score = time.perf_counter()
     _set_status(rid, "ai_scoring")
     try:
-        score = score_note(note_text)
+        score = score_note(note_text, account_strategy=account_strategy)
         _log(rid, f"AI评分完成: {score.get('total', 0)}")
     except Exception as e:
         _log(rid, f"AI评分失败，使用降级评分: {e}")
@@ -272,6 +285,8 @@ def process_one(task, dry=False):
     record_id = None
     xhs_record_id = None
     step_times = {}
+    task_entry = _get_task_entry(rid) or task or {}
+    account_strategy = get_account_strategy(task_entry.get("account_strategy_id"))
 
     try:
         # 构建 work 对象（格式对齐 deconstruct_daily 的 load_selected_work 返回值）
@@ -303,10 +318,17 @@ def process_one(task, dry=False):
             if search_info.get("搜索来源链接"):
                 work["简介来源"] = search_info["搜索来源链接"]
         
-        # 确保必填字段有默认值
+        # 确保必填字段有默认值。没有真实简介时不再继续生成发布稿，避免模型凭题材脑补。
         if not work.get("简介"):
             work["简介"] = _ensure_required_synopsis(work)
             work["简介来源"] = "fallback_required_field"
+
+        if not _has_story_source(work, search_info):
+            msg = "缺少可验证的剧情简介，已停止生成；请补充作品简介或确认搜索来源后重试"
+            _log(rid, msg)
+            _set_status(rid, "failed", error=msg, step_times=step_times)
+            result["error"] = msg
+            return result
 
         if dry:
             _log(rid, "dry=True，跳过模型调用")
@@ -364,16 +386,19 @@ def process_one(task, dry=False):
             if not cached_xhs_img:
                 cached_xhs_img = cached_main
 
-            quality_score = _score_note_for_task(rid, note_content, step_times)
-
             # 读取每任务策略（优先），否则读全局 .env
-            _entry1 = _get_task_entry(rid) or {}
+            quality_score = _score_note_for_task(
+                rid,
+                note_content,
+                step_times,
+                account_strategy=account_strategy,
+            )
             _image_config1 = _read_image_strategy_config()
-            _task_strategy1 = _entry1.get("image_strategy") or \
+            _task_strategy1 = task_entry.get("image_strategy") or \
                 _image_config1["strategy"]
             _html_style1 = _image_config1["style"]
             _html_count1 = _image_config1["count"]
-            _image_provider1 = _entry1.get("image_provider") or _image_config1["provider"]
+            _image_provider1 = task_entry.get("image_provider") or _image_config1["provider"]
 
             if _task_strategy1 in ("html_card", "auto"):
                 # HTML 卡片生图
@@ -401,11 +426,11 @@ def process_one(task, dry=False):
                     else:
                         _log(rid, "HTML卡片生成失败: 无输出")
                     step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
-                    _set_status(rid, "done", images=images, step_times=step_times)
+                    _set_status(rid, "human_review", images=images, step_times=step_times)
                 except Exception as e:
                     _log(rid, f"HTML卡片生成异常: {e}")
                     step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
-                    _set_status(rid, "done", images=images, step_times=step_times)
+                    _set_status(rid, "human_review", images=images, step_times=step_times)
             elif _task_strategy1 == "ai":
                 # AI 即梦生图（原有逻辑）
                 try:
@@ -446,13 +471,13 @@ def process_one(task, dry=False):
             step_times["generating_image"] = {"done": _now(), "duration": 0}
             # 确保 deconstruct_result 中有结构化笔记（用于前端展示）
             analysis["note"] = xhs_note_dict
-            _set_status(rid, "done",
+            _set_status(rid, "human_review",
                         deconstruct_result=analysis,
                         note_content=note_content,
                         quality_score=quality_score,
                         step_times=step_times,
                         images=images)
-            update_task_fields(rid, title_options=get_title_options(work, analysis))
+            update_task_fields(rid, title_options=get_title_options(work, analysis, account_strategy=account_strategy))
             result["ok"] = True
             return result
 
@@ -467,10 +492,10 @@ def process_one(task, dry=False):
             f"参考笔记 {counts['reference_notes']} 条, "
             f"近期反馈 {counts['recent_feedback']} 条",
         )
-        analysis = analyze_work(work, **generation_context)
+        analysis = analyze_work(work, account_strategy=account_strategy, **generation_context)
         source = (analysis.get("元信息", {}) or {}).get("来源", "")
         if "openai_parse_fallback" in str(source):
-            raise RuntimeError(f"模型解析失败: {source}")
+            _log(rid, f"模型解析失败，已使用本地兜底继续生产: {source}")
         analysis["配图提示词"] = _build_image_prompts(work, analysis)
         step_times["deconstructing"] = {"done": _now(), "duration": round(time.perf_counter() - t_deconstruct, 1)}
 
@@ -480,8 +505,8 @@ def process_one(task, dry=False):
         run_date = get_run_date()
         safe_name = f"{work.get('作品名称', '未知作品')}_{work.get('作者', '未知作者')}"
         report = build_report(work, search_info, analysis)
-        xhs_note = build_xhs_note(work, analysis)
-        quality_score = _score_note_for_task(rid, xhs_note, step_times)
+        xhs_note = build_xhs_note(work, analysis, account_strategy=account_strategy)
+        quality_score = _score_note_for_task(rid, xhs_note, step_times, account_strategy=account_strategy)
 
         # 评分闭环：grade=retry 且非降级分数时，重试一次
         if (
@@ -495,14 +520,14 @@ def process_one(task, dry=False):
                 "reference_notes": generation_context.get("reference_notes"),
                 "recent_feedback": retry_feedback,
             }
-            analysis = analyze_work(work, **retry_ctx)
+            analysis = analyze_work(work, account_strategy=account_strategy, **retry_ctx)
             analysis["配图提示词"] = _build_image_prompts(work, analysis)
             report = build_report(work, search_info, analysis)
-            xhs_note = build_xhs_note(work, analysis)
-            quality_score = _score_note_for_task(rid, xhs_note, step_times)
+            xhs_note = build_xhs_note(work, analysis, account_strategy=account_strategy)
+            quality_score = _score_note_for_task(rid, xhs_note, step_times, account_strategy=account_strategy)
             _log(rid, f"重试后评分: {quality_score.get('total', 0)} ({quality_score.get('grade', '')})")
 
-        title_options = get_title_options(work, analysis)
+        title_options = get_title_options(work, analysis, account_strategy=account_strategy)
 
         report_path = os.path.join(PATHS["outputs"], "拆解报告", f"{run_date}_{safe_name}_拆解报告.md")
         os.makedirs(os.path.dirname(report_path), exist_ok=True)
@@ -522,21 +547,29 @@ def process_one(task, dry=False):
             record_id = sync_to_feishu(work, search_info, analysis)
             _log(rid, f"飞书主表写入完成, record_id={record_id}")
             if record_id:
-                # 5. 写入小红书笔记库
-                try:
-                    xhs_record_id = sync_xhs_note_table(record_id, work, analysis, xhs_path)
-                    _log(rid, f"小红书笔记库写入完成, xhs_record_id={xhs_record_id}")
-                except Exception as e:
-                    _log(rid, f"小红书笔记库写入失败: {e}")
+                if os.getenv("FEISHU_SYNC_AUX_TABLES", "0").strip().lower() in ("1", "true", "yes"):
+                    # 5. 写入小红书笔记库
+                    try:
+                        xhs_record_id = sync_xhs_note_table(record_id, work, analysis, xhs_path)
+                        _log(rid, f"小红书笔记库写入完成, xhs_record_id={xhs_record_id}")
+                    except Exception as e:
+                        _log(rid, f"小红书笔记库写入失败: {e}")
+                else:
+                    _log(rid, "已跳过小红书笔记库同步（FEISHU_SYNC_AUX_TABLES 未开启）")
 
                 # 6. 关联表同步
-                if not work.get("_existing_main_record"):
+                if (
+                    os.getenv("FEISHU_SYNC_AUX_TABLES", "0").strip().lower() in ("1", "true", "yes")
+                    and not work.get("_existing_main_record")
+                ):
                     try:
                         related_ids = sync_related(record_id, work, analysis)
                         update_main_links(record_id, related_ids)
                         _log(rid, "关联表同步完成")
                     except Exception as e:
                         _log(rid, f"关联表同步失败: {e}")
+                else:
+                    _log(rid, "已跳过关联表同步（FEISHU_SYNC_AUX_TABLES 未开启或已有主表记录）")
         else:
             _log(rid, "飞书未配置，跳过同步")
 
@@ -560,7 +593,7 @@ def process_one(task, dry=False):
 
         # 8. 标记完成
         step_times["done"] = {"done": _now(), "duration": 0}
-        _set_status(rid, "done",
+        _set_status(rid, "human_review",
                     deconstruct_result=analysis,
                     note_content=xhs_note,
                     quality_score=quality_score,
@@ -617,11 +650,11 @@ def process_one(task, dry=False):
                 else:
                     _log(rid, "HTML卡片生成失败: 无输出")
                 step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
-                _set_status(rid, "done", images=images, step_times=step_times)
+                _set_status(rid, "human_review", images=images, step_times=step_times)
             except Exception as e:
                 _log(rid, f"HTML卡片生成异常: {e}")
                 step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
-                _set_status(rid, "done", images=images, step_times=step_times)
+                _set_status(rid, "human_review", images=images, step_times=step_times)
         elif _task_strategy == "ai":
             t_image = time.perf_counter()
             _log(rid, "开始生成图片...")
@@ -659,12 +692,12 @@ def process_one(task, dry=False):
                 step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
                 # 更新完成状态（包含完整的 step_times）
                 step_times["done"] = {"done": _now(), "duration": 0}
-                _set_status(rid, "done", images=images, step_times=step_times)
+                _set_status(rid, "human_review", images=images, step_times=step_times)
             except Exception as e:
                 _log(rid, f"图片生成异常: {e}")
                 step_times["generating_image"] = {"done": _now(), "duration": round(time.perf_counter() - t_image, 1)}
                 step_times["done"] = {"done": _now(), "duration": 0}
-                _set_status(rid, "done", images=images, step_times=step_times)
+                _set_status(rid, "human_review", images=images, step_times=step_times)
         else:
             _log(rid, "图片生成未启用，跳过")
             step_times["generating_image"] = {"done": _now(), "duration": 0}
@@ -692,6 +725,7 @@ def process_one(task, dry=False):
     except Exception as e:
         error_msg = str(e)[:500]
         _log(rid, f"失败: {error_msg}")
+        _log(rid, "失败堆栈:\n" + traceback.format_exc())
         _set_status(rid, "failed", error=error_msg)
         result["error"] = error_msg
 

@@ -4,6 +4,7 @@ from scripts.model_adapter import analyze_work
 from scripts.quality_scorer import score_note
 from scripts.deconstruct_daily import build_xhs_note
 from scripts.generation_context import build_generation_context, context_counts
+from scripts.account_strategy import get_account_strategy
 
 bp = Blueprint("web_note_api", __name__, url_prefix="/api/note")
 
@@ -67,9 +68,10 @@ def regenerate_note(rid):
             return jsonify({"ok": False, "error": "任务未找到"}), 404
 
         generation_context = build_generation_context(task)
-        analysis = analyze_work(work, **generation_context)
-        note_text = build_xhs_note(work, analysis)
-        score_result = score_note(note_text)
+        account_strategy = get_account_strategy(task.get("account_strategy_id") if task else None)
+        analysis = analyze_work(work, account_strategy=account_strategy, **generation_context)
+        note_text = build_xhs_note(work, analysis, account_strategy=account_strategy)
+        score_result = score_note(note_text, account_strategy=account_strategy)
         update_task_fields(
             rid,
             deconstruct_result=analysis,
@@ -184,15 +186,18 @@ def rescore_note(rid):
         from scripts.queue_manager import get_queue, update_task_fields
         result = get_queue(per_page=9999)
         note_text = ""
+        target_task = None
         for item in result.get("items", []):
             if item.get("record_id") == rid and item.get("note_content"):
                 note_text = item["note_content"]
+                target_task = item
                 break
 
         if not note_text:
             return jsonify({"ok": False, "error": "笔记内容为空"}), 400
 
-        score_result = score_note(note_text)
+        account_strategy = get_account_strategy(target_task.get("account_strategy_id") if target_task else None)
+        score_result = score_note(note_text, account_strategy=account_strategy)
         update_task_fields(rid, quality_score=score_result)
         return jsonify({"ok": True, "data": score_result})
     except Exception as e:

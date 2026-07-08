@@ -486,7 +486,7 @@
       ai_scoring: "AI评分",
       human_review: "待审核",
       generating_image: "生成图片",
-      done: "已完成",
+      done: "已审核",
       failed: "失败",
       cancelled: "已终止",
     };

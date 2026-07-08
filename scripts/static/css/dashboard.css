@@ -108,6 +108,98 @@
   pointer-events: none;
 }
 
+.dashboard-account-strategy {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.6fr);
+  gap: 16px;
+  align-items: stretch;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #FFFFFF;
+  box-shadow: var(--shadow-sm);
+}
+
+.dashboard-strategy-main {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 12px;
+  min-width: 0;
+}
+
+.dashboard-strategy-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  background: #EEF2FF;
+  color: var(--color-primary);
+}
+
+.dashboard-strategy-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.dashboard-strategy-copy {
+  min-width: 0;
+}
+
+.dashboard-strategy-copy span,
+.dashboard-strategy-group span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-strategy-copy strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-primary);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.dashboard-strategy-copy p {
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.dashboard-strategy-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dashboard-strategy-group {
+  min-width: 0;
+}
+
+.dashboard-strategy-group div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.dashboard-strategy-group em {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  background: #F8FAFC;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dashboard-kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(180px, 1fr));
@@ -441,6 +533,7 @@
 }
 
 @media (max-width: 1180px) {
+  .dashboard-account-strategy,
   .dashboard-kpis,
   .dashboard-grid--main,
   .dashboard-grid--secondary {
@@ -473,8 +566,13 @@
   }
 
   .dashboard-kpis,
+  .dashboard-account-strategy,
   .dashboard-grid--main,
   .dashboard-grid--secondary {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-strategy-meta {
     grid-template-columns: 1fr;
   }
 

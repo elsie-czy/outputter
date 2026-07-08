@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request
 
 from scripts.queue_manager import (
     get_queue, enqueue_works, update_status, batch_update_status,
-    retry_task, get_stats, get_next_pending,
+    retry_task, get_stats, get_next_pending, ACTIVE_STATUSES,
 )
 
 bp = Blueprint("web_deconstruct_api", __name__, url_prefix="/api/deconstruct")
@@ -71,6 +71,7 @@ def batch_enqueue():
             str(i.get("record_id") or "").strip()
             for i in get_queue(per_page=9999).get("items", [])
             if str(i.get("record_id") or "").strip()
+            and str(i.get("status") or "").strip() in ACTIVE_STATUSES
         }
 
         # 安全网：从本地选题库补全简介/取向
@@ -87,8 +88,8 @@ def batch_enqueue():
         enriched = []
         for w in works:
             w = dict(w)  # 浅拷贝，避免修改原数据
-            if not w.get("简介"):
-                key = (w.get("作品名称", ""), w.get("作者", ""))
+            if not (w.get("简介") or w.get("synopsis") or w.get("剧情简介")):
+                key = (w.get("作品名称") or w.get("work_name", ""), w.get("作者") or w.get("author", ""))
                 local_item = local_map.get(key)
                 if local_item:
                     w["简介"] = local_item.get("synopsis", "")

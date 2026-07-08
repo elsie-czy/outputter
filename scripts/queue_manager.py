@@ -13,12 +13,24 @@ STATUS_WAITING = "waiting"
 STATUS_DECONSTRUCTING = "deconstructing"
 STATUS_GENERATING_NOTE = "generating_note"
 STATUS_AI_SCORING = "ai_scoring"
-STATUS_HUMAN_REVIEW = "human_review"  # 已废弃，向后兼容
+STATUS_HUMAN_REVIEW = "human_review"
 STATUS_GENERATING_IMAGE = "generating_image"
 STATUS_DONE = "done"
 STATUS_FAILED = "failed"
 STATUS_PAUSED = "paused"
 STATUS_CANCELLED = "cancelled"
+
+ACTIVE_STATUSES = {
+    STATUS_WAITING,
+    "pending",
+    "processing",
+    STATUS_DECONSTRUCTING,
+    STATUS_GENERATING_NOTE,
+    STATUS_AI_SCORING,
+    STATUS_HUMAN_REVIEW,
+    STATUS_GENERATING_IMAGE,
+    STATUS_PAUSED,
+}
 
 
 def normalize_status(status) -> str:
@@ -33,7 +45,7 @@ def normalize_status(status) -> str:
         "generating_note": "processing",
         "ai_scoring": "processing",
         "generating_image": "processing",
-        "human_review": "review",   # 已废弃，向后兼容，映射为 review 显示
+        "human_review": "review",
         "review": "review",
         "done": "completed",
         "completed": "completed",
@@ -58,7 +70,7 @@ STAGE_PROGRESS = {
 
 # 判断任务是否真正完成（需要图片生成）
 def is_task_truly_done(task: dict) -> bool:
-    """判断任务是否真正完成（包括图片生成）"""
+    """判断任务是否已审核完成（包括图片生成）。"""
     if task.get("status") != STATUS_DONE:
         return False
     # 如果配置了图片生成，需要检查图片是否生成
@@ -86,7 +98,7 @@ STAGE_LABELS = {
     STATUS_AI_SCORING: "AI评分",
     STATUS_HUMAN_REVIEW: "人工审核",
     STATUS_GENERATING_IMAGE: "生成图片",
-    STATUS_DONE: "已完成",
+    STATUS_DONE: "已审核",
     STATUS_FAILED: "已失败",
     STATUS_PAUSED: "已暂停",
     STATUS_CANCELLED: "已终止",
@@ -120,33 +132,47 @@ def enqueue_works(works, image_strategy=None, image_provider=None):
     """批量入队。works 是 list[dict]；image_strategy/image_provider 为任务级生图配置（可选）。"""
     ensure_dirs()
     existing = read_jsonl(QUEUE_FILE)
-    existing_ids = {
-        str(i.get("record_id") or "").strip()
+    existing_by_id = {
+        str(i.get("record_id") or "").strip(): i
         for i in existing
         if str(i.get("record_id") or "").strip()
     }
+    active_ids = {
+        rid for rid, item in existing_by_id.items()
+        if str(item.get("status") or "").strip() in ACTIVE_STATUSES
+    }
     seen_ids = set()
     entries = []
+    reset_count = 0
     for w in works:
         rid = str(w.get("record_id") or "").strip()
-        if not rid or rid in existing_ids or rid in seen_ids:
+        if not rid or rid in active_ids or rid in seen_ids:
             continue
         seen_ids.add(rid)
-        entries.append({
+        synopsis = (
+            w.get("简介")
+            or w.get("synopsis")
+            or w.get("剧情简介")
+            or w.get("description")
+            or ""
+        )
+        orientation = w.get("取向") or w.get("orientation") or ""
+        word_count = w.get("字数") or w.get("word_count") or w.get("字数（万）") or 0
+        entry = {
             "record_id": rid,
-            "work_name": str(w.get("作品名称", "")),
-            "author": str(w.get("作者", "")),
-            "platform": str(w.get("平台", "")),
-            "category": str(w.get("分类", "")),
-            "synopsis": str(w.get("简介", "")),
-            "orientation": str(w.get("取向", "")),
-            "word_count": w.get("字数", 0),
-            "favorites": w.get("收藏", 0),
-            "likes": w.get("点赞", 0),
-            "monthly_votes": w.get("月票", 0),
-            "recommend_votes": w.get("推荐票", 0),
-            "comments": w.get("评论", 0),
-            "rank": w.get("排名", 0),
+            "work_name": str(w.get("作品名称") or w.get("work_name") or ""),
+            "author": str(w.get("作者") or w.get("author") or ""),
+            "platform": str(w.get("平台") or w.get("platform") or ""),
+            "category": str(w.get("分类") or w.get("category") or ""),
+            "synopsis": str(synopsis),
+            "orientation": str(orientation),
+            "word_count": word_count,
+            "favorites": w.get("收藏", w.get("favorites", 0)),
+            "likes": w.get("点赞", w.get("likes", 0)),
+            "monthly_votes": w.get("月票", w.get("monthly_votes", 0)),
+            "recommend_votes": w.get("推荐票", w.get("recommend_votes", 0)),
+            "comments": w.get("评论", w.get("comments", 0)),
+            "rank": w.get("排名", w.get("rank", 0)),
             "image_strategy": image_strategy or None,
             "image_provider": image_provider or None,
             "status": "pending",
@@ -155,13 +181,28 @@ def enqueue_works(works, image_strategy=None, image_provider=None):
             "deconstruct_result": None,
             "note_content": None,
             "quality_score": None,
+            "images": {},
+            "step_times": {},
+            "title_options": [],
+            "modification_log": "",
             "created_at": _now(),
             "processing_start": None,
             "completed_at": None,
-        })
+        }
+        if rid in existing_by_id:
+            existing_item = existing_by_id[rid]
+            previous_status = str(existing_item.get("status") or "")
+            existing_item.update(entry)
+            existing_item["reset_from_status"] = previous_status
+            existing_item["updated_at"] = _now()
+            reset_count += 1
+        else:
+            entries.append(entry)
     for entry in entries:
         append_jsonl(QUEUE_FILE, entry)
-    return len(entries)
+    if reset_count:
+        write_jsonl(QUEUE_FILE, existing)
+    return len(entries) + reset_count
 
 
 def get_queue(status=None, platform=None, category=None, q=None, page=1, per_page=20):
@@ -257,6 +298,8 @@ def update_task_fields(record_id, **fields):
         "images",
         "step_times",
         "title_options",
+        "feishu_sync_status",
+        "feishu_sync_error",
     }
     patch = {k: v for k, v in fields.items() if k in allowed}
     if not patch:

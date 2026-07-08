@@ -499,6 +499,71 @@ a:hover { text-decoration: underline; }
   gap: var(--space-md);
 }
 
+.app-header-account {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px minmax(108px, 188px) 18px;
+  align-items: center;
+  gap: 8px;
+  min-width: 210px;
+  height: 42px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #FFFFFF;
+}
+
+.app-header-account > svg,
+.app-header-account > i {
+  width: 18px;
+  height: 18px;
+  color: var(--color-primary);
+}
+
+.app-header-account-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.app-header-account-copy span {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.app-header-account-copy strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-header-account select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.app-header-account::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid var(--text-secondary);
+  border-bottom: 1.5px solid var(--text-secondary);
+  transform: rotate(45deg) translateY(-2px);
+  justify-self: center;
+  pointer-events: none;
+}
+
 .app-header-icon-btn {
   position: relative;
   display: flex;
@@ -959,6 +1024,18 @@ a:hover { text-decoration: underline; }
     left: 0;
   }
   .app-header-page-title {
+    display: none;
+  }
+  .app-header-account {
+    min-width: 46px;
+    grid-template-columns: 18px;
+    padding: 6px 14px;
+  }
+  .app-header-account-copy,
+  .app-header-account::after {
+    display: none;
+  }
+  .app-header-worker .worker-name {
     display: none;
   }
 }

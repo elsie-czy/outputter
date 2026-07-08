@@ -17,7 +17,7 @@
       </div>
       <div class="pc-stat-info">
         <div class="pc-stat-value" id="statTotalDone">0</div>
-        <div class="pc-stat-label">累计完成任务</div>
+        <div class="pc-stat-label">已审核任务</div>
       </div>
     </div>
     <div class="pc-stat-card pc-stat-card--processing">
@@ -64,7 +64,7 @@
     <button class="pc-tab" data-status="deconstructing,generating_note,ai_scoring,generating_image">生产中 <span id="tabProcessingCount">0</span></button>
     <button class="pc-tab" data-status="waiting,paused">等待中 <span id="tabPendingCount">0</span></button>
     <button class="pc-tab" data-status="human_review">待审核 <span id="tabReviewCount">0</span></button>
-    <button class="pc-tab" data-status="done">已完成 <span id="tabDoneCount">0</span></button>
+    <button class="pc-tab" data-status="done">已审核 <span id="tabDoneCount">0</span></button>
     <button class="pc-tab" data-status="failed,cancelled">失败 <span id="tabFailedCount">0</span></button>
   </div>
 
@@ -93,7 +93,7 @@
       <option value="ai_scoring">AI评分</option>
       <option value="human_review">待审核</option>
       <option value="generating_image">生成图片</option>
-      <option value="done">已完成</option>
+      <option value="done">已审核</option>
       <option value="failed">失败</option>
     </select>
     <button class="pc-filter-btn pc-filter-btn--reset" id="pcResetBtn">重置</button>

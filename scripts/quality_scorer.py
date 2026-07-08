@@ -5,6 +5,7 @@ import time
 import requests
 
 from scripts.env_loader import load_dotenv
+from scripts.account_strategy import get_account_strategy, render_strategy_prompt, strategy_trace
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
@@ -23,7 +24,13 @@ SCORE_PROMPT = (
     "\"ai_trace\": 0-10,"
     "\"total\": 0-100,"
     "\"grade\": \"good|review|retry\","
-    "\"suggestion\": \"一句话改进建议\""
+    "\"suggestion\": \"一句话改进建议\","
+    "\"suggestions\": ["
+    "{\"dimension\":\"标题|前三行|收藏价值|评论钩子|账号策略|AI痕迹\","
+    "\"problem\":\"发现的问题\","
+    "\"action\":\"具体修改动作\","
+    "\"reason\":\"判断依据\"}"
+    "]"
     "}"
     "评分标准："
     "- title_appeal: 标题是否尖锐具体，包含题材/人群/爽点/反差/收益之一，0=平淡泛标题 20=忍不住点开"
@@ -34,11 +41,13 @@ SCORE_PROMPT = (
     "- ai_trace: AI痕迹评分，分数越高表示AI痕迹越低（0=明显AI痕迹 10=毫无AI痕迹）"
     "- total: 六项加总"
     "- grade: total>=85→\"good\", total>=75→\"review\", total<75→\"retry\""
+    "- suggestions: 仅输出最值得改的1-4条，必须结合账号策略、前三行、评论钩子、收藏价值或AI痕迹，不要泛泛而谈"
 )
 
 
-def score_note(note_text):
+def score_note(note_text, account_strategy=None):
     """对笔记进行六维质量评分，返回 dict"""
+    account_strategy = account_strategy or get_account_strategy()
     provider = os.getenv("MODEL_PROVIDER", "zhipu").strip().lower()
     if provider == "local":
         return _default_score("MODEL_PROVIDER=local，跳过远端评分")
@@ -65,11 +74,14 @@ def score_note(note_text):
     payload = {
         "model": model,
         "messages": [
-            {"role": "system", "content": SCORE_PROMPT},
+            {
+                "role": "system",
+                "content": SCORE_PROMPT + "\n本次评分还需参考账号策略：\n" + render_strategy_prompt(account_strategy),
+            },
             {"role": "user", "content": f"请评分以下笔记内容：\n\n{note_text[:3000]}"},
         ],
         "temperature": 0.1,
-        "max_tokens": 500,
+        "max_tokens": 900,
     }
 
     last_error = None
@@ -104,6 +116,10 @@ def score_note(note_text):
                     ]))
                     result.setdefault("grade", _calc_grade(result.get("total", 0)))
                     result.setdefault("suggestion", "")
+                    result.setdefault("suggestions", [])
+                    if not isinstance(result["suggestions"], list):
+                        result["suggestions"] = []
+                    result.setdefault("strategy_trace", strategy_trace(account_strategy))
                     return result
                 last_error = "评分模型未返回 JSON"
             except Exception as e:
@@ -179,5 +195,11 @@ def _default_score(reason):
         "total": 0,
         "grade": "retry",
         "suggestion": reason,
+        "suggestions": [{
+            "dimension": "评分",
+            "problem": reason,
+            "action": "检查模型配置或稍后重新评分",
+            "reason": "质量评分未能完成，当前建议来自系统降级逻辑",
+        }],
         "_fallback": True,
     }

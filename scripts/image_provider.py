@@ -118,6 +118,20 @@ def generate_images_for_task(deconstruct_result: dict) -> dict:
             if p and str(p).strip():
                 prompts.append(str(p).strip())
     if not prompts:
+        storyboard = deconstruct_result.get("visual_storyboard") or deconstruct_result.get("视觉分镜") or []
+        if isinstance(storyboard, list):
+            for frame in storyboard[:5]:
+                if not isinstance(frame, dict):
+                    continue
+                p = (
+                    frame.get("英文画面提示词")
+                    or frame.get("english_prompt")
+                    or frame.get("prompt")
+                    or frame.get("画面主体")
+                )
+                if p and str(p).strip():
+                    prompts.append(str(p).strip())
+    if not prompts:
         return {"ok": False, "images": {}, "error": "无配图提示词"}
     
     images = {}

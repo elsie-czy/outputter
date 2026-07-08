@@ -54,7 +54,11 @@
         </div>
       </div>
       <div class="td-refresh-meta">
-        <span id="autoRefreshStatus">自动刷新中</span>
+        <label class="td-refresh-toggle" title="开启后每 5 秒刷新任务状态">
+          <input type="checkbox" id="autoRefreshToggle" />
+          <span>自动刷新</span>
+        </label>
+        <span id="autoRefreshStatus">自动刷新已关闭</span>
         <span>最近刷新: <span id="lastRefresh">—</span></span>
         <span>重试 <strong id="summaryRetries">0</strong></span>
       </div>
@@ -69,6 +73,7 @@
       <div class="td-summary-actions">
         <button class="td-btn td-btn--secondary td-btn--small" id="btnRefresh"><i data-lucide="refresh-cw"></i><span>手动刷新</span></button>
         <button class="td-btn td-btn--secondary td-btn--small" id="btnRegenerate"><i data-lucide="file-pen-line"></i><span>重新生成笔记</span></button>
+        <button class="td-btn td-btn--secondary td-btn--small" id="btnRegenerateImages"><i data-lucide="image-plus"></i><span>重新生成配图</span></button>
         <button class="td-btn td-btn--secondary td-btn--small" id="btnRescore"><i data-lucide="badge-check"></i><span>重新评分</span></button>
       </div>
     </div>
@@ -192,6 +197,10 @@
         </div>
         <!-- 右侧：AI编辑建议 -->
         <div class="td-note-right">
+          <div class="td-ai-section-title">生成策略</div>
+          <div class="td-strategy-card" id="generationStrategyCard">
+            <div class="td-empty-state td-empty-state--compact">暂无生成策略信息</div>
+          </div>
           <div class="td-ai-section-title">AI 编辑建议</div>
           <div class="td-ai-advice-list" id="aiAdviceList">
             <div class="td-empty-state td-empty-state--compact">暂无 AI 建议，重新评分后会显示改进方向</div>
@@ -266,10 +275,12 @@
     <div class="td-tab-pane" id="tabDeconstruct">
       <div class="td-deconstruct-list">
         {% set sections = [
+          ("collapseStrategy", "生成依据"),
           ("collapseOpenings", "开篇套路"),
           ("collapseCharacters", "人物设定"),
           ("collapseConflicts", "冲突设计"),
           ("collapseEmotions", "情绪触发"),
+          ("collapseStoryboard", "视觉分镜"),
           ("collapseQuotes", "金句TOP5")
         ] %}
         {% for sid, label in sections %}
@@ -303,6 +314,7 @@
       <span class="td-save-status">最近保存: <span id="saveStatus">已保存</span></span>
     </div>
     <div class="td-footer-right">
+      <button class="td-btn td-btn--secondary" id="btnCopyNote">{{ icon("copy", 16) }}<span>一键复制</span></button>
       <button class="td-btn td-btn--secondary" id="btnSaveDraft">保存草稿</button>
       <button class="td-btn td-btn--primary" id="btnApprove">通过审核</button>
     </div>

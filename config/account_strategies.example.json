@@ -1,0 +1,35 @@
+{
+  "current": "yuanzi_webnovel",
+  "strategies": [
+    {
+      "id": "xhs_default",
+      "name": "小红书通用策略",
+      "positioning": "面向小红书图文内容的通用发布策略",
+      "target_audience": ["小红书泛内容读者"],
+      "content_pillars": ["具体标题", "首屏结论", "收藏价值", "低门槛互动"],
+      "title_formulas": [
+        {"name": "痛点型", "template": "{pain_point}？先看这篇"},
+        {"name": "收益型", "template": "{category}一篇讲清楚"},
+        {"name": "反差型", "template": "{hook}，结果更上头"},
+        {"name": "搜索长尾型", "template": "{category}新手必看"},
+        {"name": "互动型", "template": "{category}你更想看哪种"}
+      ],
+      "benchmark_accounts": []
+    },
+    {
+      "id": "yuanzi_webnovel",
+      "name": "和圆子一起看网文",
+      "positioning": "女性向网文推荐与拆解账号，帮书荒读者快速判断一本书值不值得追",
+      "target_audience": ["书荒读者", "女性向网文读者", "喜欢爽点/人设/反差判断的读者"],
+      "content_pillars": ["书荒场景", "题材长尾词", "爽点判断", "避雷价值", "评论区求投喂"],
+      "title_formulas": [
+        {"name": "痛点型", "template": "{pain_point}？这本{category}给答案"},
+        {"name": "爽点型", "template": "这本{category}爽点太密了"},
+        {"name": "反差型", "template": "{hook}，居然写成了爽文"},
+        {"name": "搜索长尾型", "template": "书荒必看{category}推荐"},
+        {"name": "互动求投喂型", "template": "{category}党求投喂同款"}
+      ],
+      "benchmark_accounts": ["Alexayal看文记录", "元宝的读书笔记", "一只订书机", "阿宁的书架"]
+    }
+  ]
+}

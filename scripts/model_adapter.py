@@ -6,6 +6,8 @@ from datetime import datetime
 
 import requests
 
+from scripts.account_strategy import get_account_strategy, render_strategy_prompt, strategy_trace
+
 
 CONTENT_BRIEF_DEFAULT = {
     "目标人群": [],
@@ -23,9 +25,71 @@ CONTENT_BRIEF_DEFAULT = {
     "禁用表达": [],
 }
 
+VISUAL_STORYBOARD_DEFAULT = [
+    {
+        "页码": 1,
+        "作用": "封面",
+        "剧情依据": "基于作品简介中的主角处境和核心冲突。",
+        "画面主体": "主角半身像",
+        "场景": "与作品题材匹配的关键场景",
+        "动作": "直面冲突",
+        "情绪": "强钩子/好奇",
+        "避免": "不要出现文字、书名、平台名或未被简介支撑的人物关系。",
+        "英文画面提示词": "vertical 3:4 anime illustration, expressive protagonist portrait in a story-specific key scene, cinematic lighting, strong emotional hook, no text, no words, no letters",
+    },
+    {
+        "页码": 2,
+        "作用": "世界观",
+        "剧情依据": "基于作品简介中的题材、环境和开篇设定。",
+        "画面主体": "故事环境",
+        "场景": "作品核心世界观场景",
+        "动作": "展示规则和压力",
+        "情绪": "沉浸/期待",
+        "避免": "不要出现文字、logo、水印或无依据的具体角色。",
+        "英文画面提示词": "vertical 3:4 anime illustration, immersive story world environment based on the synopsis, layered depth, cinematic atmosphere, no text, no words, no letters",
+    },
+    {
+        "页码": 3,
+        "作用": "冲突",
+        "剧情依据": "基于作品简介中的第一层核心矛盾。",
+        "画面主体": "主角与阻力",
+        "场景": "冲突爆发现场",
+        "动作": "对峙或抉择",
+        "情绪": "紧张/爽感",
+        "避免": "不要编造简介未出现的CP或阵营。",
+        "英文画面提示词": "vertical 3:4 anime illustration, protagonist facing a concrete obstacle from the synopsis, tense confrontation, dynamic composition, no text, no words, no letters",
+    },
+    {
+        "页码": 4,
+        "作用": "爽点",
+        "剧情依据": "基于作品简介中的反差设定或高能看点。",
+        "画面主体": "主角的关键能力或反差动作",
+        "场景": "高能瞬间",
+        "动作": "能力发动或局势反转",
+        "情绪": "爽/惊喜",
+        "避免": "不要画成通用写真。",
+        "英文画面提示词": "vertical 3:4 anime illustration, high-energy turning point based on the synopsis, surprising power shift, vibrant lighting, no text, no words, no letters",
+    },
+    {
+        "页码": 5,
+        "作用": "收束",
+        "剧情依据": "基于作品简介中的关系、目标或后续期待。",
+        "画面主体": "主角与关键元素",
+        "场景": "阶段性胜利或悬念场景",
+        "动作": "向下一目标前进",
+        "情绪": "期待/收藏",
+        "避免": "不要出现任何可读文字。",
+        "英文画面提示词": "vertical 3:4 anime illustration, hopeful ending shot with protagonist and story-specific symbols, cohesive carousel style, no text, no words, no letters",
+    },
+]
+
 
 def _default_content_brief():
     return json.loads(json.dumps(CONTENT_BRIEF_DEFAULT, ensure_ascii=False))
+
+
+def _default_visual_storyboard():
+    return json.loads(json.dumps(VISUAL_STORYBOARD_DEFAULT, ensure_ascii=False))
 
 
 def _local_analyze(work):
@@ -111,6 +175,7 @@ def _local_analyze(work):
             "小红书竖版配图，比例3:4，动漫风，掌门炖鹅的反差喜剧场景，明快配色，轻松氛围，高清插画",
             "小红书竖版配图，比例3:4，动漫风，最终团战群像，热血高能，火焰特效，高清插画",
         ],
+        "视觉分镜": _default_visual_storyboard(),
         "元信息": {
             "来源": "local_template",
             "平台": platform,
@@ -204,6 +269,28 @@ def _ensure_analysis_shape(result, work):
         )
     result["配图提示词"] = prompts[:5]
 
+    storyboard = result.get("视觉分镜", [])
+    if not isinstance(storyboard, list):
+        storyboard = []
+    normalized_storyboard = []
+    defaults = _default_visual_storyboard()
+    for i in range(5):
+        item = storyboard[i] if i < len(storyboard) else {}
+        if isinstance(item, str):
+            item = {"画面主体": item, "英文画面提示词": item}
+        if not isinstance(item, dict):
+            item = {}
+        fallback = defaults[i]
+        shot = {}
+        for key in ["页码", "作用", "剧情依据", "画面主体", "场景", "动作", "情绪", "避免", "英文画面提示词"]:
+            value = item.get(key)
+            if value is None and key == "英文画面提示词":
+                value = item.get("visual_prompt_en") or item.get("prompt_en") or item.get("prompt")
+            shot[key] = value if str(value or "").strip() else fallback[key]
+        shot["页码"] = i + 1
+        normalized_storyboard.append(shot)
+    result["视觉分镜"] = normalized_storyboard
+
     result.setdefault("元信息", {})
     result["元信息"].setdefault("来源", "openai")
     result["元信息"].setdefault("平台", work.get("平台", ""))
@@ -212,7 +299,7 @@ def _ensure_analysis_shape(result, work):
     return result
 
 
-def analyze_work(work, reference_notes=None, recent_feedback=None):
+def analyze_work(work, reference_notes=None, recent_feedback=None, account_strategy=None):
     provider = os.getenv("MODEL_PROVIDER", "local").strip().lower()
     if provider == "local":
         return _local_analyze(work)
@@ -228,13 +315,13 @@ def analyze_work(work, reference_notes=None, recent_feedback=None):
         "moonshot",
         "kimi",
     }:
-        return _openai_analyze(work, reference_notes, recent_feedback)
+        return _openai_analyze(work, reference_notes, recent_feedback, account_strategy=account_strategy)
     if provider == "ernie":
         raise RuntimeError("MODEL_PROVIDER=ernie 尚未接入。")
     raise RuntimeError(f"未知的 MODEL_PROVIDER: {provider}")
 
 
-def _openai_analyze(work, reference_notes=None, recent_feedback=None):
+def _openai_analyze(work, reference_notes=None, recent_feedback=None, account_strategy=None):
     provider = os.getenv("MODEL_PROVIDER", "openai").strip().lower()
     is_qwen = provider in {"qwen", "dashscope"}
     is_deepseek = provider == "deepseek"
@@ -279,13 +366,16 @@ def _openai_analyze(work, reference_notes=None, recent_feedback=None):
         base_default = "https://api.openai.com/v1"
         base_urls = [os.getenv("OPENAI_BASE_URL", base_default).strip().rstrip("/")]
 
+    account_strategy = account_strategy or get_account_strategy()
+    strategy_prompt = render_strategy_prompt(account_strategy)
+
     system_prompt = (
         "你是资深网文拆解专家。请严格输出 JSON，不要输出除 JSON 以外的任何内容。"
         "Return valid json only."
         "所有字符串必须用英文双引号 \" 包裹。字符串内容中如需引用，请用书名号《》或单引号，不要使用中文引号。确保输出是合法 JSON。"
         "风格要求：小红书可直接发布，语言自然有网感，避免空泛套话。"
         "准确性要求：【作品信息】中的简介是从小说网站搜索到的真实作品介绍，请基于此进行专业拆解分析。"
-        "如果简介仍不够详细（如仅有标签式描述而缺少情节细节），可结合分类和题材特征做合理推断，但需在对应字段中注明推断依据（如'基于题材推测'）。"
+        "如果简介仍不够详细（如仅有标签式描述而缺少情节细节），可结合分类和题材特征做保守判断，但不要在可发布文案字段中出现'基于题材推测'、'可能'、'推测'等分析痕迹。"
         "不要凭空编造简介中不存在的具体人物对话或情节细节。"
         "人物设定应基于简介中的线索还原；金句应为针对该作品风格的写作方法论提炼，而非编造书中原文。"
         "内容简报必须锚定当前作品事实：核心痛点、读者收益、封面钩子、标题候选只能围绕作品设定、人物、冲突、爽点和阅读判断展开；"
@@ -294,6 +384,10 @@ def _openai_analyze(work, reference_notes=None, recent_feedback=None):
         "首图要像大字报，封面钩子主标题优先控制在16个中文字符内，副标题优先控制在24个中文字符内，一眼能懂冲突或爽点；"
         "前三行必须先给结论，不要先铺剧情，结构为：适合谁/值不值得看、最强爽点或反差、读者看完能得到什么判断；"
         "评论钩子必须是低门槛二选一或投喂式问题，能让读者顺手回复书名/偏好/站队。"
+        "文案去模板化要求：不同作品要选择不同叙述角度，可以是书荒安利、避雷判断、爽点拆解或情绪共鸣，不要每篇都输出'核心亮点-人物设定-冲突设计-阅读建议-我的结论'这种固定栏目感；"
+        "避免机械套话：少用'这本真的绝了''刷到就是缘分''不是靠设定噱头''有阅读粘性'等高频句，必须写出当前作品自己的判断。"
+        "以下账号策略优先影响标题公式、封面钩子、前三行、评论钩子和质量判断，但不能覆盖作品事实："
+        f"{strategy_prompt}"
         "如果简介包含出版、签名、微博/围脖、有声剧、喜马拉雅、番外、作话、促销等公告信息，必须视为非剧情素材，不能写入剧情或笔记正文。"
         "内容合规要求：禁止出现导流私信、联系方式、平台外跳转、夸张医疗或违规承诺等违反小红书社区规范的内容。禁止在笔记内容中出现第三方平台名称（如'晋江'、'起点'、'番茄'、'耽美文学城'等），避免被判定为引流违规。"
         "输出字段必须包含以下结构："
@@ -333,12 +427,19 @@ def _openai_analyze(work, reference_notes=None, recent_feedback=None):
         "\"目标人群\":[string,string,string],"
         "\"核心痛点\":string,"
         "\"读者收益\":string,"
-        "\"标题候选\":[string,string,string,string,string],"
+        "\"标题候选\":[string,string,string,string,string,string,string,string],"
         "\"封面钩子\":{\"主标题\":string,\"副标题\":string,\"情绪\":string,\"点击理由\":string},"
         "\"图文页结构\":[string,string,string,string],"
         "\"证据素材\":[string,string,string],"
         "\"禁用表达\":[string,string,string]"
         "},"
+        "\"视觉分镜\":["
+        "{\"页码\":number,\"作用\":string,\"剧情依据\":string,\"画面主体\":string,\"场景\":string,\"动作\":string,\"情绪\":string,\"避免\":string,\"英文画面提示词\":string},"
+        "{\"页码\":number,\"作用\":string,\"剧情依据\":string,\"画面主体\":string,\"场景\":string,\"动作\":string,\"情绪\":string,\"避免\":string,\"英文画面提示词\":string},"
+        "{\"页码\":number,\"作用\":string,\"剧情依据\":string,\"画面主体\":string,\"场景\":string,\"动作\":string,\"情绪\":string,\"避免\":string,\"英文画面提示词\":string},"
+        "{\"页码\":number,\"作用\":string,\"剧情依据\":string,\"画面主体\":string,\"场景\":string,\"动作\":string,\"情绪\":string,\"避免\":string,\"英文画面提示词\":string},"
+        "{\"页码\":number,\"作用\":string,\"剧情依据\":string,\"画面主体\":string,\"场景\":string,\"动作\":string,\"情绪\":string,\"避免\":string,\"英文画面提示词\":string}"
+        "],"
         "\"配图提示词\":[string,string,string,string,string],"
         "\"元信息\": {\"来源\":string,\"平台\":string,\"分类\":string,\"作者\":string}"
         "}"
@@ -358,27 +459,31 @@ def _openai_analyze(work, reference_notes=None, recent_feedback=None):
             "剧情简介": work.get("剧情简介") or work.get("简介", ""),
         },
         "已排除的非剧情信息": work.get("非剧情信息", []),
+        "账号策略": account_strategy,
         "要求": [
             "重要：只能基于【作品事实】中的剧情简介、分类和基础信息进行专业拆解",
             "【已排除的非剧情信息】只供你理解哪些内容不能使用，绝对不要写入剧情、标题、内容简报或笔记文案",
             "简介中若出现出版开售、签名、微博/围脖、有声剧、喜马拉雅、番外、作话、活动促销等公告信息，请过滤掉，不得当成剧情摘要",
             "开篇套路至少3条，基于简介中的开篇信息或题材特征分析",
-            "人物设定三类均必填，基于简介中的人物线索还原；若简介无线索，写'基于题材推测'并注明",
+            "人物设定三类均必填，基于简介中的人物线索还原；若简介无线索，只写泛化身份和题材看点，不要出现'基于题材推测'、'可能'、'推测'等分析痕迹",
             "冲突设计三层均必填，从简介的情节描述中提取核心矛盾",
             "情绪触发至少3类，基于题材和情节判断",
             "金句至少5条，为该类型作品的写作方法论提炼，不要编造书中原文",
             "小红书包装字段全部必填，可发布",
-            "内容简报字段全部必填：目标人群、核心痛点、读者收益、标题候选、封面钩子、图文页结构、证据素材、禁用表达。标题候选需可直接作为小红书标题，封面钩子需给出主标题、副标题、情绪和点击理由。",
-            "标题更尖：标题候选必须各给1条【痛点型、爽点型、反差型、搜索长尾型、互动求投喂型】，优先20字内，最多不超过24字；小红书标题模板选择其中点击欲最强的一条。",
-            "首图更像大字报：封面钩子.主标题必须短、狠、具体，优先16字内；封面钩子.副标题必须补充题材+阅读收益，优先24字内；不要用空泛形容词堆叠。",
-            "前三行更快给结论：正文开头模板必须是3行短句，第一行直接结论/适合谁，第二行给最大爽点或反差，第三行给阅读判断或收藏理由。",
-            "评论钩子更强：互动话术模板只能写一个具体问题，采用二选一、站队、求投喂书单之一，不要写'欢迎评论''聊聊'这类泛互动。",
+            "内容简报字段全部必填：目标人群、核心痛点、读者收益、标题候选、封面钩子、图文页结构、证据素材、禁用表达。标题候选至少8条，需可直接作为小红书标题，封面钩子需给出主标题、副标题、情绪和点击理由。",
+            "标题更尖：标题候选必须覆盖账号策略里的标题公式类型，并额外包含书荒判断、避雷判断、爽点反差、同款求投喂等不同角度，优先20字内，最多不超过24字；小红书标题模板选择其中点击欲最强的一条。",
+            "首图更像大字报：封面钩子必须遵守账号策略里的封面规则；不要用空泛形容词堆叠。",
+            "前三行更快给结论：正文开头模板必须是3行短句，并遵守账号策略里的前三行规则。",
+            "评论钩子更强：互动话术模板只能写一个具体问题，并遵守账号策略里的评论钩子规则。",
             "内容简报必须贴合当前作品，不要写泛化成长建议、认知脚手架、反套路写作技巧、底层逻辑等与剧情无关的收益承诺",
             "小红书包装文案要有明显钩子、对比、结论，不要写成学术报告",
+            "正文结构建议必须给出适合当前作品的叙述角度，不要固定为核心亮点/人物设定/冲突设计/阅读建议/结论。",
+            "正文开头模板、正文结构建议、互动话术模板不得复用'这本真的绝了''刷到就是缘分''不是靠设定噱头''有阅读粘性'等通用套话。",
             "正文开头模板和互动话术模板要带平台语气，可包含少量emoji",
             "热门标签推荐要贴近题材，不要泛泛标签",
             "明确规避小红书违规表达：不能引导私信、不能留联系方式、不能导流站外平台。禁止在标题、正文、标签等任何笔记内容中出现第三方平台名称（如'晋江'、'起点'、'番茄'等），避免被判定为引流。",
-            "【配图提示词-最重要】输出4-5条，每条必须包含：小红书竖版比例3:4、动漫风优先、具体人物/场景/光影细节。绝对禁止在提示词中引用任何原文句子、台词、书名片段或带引号的中文（如\"当他开始默许她改写自己拟定\"这类文字绝对不要出现！）。图片画面中绝对不能出现任何中文文字、英文字母、字幕、台词、水印、logo、标题、手写体、书法。每条提示词末尾必须追加：'no text, no words, no letters, completely text-free image'。",
+            "【视觉分镜-最重要】必须输出5页视觉分镜，基于作品事实和剧情简介逐页设计，不得按题材套模板。每页都要写清楚剧情依据；如果简介没有给出具体人物关系、CP、男主或阵营，不要编造，只写泛化身份。每页的英文画面提示词必须是英文，包含vertical 3:4、anime illustration、具体人物/场景/动作/光影，不得出现中文、书名、标题、台词、平台名或任何可读文字。",
+            "【配图提示词】从视觉分镜一一转译，输出4-5条即可。绝对禁止在提示词中引用任何原文句子、台词、书名片段或带引号的中文。图片画面中绝对不能出现任何中文文字、英文字母、字幕、台词、水印、logo、标题、手写体、书法。每条提示词末尾必须追加：'no text, no words, no letters, completely text-free image'。",
         ],
     }
 
@@ -409,6 +514,12 @@ def _openai_analyze(work, reference_notes=None, recent_feedback=None):
             for f in recent_feedback[:5]
         ]
 
+    user_prompt["生成依据"] = {
+        "账号策略": strategy_trace(account_strategy),
+        "平台通用规则": ["标题具体", "封面一眼可读", "前三行先给结论", "评论钩子低门槛"],
+        "内容事实优先": True,
+    }
+
     payload = {
         "model": model,
         "messages": [
@@ -416,7 +527,7 @@ def _openai_analyze(work, reference_notes=None, recent_feedback=None):
             {"role": "user", "content": json.dumps(user_prompt, ensure_ascii=False)},
         ],
         "temperature": float(os.getenv("OPENAI_TEMPERATURE", "0.3")),
-        "max_tokens": 2000,
+        "max_tokens": int(os.getenv("OPENAI_MAX_TOKENS", "6000")),
     }
     disable_resp_fmt = os.getenv("OPENAI_DISABLE_RESPONSE_FORMAT", "").strip().lower() in [
         "1",
@@ -588,6 +699,18 @@ def _openai_analyze(work, reference_notes=None, recent_feedback=None):
                 pass
             fallback = _local_analyze(work)
             fallback["元信息"]["来源"] = f"openai_parse_fallback:{e}"
-            return _ensure_analysis_shape(fallback, work)
+            fallback = _ensure_analysis_shape(fallback, work)
+            fallback["生成依据"] = {
+                "账号策略": strategy_trace(account_strategy),
+                "平台通用规则": ["标题具体", "封面一眼可读", "前三行先给结论", "评论钩子低门槛"],
+                "内容事实优先": True,
+            }
+            return fallback
 
-    return _ensure_analysis_shape(result, work)
+    result = _ensure_analysis_shape(result, work)
+    result["生成依据"] = {
+        "账号策略": strategy_trace(account_strategy),
+        "平台通用规则": ["标题具体", "封面一眼可读", "前三行先给结论", "评论钩子低门槛"],
+        "内容事实优先": True,
+    }
+    return result

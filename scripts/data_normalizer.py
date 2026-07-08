@@ -110,6 +110,7 @@ def _normalize_main_record(fields: dict) -> dict:
         "conflicts": conflicts,
         "emotions": _text_list(fields.get("情绪分析摘要", ""), sep=","),
         "quotes": _text_list(fields.get("金句（Top5）", "") or fields.get("金句_Top5_", ""), sep="\n"),
+        "visual_storyboard": fields.get("视觉分镜", []) if isinstance(fields.get("视觉分镜", []), list) else [],
         "note": {
             "title": str(fields.get("小红书标题模板", "")),
             "body": str(fields.get("正文开头模板", "")),
@@ -154,5 +155,6 @@ def normalize_for_frontend(normalized: dict) -> dict:
         "conflicts": normalized.get("conflicts", []),
         "emotions": normalized.get("emotions", []),
         "quotes": normalized.get("quotes", []),
+        "visual_storyboard": normalized.get("visual_storyboard", []),
         "note": normalized.get("note", {}),
     }

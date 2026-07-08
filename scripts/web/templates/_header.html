@@ -22,6 +22,15 @@
   <div class="app-header-center"></div>
 
   <div class="app-header-right">
+    <div class="app-header-account" id="accountStrategySwitcher" title="当前工作台服务账号">
+      <i data-lucide="badge-check"></i>
+      <div class="app-header-account-copy">
+        <span>服务账号</span>
+        <strong id="accountStrategyName">加载中</strong>
+      </div>
+      <select id="accountStrategySelect" aria-label="选择当前服务账号"></select>
+    </div>
+
     <!-- Worker 状态指示器 -->
     <div class="app-header-worker" id="workerStatus">
       <span class="worker-dot worker-dot--stopped"></span>

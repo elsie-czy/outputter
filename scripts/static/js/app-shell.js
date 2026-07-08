@@ -39,6 +39,7 @@
     }
 
     // Worker 状态检查
+    loadAccountStrategies();
     checkWorkerStatus();
     setInterval(checkWorkerStatus, 10000); // 每10秒检查一次
 
@@ -104,6 +105,76 @@
   }
 
   window.createAppFallbackIcons = createFallbackIcons;
+
+  async function loadAccountStrategies() {
+    const root = document.getElementById("accountStrategySwitcher");
+    const select = document.getElementById("accountStrategySelect");
+    const nameEl = document.getElementById("accountStrategyName");
+    if (!root || !select || !nameEl) return;
+
+    try {
+      const res = await fetch("/api/config/account_strategies");
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "账号策略加载失败");
+      const strategies = json.strategies || [];
+      select.innerHTML = strategies.map((item) =>
+        '<option value="' + escAttr(item.id) + '">' + escHtml(item.name || item.id) + "</option>"
+      ).join("");
+      select.value = json.current || (strategies[0] && strategies[0].id) || "";
+      const current = strategies.find((item) => item.id === select.value) || strategies[0] || {};
+      renderAccountStrategy(current);
+
+      select.addEventListener("change", async () => {
+        await setCurrentAccountStrategy(select.value);
+      });
+    } catch (e) {
+      nameEl.textContent = "未配置";
+      root.title = e.message || "账号策略加载失败";
+    }
+  }
+
+  async function setCurrentAccountStrategy(strategyId) {
+    const select = document.getElementById("accountStrategySelect");
+    const nameEl = document.getElementById("accountStrategyName");
+    if (nameEl) nameEl.textContent = "保存中";
+    try {
+      const res = await fetch("/api/config/account_strategies/current", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ strategy_id: strategyId }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "账号切换失败");
+      renderAccountStrategy(json.data || {});
+      window.dispatchEvent(new CustomEvent("account-strategy-changed", { detail: json.data || {} }));
+      showToast("success", "当前服务账号已切换");
+    } catch (e) {
+      if (select) select.blur();
+      showToast("error", e.message || "账号切换失败");
+      loadAccountStrategies();
+    }
+  }
+
+  function renderAccountStrategy(strategy) {
+    const root = document.getElementById("accountStrategySwitcher");
+    const nameEl = document.getElementById("accountStrategyName");
+    if (nameEl) nameEl.textContent = strategy.name || strategy.id || "未配置";
+    if (root) {
+      root.title = [
+        strategy.name || "",
+        strategy.positioning || "",
+        (strategy.content_pillars || []).join("、"),
+      ].filter(Boolean).join("\n");
+    }
+  }
+
+  function escHtml(value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+  }
+
+  function escAttr(value) {
+    return escHtml(value).replace(/`/g, "&#96;");
+  }
 
   async function checkWorkerStatus() {
     const el = document.getElementById("workerStatus");
