@@ -235,7 +235,7 @@
     if (!taskData) return;
     const rawStatus = normalizeDisplayStatus(taskData.display_status || taskData.status);
     const status = resolveStepStatus(rawStatus, taskData);
-    const steps = ["waiting", "deconstructing", "generating_note", "ai_scoring", "human_review", "generating_image", "done"];
+    const steps = ["waiting", "deconstructing", "generating_note", "ai_scoring", "generating_image", "human_review", "done"];
     const failed = rawStatus === "failed" || rawStatus === "cancelled";
     const currentIdx = failed ? Math.max(0, getTaskProgressIndex(taskData)) : Math.max(0, steps.indexOf(status));
     const stepTimes = taskData.step_times || {};
@@ -290,7 +290,7 @@
   }
 
   function resolveStepStatus(status, task) {
-    const steps = ["waiting", "deconstructing", "generating_note", "ai_scoring", "human_review", "generating_image", "done"];
+    const steps = ["waiting", "deconstructing", "generating_note", "ai_scoring", "generating_image", "human_review", "done"];
     if (steps.indexOf(status) >= 0) return status;
     if (status === "pending") return "waiting";
     if (status === "processing") {
@@ -377,9 +377,18 @@
 
   function _toImageUrl(path) {
     if (!path) return null;
-    if (path.indexOf("http") === 0) return path;
+    var version = _imageVersion();
+    var sep = String(path).indexOf("?") >= 0 ? "&" : "?";
+    if (path.indexOf("http") === 0) return path + sep + "v=" + version;
     // 直接拼 /_health/images/ + 完整相对路径（支持子目录）
-    return "/_health/images/" + encodeURI(path);
+    return "/_health/images/" + encodeURI(path) + "?v=" + version;
+  }
+
+  function _imageVersion() {
+    if (!taskData) return Date.now();
+    var stepTimes = taskData.step_times || {};
+    var imageStep = stepTimes.generating_image || {};
+    return encodeURIComponent(taskData.updated_at || imageStep.done || taskData.completed_at || Date.now());
   }
 
   function renderNote() {

@@ -60,8 +60,8 @@ STAGE_PROGRESS = {
     STATUS_DECONSTRUCTING: 1,      # 1/6 = 17%
     STATUS_GENERATING_NOTE: 2,     # 2/6 = 33%
     STATUS_AI_SCORING: 3,          # 3/6 = 50%
-    STATUS_HUMAN_REVIEW: 4,        # 4/6 = 67%
-    STATUS_GENERATING_IMAGE: 5,    # 5/6 = 83%
+    STATUS_GENERATING_IMAGE: 4,    # 4/6 = 67%
+    STATUS_HUMAN_REVIEW: 5,        # 5/6 = 83%
     STATUS_DONE: 6,                # 6/6 = 100%
     STATUS_FAILED: 0,
     STATUS_PAUSED: 0,
@@ -85,9 +85,9 @@ def get_task_progress(task: dict) -> int:
     status = task.get("status", "")
     base_progress = STAGE_PROGRESS.get(status, 0)
     
-    # 如果是 done 状态但图片未生成，进度应该是 83% 而不是 100%
+    # 如果是 done 状态但图片未生成，进度应该停在「生成图片」而不是「人工审核」
     if status == STATUS_DONE and not is_task_truly_done(task):
-        return 5  # 5/6 = 83%
+        return STAGE_PROGRESS[STATUS_GENERATING_IMAGE]
     
     return base_progress
 

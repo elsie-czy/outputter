@@ -1,12 +1,12 @@
-from flask import Blueprint, redirect, render_template, url_for
+from flask import Blueprint, render_template
 
 bp = Blueprint("web_landing", __name__)
 
 
 @bp.get("/")
 def landing():
-    """默认跳转至运营工作台（数据总览）"""
-    return redirect(url_for("web_dashboard.dashboard_page"))
+    """未登录可访问的门户首页。"""
+    return render_template("landing.html", active_page="landing")
 
 
 @bp.get("/deconstruct")

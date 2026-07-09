@@ -44,7 +44,7 @@
     const benchmarks = strategy.benchmark_accounts || [];
     el.innerHTML =
       '<div class="dashboard-strategy-main">' +
-      '<div class="dashboard-strategy-icon"><i data-lucide="badge-check"></i></div>' +
+      '<div class="dashboard-strategy-icon"><i data-lucide="shield-check"></i></div>' +
       '<div class="dashboard-strategy-copy">' +
       '<span>当前工作台服务账号</span>' +
       '<strong>' + esc(strategy.name || strategy.id) + "</strong>" +
