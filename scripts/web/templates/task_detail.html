@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "_components/icon.html" import icon %}
 
-{% block title %}任务详情 - 超级工具{% endblock %}
+{% block title %}任务详情 - 火花{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/task_detail.css') }}" />
@@ -118,21 +118,21 @@
         </div>
       </div>
       <div class="td-step-line"></div>
-      <div class="td-step" data-step="human_review">
-        <div class="td-step-icon">{{ icon("eye", 18) }}</div>
-        <div class="td-step-info">
-          <div class="td-step-label">人工审核</div>
-          <div class="td-step-time">—</div>
-          <div class="td-step-output">待运营确认</div>
-        </div>
-      </div>
-      <div class="td-step-line"></div>
       <div class="td-step" data-step="generating_image">
         <div class="td-step-icon">{{ icon("image", 18) }}</div>
         <div class="td-step-info">
           <div class="td-step-label">生成图片</div>
           <div class="td-step-time">—</div>
           <div class="td-step-output">封面图+4张配图</div>
+        </div>
+      </div>
+      <div class="td-step-line"></div>
+      <div class="td-step" data-step="human_review">
+        <div class="td-step-icon">{{ icon("eye", 18) }}</div>
+        <div class="td-step-info">
+          <div class="td-step-label">人工审核</div>
+          <div class="td-step-time">—</div>
+          <div class="td-step-output">待运营确认</div>
         </div>
       </div>
       <div class="td-step-line"></div>
@@ -324,5 +324,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/task_detail.js') }}"></script>
+<script src="{{ url_for('static', filename='js/task_detail.js', v='20260709-0144') }}"></script>
 {% endblock %}

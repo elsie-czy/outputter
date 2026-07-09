@@ -151,6 +151,16 @@ a:hover { text-decoration: underline; }
   white-space: nowrap;
 }
 
+.nav-brand-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background:
+    url("../img/brand/spark-icon-white.png") center / 72% auto no-repeat,
+    linear-gradient(145deg, #8d5dff 0%, #4d20e9 100%);
+  box-shadow: 0 8px 18px rgba(99, 58, 238, 0.24);
+}
+
 .nav-brand a {
   color: var(--text-primary);
   text-decoration: none;
@@ -408,13 +418,18 @@ a:hover { text-decoration: underline; }
 }
 
 .app-header-logo-icon {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background:
+    url("../img/brand/spark-icon-white.png") center / 72% auto no-repeat,
+    linear-gradient(145deg, #8d5dff 0%, #4d20e9 100%);
+  box-shadow: 0 8px 18px rgba(99, 58, 238, 0.24);
 }
 
 .app-header-logo-text {
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 @media (min-width: 769px) {
@@ -778,6 +793,19 @@ a:hover { text-decoration: underline; }
   flex-shrink: 0;
 }
 
+.app-sidebar-brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  color: #FFFFFF;
+  text-decoration: none;
+}
+
+.app-sidebar-brand-link:hover {
+  text-decoration: none;
+}
+
 .app-sidebar-brand-icon {
   width: 34px;
   height: 34px;
@@ -786,13 +814,14 @@ a:hover { text-decoration: underline; }
   justify-content: center;
   border-radius: 10px;
   color: #FFFFFF;
-  background: #6C4EFF;
+  background:
+    url("../img/brand/spark-icon-white.png") center / 72% auto no-repeat,
+    linear-gradient(145deg, #8d5dff 0%, #4d20e9 100%);
   box-shadow: 0 8px 18px rgba(108, 78, 255, 0.36);
 }
 
 .app-sidebar-brand-icon svg {
-  width: 20px;
-  height: 20px;
+  display: none;
 }
 
 .app-sidebar-brand-text {
@@ -809,6 +838,10 @@ a:hover { text-decoration: underline; }
   gap: 8px;
   height: 92px;
   padding: 0;
+}
+
+.app-sidebar.collapsed .app-sidebar-brand-link {
+  justify-content: center;
 }
 
 .app-sidebar.collapsed .app-sidebar-brand-text {

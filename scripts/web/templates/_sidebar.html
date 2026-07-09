@@ -6,6 +6,7 @@
     "label": "内容生产",
     "children": [
       {"key": "dashboard",       "label": "工作台",   "icon": "layout-dashboard", "url": "/dashboard",       "available": true},
+      {"key": "prescreen",       "label": "选题库初筛", "icon": "scan-search",    "url": "/prescreen",         "available": true},
       {"key": "topic-pool",      "label": "选题池",   "icon": "library",         "url": "/topic-pool",        "available": true},
       {"key": "production",      "label": "生产中心", "icon": "workflow",        "url": "/production-center", "available": true},
       {"key": "notes",           "label": "笔记库",   "icon": "book-open",       "url": "/note-library",      "available": false},
@@ -28,10 +29,10 @@
 
 <aside class="app-sidebar" id="appSidebar">
   <div class="app-sidebar-brand">
-    <div class="app-sidebar-brand-icon">
-      <i data-lucide="book-open-check"></i>
-    </div>
-    <span class="app-sidebar-brand-text">超级工具</span>
+    <a class="app-sidebar-brand-link" href="/" aria-label="返回火花门户首页">
+      <span class="app-sidebar-brand-icon" aria-hidden="true"></span>
+      <span class="app-sidebar-brand-text">火花</span>
+    </a>
     <button class="app-sidebar-toggle app-sidebar-toggle--in-sidebar" id="sidebarToggle" aria-label="切换侧边栏">
       <i data-lucide="panel-left"></i>
     </button>

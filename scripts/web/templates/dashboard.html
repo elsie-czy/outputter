@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}数据总览 - 超级工具{% endblock %}
+{% block title %}数据总览 - 火花{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
@@ -32,7 +32,7 @@
 
   <section class="dashboard-kpis" aria-label="关键指标">
     <article class="dashboard-kpi">
-      <div class="dashboard-kpi-icon dashboard-kpi-icon--purple"><i data-lucide="clipboard-list"></i></div>
+      <div class="dashboard-kpi-icon dashboard-kpi-icon--purple"><i data-lucide="file-text"></i></div>
       <div>
         <p>笔记总数</p>
         <strong id="kpiNotes">-</strong>
@@ -48,7 +48,7 @@
       </div>
     </article>
     <article class="dashboard-kpi">
-      <div class="dashboard-kpi-icon dashboard-kpi-icon--green"><i data-lucide="check-circle-2"></i></div>
+      <div class="dashboard-kpi-icon dashboard-kpi-icon--green"><i data-lucide="workflow"></i></div>
       <div>
         <p>拆解任务</p>
         <strong id="kpiTasks">-</strong>

@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}选题库初筛 - 火花{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/prescreen.css') }}" />
+{% endblock %}
+
+{% block content %}
+<div class="ps-page">
+  <section class="ps-hero">
+    <div>
+      <h1>选题库初筛</h1>
+      <p>数据来自番茄 / 晋江抓取脚本，按 <strong>去重Key</strong> 幂等写入飞书初筛表，不会手动新增来源。</p>
+      <p>页面负责调度抓取、查看批次结果和人工审核入库。</p>
+    </div>
+    <img class="ps-hero-visual" src="{{ url_for('static', filename='img/prescreen-hero.png') }}" alt="" aria-hidden="true" />
+  </section>
+
+  <div class="ps-shell">
+    <aside class="ps-rules">
+      <div class="ps-rules-title">数据写入规则</div>
+      <ol>
+        <li>去重Key = 平台 | 作品名称 | 作者</li>
+        <li>已有记录会更新，不会重复新增</li>
+        <li>只写入飞书表中存在的字段</li>
+        <li>新记录默认 是否入库 = 否</li>
+        <li>人工修改过的 是否入库 不会被脚本覆盖</li>
+      </ol>
+    </aside>
+
+    <main class="ps-main">
+      <section class="ps-card ps-fetch-card">
+        <div class="ps-section-head">
+          <h2><i data-lucide="scan-search"></i> 抓取控制台</h2>
+        </div>
+        <form class="ps-fetch-form" id="psFetchForm">
+          <label class="ps-field ps-mode-field">
+            <span>模式</span>
+            <div class="ps-segment">
+              <button type="button" class="active" data-mode="rank">排行榜抓取<small>rank</small></button>
+              <button type="button" data-mode="search">关键词抓取<small>search</small></button>
+            </div>
+          </label>
+          <label class="ps-field">
+            <span>来源（可多选）</span>
+            <div class="ps-source-box">
+              <label><input type="checkbox" value="fanqie" checked /> 番茄</label>
+              <label><input type="checkbox" value="jjwxc" checked /> 晋江</label>
+            </div>
+          </label>
+          <label class="ps-field">
+            <span>数量</span>
+            <input id="psLimit" type="number" min="1" max="200" value="60" />
+          </label>
+          <label class="ps-field">
+            <span>批次</span>
+            <input id="psBatch" type="date" />
+          </label>
+          <label class="ps-field ps-keyword-field">
+            <span>关键词</span>
+            <input id="psQuery" type="text" placeholder="排行榜模式无需关键词" disabled />
+          </label>
+          <button class="ps-primary-btn" type="submit">开始抓取并写入初筛表</button>
+        </form>
+        <details class="ps-write-rule" open>
+          <summary>写入规则</summary>
+          <ul>
+            <li>去重Key = 平台 | 作品名称 | 作者，已有记录会更新，不会重复新增。</li>
+            <li>新记录默认 是否入库 = 否；人工改过的 是否入库 不会被脚本覆盖。</li>
+            <li>只写入飞书表中存在的字段。</li>
+          </ul>
+        </details>
+        <div class="ps-form-note"><i data-lucide="info"></i> 按 去重Key 更新已有记录，新记录默认 是否入库 = 否。</div>
+      </section>
+
+      <section class="ps-card ps-overview-card">
+        <div class="ps-section-head">
+          <h2><i data-lucide="history"></i> 最近批次概览</h2>
+          <div class="ps-head-actions">
+            <button type="button" id="psRefreshBtn">刷新</button>
+            <a href="/legacy?tab=prescreen">查看任务日志</a>
+          </div>
+        </div>
+        <div class="ps-overview-grid">
+          <div>
+            <div class="ps-group-title">
+              <strong>最近一次抓取任务</strong>
+              <span id="psLatestTime">暂无完成时间</span>
+            </div>
+            <div class="ps-stat-row">
+              <div class="ps-stat"><span>已抓取</span><strong id="psFetched">—</strong><em>条</em></div>
+              <div class="ps-stat ok"><span>新增</span><strong id="psCreated">—</strong><em>条</em></div>
+              <div class="ps-stat info"><span>更新</span><strong id="psUpdated">—</strong><em>条</em></div>
+              <div class="ps-stat warn"><span>跳过</span><strong id="psSkipped">—</strong><em>条</em></div>
+              <div class="ps-stat danger"><span>写入失败</span><strong id="psErrors">—</strong><em>条</em></div>
+            </div>
+            <details class="ps-command">
+              <summary>查看执行参数</summary>
+              <code id="psCommand">—</code>
+            </details>
+          </div>
+          <div>
+            <div class="ps-group-title">
+              <strong>当前飞书初筛表存量</strong>
+              <span id="psStatsTime">统计时间 —</span>
+            </div>
+            <div class="ps-stat-row ps-stock-row">
+              <div class="ps-stat"><span>初筛表总量</span><strong id="psTotal">—</strong><em>条</em></div>
+              <div class="ps-stat ok"><span>已入库数量</span><strong id="psYes">—</strong><em>条</em></div>
+              <div class="ps-stat warn"><span>未入库数量</span><strong id="psNo">—</strong><em>条</em></div>
+            </div>
+          </div>
+        </div>
+        <div class="ps-error" id="psOverviewError" hidden></div>
+      </section>
+
+      <section class="ps-card ps-table-card">
+        <div class="ps-section-head">
+          <h2><i data-lucide="list-filter"></i> 初筛候选列表</h2>
+          <button type="button" class="ps-collapse-btn" id="psToggleFilters">收起</button>
+        </div>
+        <div class="ps-filters" id="psFilters">
+          <label>平台<select id="psFilterPlatform"><option value="">全部</option></select></label>
+          <label>来源模式<select id="psFilterSource"><option value="">全部</option></select></label>
+          <label>抓取批次<select id="psFilterBatch"><option value="">全部</option></select></label>
+          <label>是否入库<select id="psFilterIn"><option value="">全部</option><option value="是">是</option><option value="否">否</option></select></label>
+          <label>是否完结<select id="psFilterFinish"><option value="">全部</option></select></label>
+          <label>入选维度<select id="psFilterDimension"><option value="">全部</option></select></label>
+          <label>榜单来源<select id="psFilterRankSource"><option value="">全部</option></select></label>
+          <label>分数区间<select id="psFilterScore"><option value="">全部</option><option value="90">90+</option><option value="80">80-89</option><option value="0">80以下</option></select></label>
+          <button type="button" id="psResetFilters">重置</button>
+        </div>
+        <div class="ps-table-wrap">
+          <table class="ps-table">
+            <thead>
+              <tr>
+                <th>作品名称</th>
+                <th>作者</th>
+                <th>平台</th>
+                <th>类型</th>
+                <th>是否入库</th>
+                <th>综合得分</th>
+                <th>入选维度</th>
+                <th>榜单来源</th>
+                <th>榜单排名</th>
+                <th>收藏量</th>
+                <th>书评量</th>
+                <th>评分</th>
+                <th>抓取批次</th>
+                <th>最近更新</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="psTableBody">
+              <tr><td colspan="15" class="ps-empty">加载中...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="ps-pagination">
+          <span id="psTotalRows">共 0 条</span>
+          <div>
+            <button type="button" id="psPrevPage">上一页</button>
+            <span id="psPageInfo">1 / 1</span>
+            <button type="button" id="psNextPage">下一页</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="ps-maintain">
+        <div class="ps-maintain-head">
+          <h2><i data-lucide="wrench"></i> 维护已有初筛记录</h2>
+          <p>仅为已有初筛记录补充数值字段、入选维度、推荐理由和综合得分，不会新增抓取来源。</p>
+        </div>
+        <div class="ps-maintain-grid">
+          <article class="ps-maintain-card">
+            <i data-lucide="filter"></i>
+            <h3>维护当前结果</h3>
+            <p>仅维护当前筛选条件下的记录</p>
+            <div>预计影响 <strong id="psCurrentCount">—</strong> 条记录</div>
+            <button type="button" data-maintain-limit="128">维护当前结果</button>
+          </article>
+          <article class="ps-maintain-card">
+            <i data-lucide="calendar-days"></i>
+            <h3>维护该批次</h3>
+            <p>选择指定抓取批次进行维护</p>
+            <select id="psMaintainBatch"><option value="">选择批次</option></select>
+            <button type="button" data-maintain-limit="200">维护该批次</button>
+          </article>
+          <article class="ps-maintain-card">
+            <i data-lucide="star"></i>
+            <h3>维护未评分记录</h3>
+            <p>维护所有未填写综合得分的记录</p>
+            <div>未评分 <strong id="psUnscored">—</strong> 条</div>
+            <button type="button" data-maintain-limit="342">维护未评分记录</button>
+          </article>
+          <aside class="ps-maintain-note">
+            <div>维护说明</div>
+            <ul>
+              <li>只更新已有记录的数值字段</li>
+              <li>不会修改 是否入库 状态</li>
+              <li>建议抓取后执行维护，提升数据质量</li>
+              <li>维护过程中可同时查看任务日志</li>
+            </ul>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/prescreen.js') }}"></script>
+{% endblock %}

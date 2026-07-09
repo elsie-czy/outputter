@@ -1,53 +1,114 @@
-{% extends "base.html" %}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>火花 - AI驱动的内容创作平台</title>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/portal.css', v='20260709-portal-clean-bg') }}" />
+</head>
+<body>
+  <main class="portal">
+    <header class="portal-nav" aria-label="门户导航">
+      <a class="brand" href="/">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>
+          <strong>火花</strong>
+          <small>拆解好书，输出价值</small>
+        </span>
+      </a>
 
-{% block title %}超级工具{% endblock %}
+      <nav class="nav-links" aria-label="主要导航">
+        <a href="/dashboard">产品</a>
+        <a href="#features">功能介绍</a>
+        <a href="#templates">模板中心</a>
+        <a href="#materials">素材中心</a>
+        <a href="#pricing">价格</a>
+        <a href="#help">帮助中心</a>
+      </nav>
 
-{% block content %}
-<div style="padding-top: var(--space-xl);">
+      <div class="nav-actions">
+        <a class="btn btn-ghost" href="/dashboard">用户登录</a>
+        <a class="btn btn-outline" href="/production-center">管理员登录</a>
+        <a class="btn btn-primary" href="/dashboard">免费体验</a>
+      </div>
+    </header>
 
-  <div style="text-align: center; margin-bottom: var(--space-xl);">
-    <h1 style="font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-sm);">
-      &#x1F4DD; 超级工具 V2
-    </h1>
-    <p style="font-size: 15px; color: var(--text-secondary);">
-      网文拆解 → 爆款基因 → 小红书笔记 · 一站式内容生产
-    </p>
-  </div>
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-bg" aria-hidden="true">
+        <video autoplay muted loop playsinline preload="auto">
+          <source src="{{ url_for('static', filename='video/portal-hero-loop.mp4', v='20260709-clean2') }}" type="video/mp4" />
+        </video>
+      </div>
 
-  <div class="card-grid">
+      <div class="hero-inner">
+        <div class="hero-copy">
+          <p class="eyebrow">
+            <span aria-hidden="true">✦</span>
+            AI 赋能拆书 · 内容创作 · 账号运营
+          </p>
 
-    {% set modules = [
-      {"icon": "&#x1F3E0;", "title": "工作台", "desc": "任务队列概览、批量操作入口、统计面板", "url": "/dashboard", "available": false},
-      {"icon": "&#x1F527;", "title": "拆文中心", "desc": "拆文队列管理、拆文结果预览、批量拆解", "url": "/deconstruct", "available": false},
-      {"icon": "&#x1F4DD;", "title": "笔记生成", "desc": "小红书标题/正文/标签/互动话术 + AI评分", "url": "/notes", "available": false},
-      {"icon": "&#x1F4DA;", "title": "知识库", "desc": "开篇套路/人物设定/冲突设计/情绪触发/金句", "url": "/knowledge", "available": false},
-      {"icon": "&#x1F3AC;", "title": "视频脚本", "desc": "口播稿 + 分镜脚本生成（纯文本）", "url": "/video", "available": false},
-      {"icon": "&#x1F4CA;", "title": "数据中心", "desc": "笔记效果统计 · AI评分分布 · 爆款因子", "url": "/data", "available": false},
-    ] %}
+          <h1 id="hero-title">AI驱动的<span>内容创作平台</span></h1>
+          <p class="hero-subtitle">
+            拆透网文与经典著作，提炼核心观点与金句，<br />
+            一键生成小红书图文笔记，辅助账号运营。
+          </p>
 
-    {% for mod in modules %}
-    <div class="card" style="{% if not mod.available %}opacity: 0.5; cursor: not-allowed;{% endif %}">
-      <div style="font-size: 32px; margin-bottom: var(--space-md);">{{ mod.icon|safe }}</div>
-      <h2 style="font-size: 18px; font-weight: 600; margin-bottom: var(--space-xs); color: var(--text-primary);">
-        {{ mod.title }}
-        {% if not mod.available %}
-          <span style="font-size: 11px; color: var(--text-muted); font-weight: 400;">（即将上线）</span>
-        {% endif %}
-      </h2>
-      <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">{{ mod.desc }}</p>
-      {% if mod.available %}
-        <a href="{{ mod.url }}" style="display: inline-block; margin-top: var(--space-md); font-size: 13px; font-weight: 500;">
-          进入 →
-        </a>
-      {% endif %}
-    </div>
-    {% endfor %}
+          <div class="hero-actions">
+            <a class="cta cta-primary" href="/dashboard">
+              免费体验
+              <span aria-hidden="true">→</span>
+            </a>
+            <a class="cta cta-secondary" href="/deconstruct">
+              <span class="play-icon" aria-hidden="true">▷</span>
+              查看演示
+            </a>
+          </div>
 
-  </div>
+          <div class="feature-strip" id="features">
+            <article class="feature-card">
+              <span class="feature-icon"><i data-lucide="scan-search"></i></span>
+              <div>
+                <h2>智能拆解</h2>
+                <p>AI 深度精析书籍</p>
+              </div>
+            </article>
+            <article class="feature-card">
+              <span class="feature-icon"><i data-lucide="check-check"></i></span>
+              <div>
+                <h2>一键成稿</h2>
+                <p>快速生成优质笔记</p>
+              </div>
+            </article>
+            <article class="feature-card">
+              <span class="feature-icon"><i data-lucide="image-plus"></i></span>
+              <div>
+                <h2>配图生成</h2>
+                <p>匹配风格高质素材</p>
+              </div>
+            </article>
+            <article class="feature-card">
+              <span class="feature-icon"><i data-lucide="trending-up"></i></span>
+              <div>
+                <h2>账号运营</h2>
+                <p>数据驱动持续增长</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
 
-  <div style="text-align: center; margin-top: var(--space-xl); padding: var(--space-lg); color: var(--text-muted); font-size: 12px;">
-    V2.0 开发中 · 旧版工具仍可用 → <a href="/legacy" style="color: var(--color-blue);">打开旧版</a>
-  </div>
+    </section>
 
-</div>
-{% endblock %}
+    <div class="sr-only" id="templates">模板中心</div>
+    <div class="sr-only" id="materials">素材中心</div>
+    <div class="sr-only" id="pricing">价格</div>
+    <div class="sr-only" id="help">帮助中心</div>
+  </main>
+  <script>
+    if (window.lucide) {
+      window.lucide.createIcons();
+    }
+  </script>
+</body>
+</html>
