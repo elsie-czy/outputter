@@ -85,22 +85,46 @@
   function render(data) {
     const summary = data.summary || {};
     const status = data.content_status || {};
-    setText("#heroSubtitle", "今天是内容创作的第 " + fmt(summary.days_active) + " 天，继续保持创作热情");
     setText("#heroGoal", "今日目标：拆解 " + fmt(summary.today_goal?.deconstruct) + " 本书，生成 " + fmt(summary.today_goal?.notes) + " 篇优质小红书图文笔记");
+    setText("#heroRhythm", "拆解 " + fmt(summary.today_goal?.deconstruct) + " 本书");
+    setText("#heroOutput", "产出 " + fmt(summary.today_goal?.notes) + " 篇图文");
     setText("#kpiNotes", fmt(summary.notes_total));
-    setText("#kpiReads", summary.reads_total == null ? "—" : fmt(summary.reads_total));
+    const weeklyOutput = (data.trend || []).reduce((sum, row) => sum + Number(row.completed || 0), 0);
+    setText("#kpiReads", fmt(weeklyOutput || summary.notes_total));
     setText("#kpiTasks", fmt(summary.deconstruct_tasks));
-    setText("#kpiTasksSub", "已完成 " + fmt(status.completed) + " / 待处理 " + fmt(status.pending));
+    setText("#kpiTasksSub", "已完成 " + fmt(status.completed));
     setText("#kpiPendingPublish", fmt(summary.pending_publish));
+    setText("#dashboardUpdatedAt", updatedText(data.meta?.generated_at));
+    renderPipeline(status, summary);
     renderTrend(data.trend || []);
     renderTopics(data.top_topics || []);
     renderAccount(data.account || {}, status);
     renderStatus(status);
+    renderAgents(status);
     if (typeof lucide !== "undefined") {
       lucide.createIcons();
     } else if (typeof window.createAppFallbackIcons === "function") {
       window.createAppFallbackIcons();
     }
+  }
+
+  function renderPipeline(status, summary) {
+    const el = $("#dashboardPipeline");
+    if (!el) return;
+    const steps = [
+      { label: "选题池", sub: "待评估选题", value: status.pending || 0, icon: "folder-kanban" },
+      { label: "AI拆解", sub: "拆解中", value: status.processing || 0, icon: "sparkles" },
+      { label: "笔记生成", sub: "生成中", value: summary.notes_total || 0, icon: "pencil-line" },
+      { label: "人工审核", sub: "待审核", value: status.review || 0, icon: "user-round-check" },
+      { label: "待发布", sub: "待发布", value: summary.pending_publish || 0, icon: "send" },
+    ];
+    el.innerHTML = steps.map((step, index) =>
+      '<div class="dashboard-pipeline-step">' +
+      '<span class="dashboard-pipeline-badge">' + (index + 1) + "</span>" +
+      '<span class="dashboard-pipeline-icon"><i data-lucide="' + step.icon + '"></i></span>' +
+      '<div class="dashboard-pipeline-main"><strong>' + fmt(step.value) + '</strong><span>' + esc(step.sub) + "</span></div>" +
+      "</div>"
+    ).join("");
   }
 
   function renderTrend(rows) {
@@ -250,6 +274,26 @@
     ).join("");
   }
 
+  function renderAgents(status) {
+    const el = $("#dashboardAgents");
+    if (!el) return;
+    const rows = [
+      { name: "拆解Agent", desc: "内容拆解与结构化", state: "运行中", countLabel: "任务", count: status.processing || 0, icon: "brain-circuit" },
+      { name: "写作Agent", desc: "笔记生成与润色", state: "运行中", countLabel: "任务", count: status.completed || 0, icon: "pen-line" },
+      { name: "审核队列", desc: "人工审核待处理", state: "排队中", countLabel: "待审", count: status.review || 0, icon: "users-round", warning: true },
+    ];
+    el.innerHTML = rows.map((row) =>
+      '<div class="dashboard-agent-row">' +
+      '<div class="dashboard-agent-main">' +
+      '<span class="dashboard-agent-icon"><i data-lucide="' + row.icon + '"></i></span>' +
+      '<div class="dashboard-agent-copy"><strong>' + esc(row.name) + '</strong><span>' + esc(row.desc) + '</span></div>' +
+      "</div>" +
+      '<span class="dashboard-agent-state' + (row.warning ? " is-warning" : "") + '">' + esc(row.state) + "</span>" +
+      '<span class="dashboard-agent-count">' + esc(row.countLabel) + "<strong>" + fmt(row.count) + "</strong></span>" +
+      "</div>"
+    ).join("");
+  }
+
   function scoreText(item) {
     if (item.quality_score != null) return Math.round(item.quality_score) + "分";
     const hot = Number(item.favorites || 0) + Number(item.likes || 0);
@@ -259,6 +303,13 @@
   function setText(selector, value) {
     const el = $(selector);
     if (el) el.textContent = value;
+  }
+
+  function updatedText(value) {
+    if (!value) return "更新于 --:--";
+    const parts = String(value).split(" ");
+    const time = (parts[1] || "").slice(0, 5);
+    return "更新于 " + (time || "--:--");
   }
 
   function showError(message) {

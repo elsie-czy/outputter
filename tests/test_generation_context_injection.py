@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from flask import Flask
 
@@ -22,7 +22,16 @@ class GenerationContextInjectionTest(unittest.TestCase):
             "category": "分类A",
         }
 
-        with patch.object(task_detail_page, "_find_task", return_value=task), \
+        saved_task = dict(task, note_content="note")
+
+        with patch.object(task_detail_page, "_find_task", side_effect=[task, saved_task]), \
+                patch.object(task_detail_page, "_build_verified_work", return_value=({
+                    "作品名称": "作品A",
+                    "作者": "作者A",
+                    "平台": "平台A",
+                    "分类": "分类A",
+                    "简介": "这是一段足够长且可验证的剧情简介，用来绕过重新生成入口的安全校验。",
+                }, {"搜索来源链接": "https://example.com/work-a"})), \
                 patch.object(task_detail_page, "build_generation_context", return_value=context), \
                 patch.object(task_detail_page, "analyze_work", return_value={"小红书包装": {}}) as analyze, \
                 patch.object(task_detail_page, "build_xhs_note", return_value="note"), \
@@ -37,7 +46,9 @@ class GenerationContextInjectionTest(unittest.TestCase):
                 "作者": "作者A",
                 "平台": "平台A",
                 "分类": "分类A",
+                "简介": "这是一段足够长且可验证的剧情简介，用来绕过重新生成入口的安全校验。",
             },
+            account_strategy=ANY,
             reference_notes=context["reference_notes"],
             recent_feedback=context["recent_feedback"],
         )
@@ -76,6 +87,7 @@ class GenerationContextInjectionTest(unittest.TestCase):
                 "平台": "平台B",
                 "分类": "分类B",
             },
+            account_strategy=ANY,
             reference_notes=context["reference_notes"],
             recent_feedback=context["recent_feedback"],
         )

@@ -36,6 +36,7 @@
     bindActions();
     bindCollapses();
     bindEditor();
+    bindGenerationWorkflow();
     initAutoRefreshToggle(taskId);
     window.addEventListener("pagehide", stopAutoRefresh);
     window.addEventListener("beforeunload", stopAutoRefresh);
@@ -62,6 +63,7 @@
       }
       renderDeconstruct();
       renderScore();
+      renderGenerationWorkflow();
       renderGenerationStrategy();
       renderImages();
       renderHistory();
@@ -151,9 +153,11 @@
     setText("#taskTitle", taskData.work_name || "未知作品");
     setText("#taskAuthor", taskData.author || "作者未知");
     setText("#taskPlatform", taskData.platform || "—");
+    setText("#taskPlatformHero", taskData.platform || "—");
     setText("#taskCategory", taskData.category || "—");
     setText("#taskWordCount", fmtWordCount(taskData.word_count));
     setText("#taskModel", "Qwen-Plus");
+    setText("#taskSource", taskData.source || "新文 · 小红书笔记");
     setText("#taskCreated", taskData.created_at || "—");
     setText("#taskId", taskData.record_id || "—");
     var progress = taskData.progress_percent != null ? Number(taskData.progress_percent) : 0;
@@ -426,6 +430,60 @@
     }
     renderTitleOptions();
     updateSideStats();
+    renderConversionReview();
+  }
+
+  function conversionTextBlock(review) {
+    if (!review) return "";
+    var replies = review.reply_prompts || [];
+    return [
+      "评论钩子：\n" + (review.comment_hook || ""),
+      "关注理由：\n" + (review.follow_reason || ""),
+      "发布后首评：\n" + (review.first_comment || ""),
+      "回复话术：\n" + replies.map(function(x, i) { return (i + 1) + ". " + x; }).join("\n")
+    ].join("\n\n");
+  }
+
+  function renderConversionReview() {
+    var card = $("#conversionReviewCard");
+    if (!card) return;
+    var review = taskData && taskData.conversion_review;
+    if (!review) {
+      card.innerHTML = '<div class="td-empty-state td-empty-state--compact">暂无互动转化建议，重新生成或评分后会显示</div>';
+      return;
+    }
+    var replies = review.reply_prompts || [];
+    var suggestions = review.suggestions || [];
+    card.innerHTML =
+      '<div class="td-conversion-score">' +
+        '<strong>' + esc(review.total || 0) + '/70</strong>' +
+        '<span>' + esc(review.grade || "review") + '</span>' +
+        (review.comment_hook_type ? '<em>' + esc(review.comment_hook_type) + '</em>' : '') +
+      '</div>' +
+      conversionItemHtml("评论钩子", review.comment_hook, "copyCommentHook") +
+      conversionItemHtml("关注理由", review.follow_reason, "copyFollowReason") +
+      conversionItemHtml("发布后首评", review.first_comment, "copyFirstComment") +
+      '<div class="td-conversion-item">' +
+        '<div class="td-conversion-head"><span>可复用回复</span><button type="button" data-copy-conversion="copyReplies">复制全部</button></div>' +
+        '<ol>' + replies.map(function(x) { return '<li>' + esc(x) + '</li>'; }).join("") + '</ol>' +
+      '</div>' +
+      (suggestions.length ? '<div class="td-conversion-suggestions">' +
+        suggestions.map(function(s) {
+          return '<div class="td-suggestion-item td-suggestion-item--structured">' +
+            '<div class="td-suggestion-head"><strong>' + esc(s.dimension || "转化建议") + '</strong></div>' +
+            (s.problem ? '<p><span>问题</span>' + esc(s.problem) + '</p>' : '') +
+            (s.action ? '<p><span>动作</span>' + esc(s.action) + '</p>' : '') +
+            (s.reason ? '<p><span>依据</span>' + esc(s.reason) + '</p>' : '') +
+          '</div>';
+        }).join("") +
+      '</div>' : '');
+  }
+
+  function conversionItemHtml(label, text, key) {
+    return '<div class="td-conversion-item">' +
+      '<div class="td-conversion-head"><span>' + esc(label) + '</span><button type="button" data-copy-conversion="' + key + '">复制</button></div>' +
+      '<p>' + esc(text || "暂无") + '</p>' +
+    '</div>';
   }
 
   /* ===== 备选标题选择器 ===== */
@@ -544,7 +602,53 @@
       '<span>' + esc(strategy.id || "") + "</span>" +
       "</div>" +
       '<p>' + esc(strategy.positioning || "未填写账号定位") + "</p>" +
+      workflowSummary(strategy.generation_params || (taskData && taskData.generation_params) || {}) +
       strategyPills(strategy.quality_focus || [], "质量关注");
+  }
+
+  function renderGenerationWorkflow() {
+    if (!taskData) return;
+    var params = taskData.generation_params || {};
+    setSelectValue("#workflowNoteType", params.note_type || "normal_recommendation");
+    setSelectValue("#workflowOpeningType", params.opening_type || "auto");
+    setSelectValue("#workflowReadStatus", params.read_status || "synopsis_only");
+    setSelectValue("#workflowCoverTemplate", params.cover_template || params.note_type || "normal_recommendation");
+    var brief = $("#workflowManualBrief");
+    if (brief && document.activeElement !== brief) {
+      brief.value = params.manual_generation_brief || "";
+    }
+  }
+
+  function workflowSummary(params) {
+    if (!params) return "";
+    var labels = {
+      normal_recommendation: "正常推荐",
+      comment_experiment: "求投喂",
+      warning_review: "避雷判断",
+      booklist: "书单合集",
+      auto: "自动",
+      strong_recommend: "强安利",
+      warning_reversal: "避雷反转",
+      book_shortage_rescue: "书荒急救",
+      audience_filter: "人群筛选",
+      rant_entry: "吐槽带入",
+      synopsis_only: "只看简介",
+      read_to_chapter: "读到前 N 章",
+      full_read: "已读全文"
+    };
+    var items = [
+      "笔记类型: " + (labels[params.note_type] || params.note_type || "正常推荐"),
+      "前三行: " + (labels[params.opening_type] || params.opening_type || "自动"),
+      "资料边界: " + (labels[params.read_status] || params.read_status || "只看简介")
+    ];
+    return '<div class="td-workflow-summary">' + items.map(function(item) {
+      return '<em>' + esc(item) + '</em>';
+    }).join("") + "</div>";
+  }
+
+  function setSelectValue(sel, value) {
+    var el = $(sel);
+    if (el) el.value = value;
   }
 
   function renderStrategyCollapse() {
@@ -590,6 +694,8 @@
     if (!taskData || !taskData.note_content || !taskData.note_content.score) {
       // 没有评分数据
       setText("#totalScore", "—");
+      setText("#heroTotalScore", "—");
+      setText("#heroScoreBadge", "待评分");
       setText("#scoreTitle", "—");
       setText("#scoreEmotion", "—");
       setText("#scoreCollect", "—");
@@ -608,6 +714,8 @@
     if (empty) empty.style.display = "none";
 
     setText("#totalScore", score.total || 0);
+    setText("#heroTotalScore", score.total || 0);
+    setText("#heroScoreBadge", (score.total || 0) >= 80 ? "优秀" : ((score.total || 0) >= 60 ? "待优化" : "需重写"));
     setText("#scoreTitle", (score.title_attract || 0) + "/30");
     setText("#scoreEmotion", (score.emotion || 0) + "/20");
     setText("#scoreCollect", (score.collect_value || 0) + "/20");
@@ -660,6 +768,31 @@
       }
       return '<div class="td-suggestion-item">' + esc(s) + "</div>";
     }).join("");
+  }
+
+  async function copyText(text, successMessage) {
+    if (!String(text || "").trim()) {
+      showToast("error", "暂无可复制内容");
+      return;
+    }
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      showToast("success", successMessage || "已复制");
+    } catch (e) {
+      showToast("error", "复制失败: " + e.message);
+    }
   }
 
   /* ===== Tab切换 ===== */
@@ -773,6 +906,21 @@
     setText("#sideTagCount", tags.length);
   }
 
+  function bindGenerationWorkflow() {
+    [
+      "#workflowNoteType",
+      "#workflowOpeningType",
+      "#workflowReadStatus",
+      "#workflowCoverTemplate",
+      "#workflowManualBrief"
+    ].forEach(function(sel) {
+      var el = $(sel);
+      if (!el) return;
+      el.addEventListener("change", function() { isDraftDirty = true; });
+      el.addEventListener("input", function() { isDraftDirty = true; });
+    });
+  }
+
   /* ===== 操作按钮 ===== */
   function bindActions() {
     // 保存草稿
@@ -821,6 +969,24 @@
       } catch (e) {
         showToast("error", "复制失败: " + e.message);
       }
+    });
+
+    document.addEventListener("click", async function(event) {
+      var btn = event.target.closest("[data-copy-conversion]");
+      if (!btn) return;
+      var review = taskData && taskData.conversion_review;
+      if (!review) {
+        showToast("error", "暂无互动转化建议");
+        return;
+      }
+      var key = btn.getAttribute("data-copy-conversion");
+      var text = "";
+      if (key === "copyCommentHook") text = review.comment_hook || "";
+      if (key === "copyFollowReason") text = review.follow_reason || "";
+      if (key === "copyFirstComment") text = review.first_comment || "";
+      if (key === "copyReplies") text = (review.reply_prompts || []).join("\n");
+      if (key === "copyAll") text = conversionTextBlock(review);
+      await copyText(text, "已复制互动建议");
     });
 
     // 重新生成
@@ -872,12 +1038,29 @@
     if (!taskData || !taskData.record_id) return;
     setButtonBusy(button, true, "生成中...");
     showToast("success", "正在重新生成笔记，模型返回前请稍等");
-    const result = await apiCall("/api/task/" + taskData.record_id + "/regenerate-note", "笔记已重新生成");
+    const result = await apiCall(
+      "/api/task/" + taskData.record_id + "/regenerate-note",
+      "笔记已重新生成",
+      getGenerationPayload()
+    );
     setButtonBusy(button, false);
     if (result) {
       isDraftDirty = false;
       await loadTaskDetail(taskData.record_id);
     }
+  }
+
+  function getGenerationPayload() {
+    var noteType = ($("#workflowNoteType") || {}).value || "normal_recommendation";
+    var readStatus = ($("#workflowReadStatus") || {}).value || "synopsis_only";
+    return {
+      note_type: noteType,
+      opening_type: ($("#workflowOpeningType") || {}).value || "auto",
+      read_status: readStatus,
+      cover_template: ($("#workflowCoverTemplate") || {}).value || noteType,
+      source_confidence: readStatus === "full_read" ? "full_read" : (readStatus === "read_to_chapter" ? "partial_read" : "synopsis"),
+      manual_generation_brief: ($("#workflowManualBrief") || {}).value || ""
+    };
   }
 
   async function regenerateImages(button) {
@@ -1012,6 +1195,9 @@
       '</select>' +
       '<select id="imageProvider" style="padding:4px 8px;border-radius:6px;font-size:13px;border:1px solid var(--border,#e0e0e0);background:var(--bg-surface,#fff);' + (currentStrategy==='ai'?'':'display:none;') + '">' +
         '<option value="liblib"' + (currentProvider==='liblib'?' selected':'') + '>LiblibAI 星流</option>' +
+        '<option value="doubao_seedream_5_lite"' + (currentProvider==='doubao_seedream_5_lite'?' selected':'') + '>豆包 Seedream 5.0</option>' +
+        '<option value="doubao_seedream_4_5"' + (currentProvider==='doubao_seedream_4_5'?' selected':'') + '>豆包 Seedream 4.5</option>' +
+        '<option value="doubao_seedream_4_0"' + (currentProvider==='doubao_seedream_4_0'?' selected':'') + '>豆包 Seedream 4.0</option>' +
         '<option value="jimeng"' + (currentProvider==='jimeng'?' selected':'') + '>即梦 / 火山</option>' +
         '<option value="siliconflow"' + (currentProvider==='siliconflow'?' selected':'') + '>SiliconFlow</option>' +
         '<option value="mock"' + (currentProvider==='mock'?' selected':'') + '>Mock</option>' +

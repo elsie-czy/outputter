@@ -54,6 +54,7 @@ const PAGE_SIZE = 10;
       }));
       currentPage = 1;
       renderGrid();
+      updatePoolStats();
       // 更新待拆作品 KPI（基于选题库实际拆解状态）
       setText("#kpiPending", allItems.filter(i => isSubmittable(i)).length);
     } catch (e) {
@@ -78,9 +79,9 @@ const PAGE_SIZE = 10;
       workMode = d.work_mode || "client";
       const syncBtn = $("#tpSyncBtn");
       const archiveBtn = $("#tpArchiveBtn");
+      if (syncBtn) syncBtn.style.display = "inline-flex";
       
       if (workMode === "owner") {
-        if (syncBtn) syncBtn.style.display = "flex";
         if (archiveBtn && d.pending_archive > 0) {
           archiveBtn.style.display = "flex";
           setText("#archiveCount", d.pending_archive);
@@ -88,7 +89,6 @@ const PAGE_SIZE = 10;
           archiveBtn.style.display = "none";
         }
       } else {
-        if (syncBtn) syncBtn.style.display = "none";
         if (archiveBtn) archiveBtn.style.display = "none";
       }
     } catch (_) {}
@@ -215,7 +215,6 @@ const PAGE_SIZE = 10;
           '<div class="tp-card-cover">' + catIcon + '</div>' +
           '<div class="tp-card-content">' +
             '<div class="tp-card-name">' + esc(item.work_name || "未知作品") + "</div>" +
-            statusBadge +
             '<div class="tp-card-author">' + esc(item.author || "未知作者") + "</div>" +
             '<div class="tp-card-meta">' +
               '<span class="tp-card-tag tp-card-tag--platform">' + esc(item.platform || "-") + "</span>" +
@@ -231,24 +230,18 @@ const PAGE_SIZE = 10;
           "</div>" +
           '<div class="tp-card-score-stars">' + scoreInfo.stars + "</div>" +
         "</div>" +
-        '<div class="tp-cell tp-cell-metrics">' +
-          '<div class="tp-metric-strip">' +
-            '<span><strong>' + fmtNum(item.favorites) + "</strong>收藏</span>" +
-            '<span><strong>' + fmtNum(item.likes) + "</strong>点赞</span>" +
-            '<span><strong>' + fmtNum(item.comments) + "</strong>评论</span>" +
-          "</div>" +
-          '<div class="tp-metric-strip tp-metric-strip--muted">' +
-            '<span><strong>' + fmtNum(item.monthly_votes) + "</strong>月票</span>" +
-            '<span><strong>' + fmtNum(item.recommend_votes) + "</strong>推荐</span>" +
-            '<span><strong>' + (item.rank ? "#" + item.rank : "—") + "</strong>排名</span>" +
-          "</div>" +
+        '<div class="tp-cell tp-cell-source">' +
+          '<span class="tp-platform-chip tp-platform-' + getPlatformClass(item.platform) + '">' + esc(item.platform || "未知") + "</span>" +
+          '<span class="tp-source-sub">' + esc(item.category || "内容类型") + "</span>" +
         "</div>" +
-        '<div class="tp-cell tp-cell-potential">' +
+        '<div class="tp-cell tp-cell-status">' +
+          statusBadge +
           '<span class="tp-potential-badge tp-potential-' + potential.level + '">' + potential.label + "</span>" +
-          '<span class="tp-potential-desc">' + potential.desc + "</span>" +
         "</div>" +
         '<div class="tp-cell tp-cell-action">' +
-          '<button class="tp-row-action" type="button" data-action="toggle"' + (disabled ? " disabled" : "") + ">" + (disabled ? "已入队" : (sel ? "移出" : "加入生产")) + "</button>" +
+          '<button class="tp-icon-action" type="button" title="收藏"><i data-lucide="star"></i></button>' +
+          '<button class="tp-icon-action" type="button" title="查看链接"><i data-lucide="link"></i></button>' +
+          '<button class="tp-icon-action" type="button" title="' + (disabled ? "已入队" : (sel ? "移出" : "加入生产")) + '" data-action="toggle"' + (disabled ? " disabled" : "") + '><i data-lucide="more-horizontal"></i></button>' +
         "</div>" +
         "</div>";
     }
@@ -276,6 +269,7 @@ const PAGE_SIZE = 10;
     });
 
     updateSidebar();
+    refreshIcons();
   }
 
   function isSubmittable(item) {
@@ -290,7 +284,7 @@ const PAGE_SIZE = 10;
     if (item && item.is_deconstructed) {
       return '<span class="tp-badge tp-badge--muted">已拆解</span>';
     }
-    return '<span class="tp-badge tp-badge--green">待拆解</span>';
+    return '<span class="tp-badge tp-badge--green">待评估</span>';
   }
 
   function queueStatusLabel(status) {
@@ -352,6 +346,14 @@ const PAGE_SIZE = 10;
       "悬疑": "🔍"
     };
     return map[category] || "📖";
+  }
+
+  function getPlatformClass(platform) {
+    const p = String(platform || "");
+    if (p.includes("番茄")) return "fanqie";
+    if (p.includes("晋江")) return "jinjiang";
+    if (p.includes("起点")) return "qidian";
+    return "other";
   }
 
   /* ===== 分页 ===== */
@@ -501,7 +503,7 @@ const PAGE_SIZE = 10;
           showToast("error", "同步失败: " + e.message);
         } finally {
           syncBtn.disabled = false;
-          syncBtn.innerHTML = '<i data-lucide="refresh-cw"></i> 同步选题';
+          syncBtn.innerHTML = '<i data-lucide="refresh-cw"></i> 同步';
           refreshIcons();
         }
       });
@@ -538,6 +540,36 @@ const PAGE_SIZE = 10;
     }
   }
 
+  function updatePoolStats() {
+    const total = allItems.length;
+    const pending = allItems.filter((i) => isSubmittable(i)).length;
+    const high = allItems.filter((i) => (i.quality_score || 0) >= 80).length;
+    const working = allItems.filter((i) => i.is_in_queue).length;
+    const done = allItems.filter((i) => i.is_deconstructed).length;
+
+    setText("#kpiTotalTopics", total);
+    setText("#kpiPending", pending);
+    setText("#kpiHighPot", high);
+    setText("#heroTotalTopics", total);
+    setText("#heroPendingTopics", pending);
+    setText("#heroHighPotential", high);
+    setText("#heroPendingProduction", working || pending);
+    setText("#tpDonutTotal", total);
+    setText("#tpLegendPending", pending);
+    setText("#tpLegendDone", done || high);
+    setText("#tpLegendWorking", working);
+
+    const donut = $("#tpDonut");
+    if (donut) {
+      const p1 = total ? Math.round((pending / total) * 100) : 0;
+      const p2 = total ? Math.round(((done || high) / total) * 100) : 0;
+      const p3 = total ? Math.round((working / total) * 100) : 0;
+      donut.style.setProperty("--p1", p1);
+      donut.style.setProperty("--p2", p2);
+      donut.style.setProperty("--p3", p3);
+    }
+  }
+
   /* ===== 右侧面板 ===== */
   function updateSidebar() {
     const selected = allItems.filter((i) => selectedIds.has(i.record_id));
@@ -545,17 +577,18 @@ const PAGE_SIZE = 10;
 
     setText("#tpSelectedCount", count + "篇");
     setText("#tpBatchCount", count);
+    updatePoolStats();
 
     // 分类分布
     const catMap = {};
-    selected.forEach((i) => { const c = i.category || "未知"; catMap[c] = (catMap[c] || 0) + 1; });
+    (count ? selected : allItems).forEach((i) => { const c = i.category || "未知"; catMap[c] = (catMap[c] || 0) + 1; });
     const catEl = $("#tpCategoryDist");
     if (catEl) {
-      if (count === 0) {
+      if (Object.keys(catMap).length === 0) {
         catEl.innerHTML = '<span class="text-muted">—</span>';
       } else {
         const maxCat = Math.max(...Object.values(catMap));
-        catEl.innerHTML = Object.entries(catMap)
+        catEl.innerHTML = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 5)
           .map(([k, v]) =>
             '<div class="tp-distribution-item">' +
             '<span class="tp-distribution-label">' + esc(k) + "</span>" +
@@ -568,14 +601,14 @@ const PAGE_SIZE = 10;
 
     // 平台分布
     const platMap = {};
-    selected.forEach((i) => { const p = i.platform || "未知"; platMap[p] = (platMap[p] || 0) + 1; });
+    (count ? selected : allItems).forEach((i) => { const p = i.platform || "未知"; platMap[p] = (platMap[p] || 0) + 1; });
     const platEl = $("#tpPlatformDist");
     if (platEl) {
-      if (count === 0) {
+      if (Object.keys(platMap).length === 0) {
         platEl.innerHTML = '<span class="text-muted">—</span>';
       } else {
         const maxPlat = Math.max(...Object.values(platMap));
-        platEl.innerHTML = Object.entries(platMap)
+        platEl.innerHTML = Object.entries(platMap).sort((a, b) => b[1] - a[1])
           .map(([k, v]) =>
             '<div class="tp-distribution-item">' +
             '<span class="tp-distribution-label">' + esc(k) + "</span>" +
@@ -716,6 +749,9 @@ const PAGE_SIZE = 10;
     if (providerField) providerField.style.display = v === "ai" ? "" : "none";
     const providerHints = {
       "liblib": "LiblibAI 星流，适合新图文模型",
+      "doubao_seedream_5_lite": "豆包 Seedream 5.0，火山方舟 OpenAI 兼容接口",
+      "doubao_seedream_4_5": "豆包 Seedream 4.5，火山方舟 OpenAI 兼容接口",
+      "doubao_seedream_4_0": "豆包 Seedream 4.0，火山方舟 OpenAI 兼容接口",
       "jimeng": "即梦 / 火山，使用既有链路",
       "siliconflow": "SiliconFlow，需已配置密钥",
       "mock": "Mock，本地无成本联调",

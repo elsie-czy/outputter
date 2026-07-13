@@ -5,6 +5,7 @@ from scripts.quality_scorer import score_note
 from scripts.deconstruct_daily import build_xhs_note
 from scripts.generation_context import build_generation_context, context_counts
 from scripts.account_strategy import get_account_strategy
+from scripts.queue_manager import normalize_generation_params
 
 bp = Blueprint("web_note_api", __name__, url_prefix="/api/note")
 
@@ -69,14 +70,27 @@ def regenerate_note(rid):
 
         generation_context = build_generation_context(task)
         account_strategy = get_account_strategy(task.get("account_strategy_id") if task else None)
+        merged = dict(task or {})
+        for key in [
+            "note_type",
+            "opening_type",
+            "cover_template",
+            "read_status",
+            "source_confidence",
+            "manual_generation_brief",
+        ]:
+            if key in data:
+                merged[key] = data.get(key)
+        generation_params = normalize_generation_params(merged)
         analysis = analyze_work(work, account_strategy=account_strategy, **generation_context)
-        note_text = build_xhs_note(work, analysis, account_strategy=account_strategy)
+        note_text = build_xhs_note(work, analysis, account_strategy=account_strategy, **generation_params)
         score_result = score_note(note_text, account_strategy=account_strategy)
         update_task_fields(
             rid,
             deconstruct_result=analysis,
             note_content=note_text,
             quality_score=score_result,
+            **generation_params,
         )
         return jsonify({"ok": True, "data": {
             "note_content": note_text,
@@ -86,6 +100,7 @@ def regenerate_note(rid):
             "tags": analysis.get("小红书包装", {}).get("热门标签推荐", []),
             "cta": analysis.get("小红书包装", {}).get("互动话术模板", ""),
             "generation_context": context_counts(generation_context),
+            "generation_params": generation_params,
         }})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500

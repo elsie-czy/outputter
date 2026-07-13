@@ -32,6 +32,64 @@ ACTIVE_STATUSES = {
     STATUS_PAUSED,
 }
 
+NOTE_TYPE_DEFAULT = "normal_recommendation"
+OPENING_TYPE_DEFAULT = "auto"
+READ_STATUS_DEFAULT = "synopsis_only"
+SOURCE_CONFIDENCE_DEFAULT = "synopsis"
+
+NOTE_TYPE_OPTIONS = {
+    "normal_recommendation",
+    "comment_experiment",
+    "warning_review",
+    "booklist",
+}
+OPENING_TYPE_OPTIONS = {
+    "auto",
+    "strong_recommend",
+    "warning_reversal",
+    "book_shortage_rescue",
+    "audience_filter",
+    "rant_entry",
+}
+READ_STATUS_OPTIONS = {
+    "synopsis_only",
+    "read_to_chapter",
+    "full_read",
+}
+SOURCE_CONFIDENCE_OPTIONS = {
+    "synopsis",
+    "partial_read",
+    "full_read",
+}
+
+
+def normalize_generation_params(data=None):
+    """Normalize task-level publishing workflow controls."""
+    data = data or {}
+    note_type = str(data.get("note_type") or NOTE_TYPE_DEFAULT).strip()
+    if note_type not in NOTE_TYPE_OPTIONS:
+        note_type = NOTE_TYPE_DEFAULT
+    opening_type = str(data.get("opening_type") or OPENING_TYPE_DEFAULT).strip()
+    if opening_type not in OPENING_TYPE_OPTIONS:
+        opening_type = OPENING_TYPE_DEFAULT
+    cover_template = str(data.get("cover_template") or note_type).strip()
+    if cover_template not in NOTE_TYPE_OPTIONS:
+        cover_template = note_type
+    read_status = str(data.get("read_status") or READ_STATUS_DEFAULT).strip()
+    if read_status not in READ_STATUS_OPTIONS:
+        read_status = READ_STATUS_DEFAULT
+    source_confidence = str(data.get("source_confidence") or SOURCE_CONFIDENCE_DEFAULT).strip()
+    if source_confidence not in SOURCE_CONFIDENCE_OPTIONS:
+        source_confidence = SOURCE_CONFIDENCE_DEFAULT
+    return {
+        "note_type": note_type,
+        "opening_type": opening_type,
+        "cover_template": cover_template,
+        "read_status": read_status,
+        "source_confidence": source_confidence,
+        "manual_generation_brief": str(data.get("manual_generation_brief") or "").strip()[:1000],
+    }
+
 
 def normalize_status(status) -> str:
     """Map legacy worker stages to the stable UI status set."""
@@ -175,6 +233,7 @@ def enqueue_works(works, image_strategy=None, image_provider=None):
             "rank": w.get("排名", w.get("rank", 0)),
             "image_strategy": image_strategy or None,
             "image_provider": image_provider or None,
+            **normalize_generation_params(w),
             "status": "pending",
             "error": None,
             "retry_count": 0,
@@ -256,7 +315,8 @@ def _with_normalized_status(item: dict) -> dict:
 
 
 def update_status(record_id, status, error=None, deconstruct_result=None,
-                  note_content=None, quality_score=None, images=None, step_times=None):
+                  note_content=None, quality_score=None, images=None, step_times=None,
+                  conversion_review=None):
     """更新队列中某条记录的状态"""
     items = read_jsonl(QUEUE_FILE)
     updated = False
@@ -271,6 +331,8 @@ def update_status(record_id, status, error=None, deconstruct_result=None,
                 i["note_content"] = note_content
             if quality_score is not None:
                 i["quality_score"] = quality_score
+            if conversion_review is not None:
+                i["conversion_review"] = conversion_review
             if images is not None:
                 i["images"] = images
             if step_times is not None:
@@ -291,6 +353,7 @@ def update_task_fields(record_id, **fields):
     allowed = {
         "note_content",
         "quality_score",
+        "conversion_review",
         "modification_log",
         "main_record_id",
         "xhs_record_id",
@@ -298,8 +361,17 @@ def update_task_fields(record_id, **fields):
         "images",
         "step_times",
         "title_options",
+        "image_strategy",
+        "image_provider",
         "feishu_sync_status",
         "feishu_sync_error",
+        "note_type",
+        "opening_type",
+        "cover_template",
+        "read_status",
+        "source_confidence",
+        "manual_generation_brief",
+        "material_quality",
     }
     patch = {k: v for k, v in fields.items() if k in allowed}
     if not patch:

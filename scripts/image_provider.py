@@ -1,6 +1,6 @@
 """
 可插拔的图片生成接口
-支持多种图片生成服务（即梦、LiblibAI、SiliconFlow 等）
+支持多种图片生成服务（即梦、LiblibAI、SiliconFlow、豆包 Seedream 等）
 """
 import os
 from abc import ABC, abstractmethod
@@ -34,7 +34,7 @@ class ImageGeneratorBase(ABC):
 
 
 class JimengGenerator(ImageGeneratorBase):
-    """即梦/LiblibAI/SiliconFlow 图片生成"""
+    """即梦/LiblibAI/SiliconFlow/豆包 Seedream 图片生成"""
 
     def __init__(self):
         from scripts.image_generator import generate_images_from_prompt, is_image_generation_enabled
@@ -78,12 +78,20 @@ def get_image_generator() -> ImageGeneratorBase:
     """
     provider = os.getenv("IMAGE_PROVIDER", "jimeng").strip().lower()
 
-    if provider in ("jimeng", "siliconflow", "liblib"):
+    if provider in (
+        "jimeng",
+        "siliconflow",
+        "liblib",
+        "doubao",
+        "doubao_seedream_5_lite",
+        "doubao_seedream_4_5",
+        "doubao_seedream_4_0",
+    ):
         return JimengGenerator()
     elif provider == "mock":
         return MockGenerator()
     else:
-        valid = "jimeng, siliconflow, liblib, mock"
+        valid = "jimeng, siliconflow, liblib, doubao_seedream_5_lite, doubao_seedream_4_5, doubao_seedream_4_0, mock"
         raise RuntimeError(
             f"未知的 IMAGE_PROVIDER: {provider}，有效值: {valid}。"
             f"请检查 .env 文件中的 IMAGE_PROVIDER 配置。"

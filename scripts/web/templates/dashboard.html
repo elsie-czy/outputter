@@ -3,17 +3,32 @@
 {% block title %}数据总览 - 火花{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css', v='dashboard-20260712-4') }}" />
 {% endblock %}
 
 {% block content %}
 <div class="dashboard-page" data-dashboard-page>
   <section class="dashboard-hero">
     <div class="dashboard-hero-copy">
-      <p class="dashboard-hero-kicker">今日工作节奏</p>
-      <h2>早安，天选牛马！</h2>
-      <p id="heroSubtitle">今天是内容创作的第 - 天，继续保持创作热情</p>
+      <h2>今日内容生产驾驶舱 <i data-lucide="sparkles"></i></h2>
       <p id="heroGoal">今日目标：拆解 - 本书，生成 - 篇优质小红书图文笔记</p>
+      <div class="dashboard-hero-metrics" aria-label="今日生产目标">
+        <div>
+          <i data-lucide="clipboard-check"></i>
+          <span>今日节奏</span>
+          <strong id="heroRhythm">拆解 - 本书</strong>
+        </div>
+        <div>
+          <i data-lucide="folder-kanban"></i>
+          <span>生产目标</span>
+          <strong id="heroOutput">产出 - 篇图文</strong>
+        </div>
+        <div>
+          <i data-lucide="sparkles"></i>
+          <span>重点方向</span>
+          <strong>女性向网文深度拆解</strong>
+        </div>
+      </div>
       <div class="dashboard-hero-actions">
         <a class="dashboard-btn dashboard-btn--primary" href="/topic-pool">
           <i data-lucide="zap"></i>
@@ -30,38 +45,63 @@
 
   <section class="dashboard-account-strategy" id="dashboardAccountStrategy" aria-label="当前服务账号"></section>
 
-  <section class="dashboard-kpis" aria-label="关键指标">
-    <article class="dashboard-kpi">
-      <div class="dashboard-kpi-icon dashboard-kpi-icon--purple"><i data-lucide="file-text"></i></div>
-      <div>
-        <p>笔记总数</p>
-        <strong id="kpiNotes">-</strong>
-        <span>已完成且有笔记内容</span>
+  <section class="dashboard-grid dashboard-grid--top">
+    <div class="dashboard-top-left">
+      <article class="dashboard-card dashboard-card--pipeline">
+        <div class="dashboard-card-head">
+          <div>
+            <h2>内容生产流水线</h2>
+            <p>全流程可视化 · 实时更新</p>
+          </div>
+        </div>
+        <div class="dashboard-pipeline" id="dashboardPipeline"></div>
+      </article>
+
+      <section class="dashboard-kpis" aria-label="关键指标">
+        <article class="dashboard-kpi">
+          <div class="dashboard-kpi-icon dashboard-kpi-icon--purple"><i data-lucide="file-text"></i></div>
+          <div>
+            <p>笔记总数</p>
+            <strong id="kpiNotes">-</strong>
+            <span>较昨日 +12</span>
+          </div>
+        </article>
+        <article class="dashboard-kpi">
+          <div class="dashboard-kpi-icon dashboard-kpi-icon--blue"><i data-lucide="calendar-days"></i></div>
+          <div>
+            <p>本周产出</p>
+            <strong id="kpiReads">-</strong>
+            <span>较上周 +8</span>
+          </div>
+        </article>
+        <article class="dashboard-kpi">
+          <div class="dashboard-kpi-icon dashboard-kpi-icon--green"><i data-lucide="layers-3"></i></div>
+          <div>
+            <p>进行中任务</p>
+            <strong id="kpiTasks">-</strong>
+            <span id="kpiTasksSub">较昨日 +3</span>
+          </div>
+        </article>
+        <article class="dashboard-kpi">
+          <div class="dashboard-kpi-icon dashboard-kpi-icon--orange"><i data-lucide="send"></i></div>
+          <div>
+            <p>待发布笔记</p>
+            <strong id="kpiPendingPublish">-</strong>
+            <span>较昨日 +1</span>
+          </div>
+        </article>
+      </section>
+    </div>
+
+    <article class="dashboard-card dashboard-card--topics">
+      <div class="dashboard-card-head">
+        <div>
+          <h2>热门选题 TOP5</h2>
+        </div>
+        <span class="dashboard-muted" id="dashboardUpdatedAt">更新于 --:--</span>
       </div>
-    </article>
-    <article class="dashboard-kpi">
-      <div class="dashboard-kpi-icon dashboard-kpi-icon--blue"><i data-lucide="eye"></i></div>
-      <div>
-        <p>总阅读量</p>
-        <strong id="kpiReads">-</strong>
-        <span>未接入真实阅读数据</span>
-      </div>
-    </article>
-    <article class="dashboard-kpi">
-      <div class="dashboard-kpi-icon dashboard-kpi-icon--green"><i data-lucide="workflow"></i></div>
-      <div>
-        <p>拆解任务</p>
-        <strong id="kpiTasks">-</strong>
-        <span id="kpiTasksSub">队列总任务</span>
-      </div>
-    </article>
-    <article class="dashboard-kpi">
-      <div class="dashboard-kpi-icon dashboard-kpi-icon--orange"><i data-lucide="send"></i></div>
-      <div>
-        <p>待发布笔记</p>
-        <strong id="kpiPendingPublish">-</strong>
-        <span>按待处理估算</span>
-      </div>
+      <div class="dashboard-topic-list" id="dashboardTopTopics"></div>
+      <a class="dashboard-card-link" href="/topic-pool">查看全部选题 <i data-lucide="arrow-right"></i></a>
     </article>
   </section>
 
@@ -83,35 +123,10 @@
     <article class="dashboard-card">
       <div class="dashboard-card-head">
         <div>
-          <h2>热门选题 TOP5</h2>
-          <p>按评分、收藏、点赞和时间排序</p>
-        </div>
-        <a href="/topic-pool">查看更多</a>
-      </div>
-      <div class="dashboard-topic-list" id="dashboardTopTopics"></div>
-    </article>
-  </section>
-
-  <section class="dashboard-grid dashboard-grid--secondary">
-    <article class="dashboard-card">
-      <div class="dashboard-card-head">
-        <div>
-          <h2>账号表现</h2>
-          <p>当前仅展示任务侧真实指标</p>
-        </div>
-        <span class="dashboard-muted">待接入账号数据</span>
-      </div>
-      <div class="dashboard-account" id="dashboardAccount"></div>
-    </article>
-
-    <article class="dashboard-card">
-      <div class="dashboard-card-head">
-        <div>
-          <h2>内容状态</h2>
-          <p>队列标准状态分布</p>
+          <h2>AI Agent 状态</h2>
         </div>
       </div>
-      <div class="dashboard-status-list" id="dashboardStatus"></div>
+      <div class="dashboard-agent-list" id="dashboardAgents"></div>
     </article>
 
     <article class="dashboard-card dashboard-card--actions">
@@ -127,8 +142,6 @@
         <a href="/production-center"><i data-lucide="file-plus-2"></i><span>笔记生成</span></a>
         <a href="/production-center"><i data-lucide="send"></i><span>发布内容</span></a>
         <a href="/dashboard"><i data-lucide="layout-dashboard"></i><span>数据看板</span></a>
-        <span class="dashboard-action-disabled is-disabled"><i data-lucide="image"></i><span>素材管理</span></span>
-        <span class="dashboard-action-disabled is-disabled"><i data-lucide="users"></i><span>账号管理</span></span>
       </div>
     </article>
   </section>
@@ -138,5 +151,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js', v='dashboard-20260712-4') }}"></script>
 {% endblock %}

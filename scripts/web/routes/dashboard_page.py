@@ -12,7 +12,7 @@ bp = Blueprint("web_dashboard", __name__)
 @bp.get("/dashboard")
 def dashboard_page():
     """运营工作台首页。"""
-    return render_template("dashboard.html", active_page="dashboard", page_title="数据总览")
+    return render_template("dashboard.html", active_page="dashboard", page_title="AI内容生产驾驶舱")
 
 
 @bp.get("/api/dashboard/overview")

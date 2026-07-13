@@ -37,15 +37,67 @@ SCORE_PROMPT = (
     "- emotion_density: 前三行是否快速给结论并制造共鸣/好奇/站队，0=先铺剧情且无波澜 20=开头三行就能留人"
     "- collection_value: 是否让人想收藏，尤其是否有清晰阅读判断、拆解框架或避雷价值，0=毫无价值 20=干货/洞察力强"
     "- interaction_guide: 是否有具体评论钩子，二选一/站队/求投喂优先，0=没有引导或只写欢迎评论 15=读者顺手就能回复"
+    "评论钩子不能只判断有没有，还要判断是否低门槛。低门槛优先级：1 报书名，2 求同款，3 雷点投票，4 二选一，5 求投喂。"
+    "出现“欢迎评论”“评论区聊聊”“你怎么看”“大家怎么看”“喜欢就关注”必须在 interaction_guide 扣分。"
     "- xhs_style_match: 是否像真人写的小红书笔记，首图/标题/正文节奏是否原生，0=一眼AI 15=完全像真人"
     "- ai_trace: AI痕迹评分，分数越高表示AI痕迹越低（0=明显AI痕迹 10=毫无AI痕迹）"
     "- total: 六项加总"
     "- grade: total>=85→\"good\", total>=75→\"review\", total<75→\"retry\""
     "- suggestions: 仅输出最值得改的1-4条，必须结合账号策略、前三行、评论钩子、收藏价值或AI痕迹，不要泛泛而谈"
+    "- 事实约束：suggestions 的 action 只能改写笔记中已经出现的事实、人物、设定和题材；"
+    "不要新增笔记里没有的女主/男主/变异兽/基建/囤货/感情线等具体设定。"
+    "如果笔记素材不足，只能建议补充资料或降低为简介快筛，不能脑补爽点。"
 )
 
 
-def score_note(note_text, account_strategy=None):
+def _fact_check_prompt(fact_check):
+    if not isinstance(fact_check, dict) or not fact_check:
+        return ""
+    usable = [str(x.get("text", "")) for x in fact_check.get("usable_facts", [])[:6] if isinstance(x, dict)]
+    cautious = [str(x.get("text", "")) for x in fact_check.get("cautious_facts", [])[:6] if isinstance(x, dict)]
+    return (
+        "\n本次评分还需遵守素材证据卡："
+        f"\n- generation_mode: {fact_check.get('generation_mode', '')}"
+        f"\n- read_scope: {fact_check.get('read_scope', '')}"
+        f"\n- usable_facts: {usable}"
+        f"\n- cautious_facts: {cautious}"
+        "\n如果 generation_mode=insufficient，评分建议只能围绕补充官方简介/试读/目录/书评、改成素材征集型标题、降低伪深度；"
+        "不得建议加入证据卡没有的人物、设定、爽点、雷点或阅读结论。"
+    )
+
+
+def _sanitize_score_suggestions(result, note_text, fact_check=None):
+    if not isinstance(result, dict):
+        return result
+    fact_check = fact_check if isinstance(fact_check, dict) else {}
+    insufficient = fact_check.get("generation_mode") == "insufficient"
+    forbidden = ["女主", "男主", "基建", "囤货", "感情线", "武力值", "不圣母", "圣母", "爽点太密"]
+    if not insufficient:
+        return result
+    safe_action = "改成素材征集型：这本先不硬推，求看过的人补充开局、雷点和是否值得追。"
+    cleaned = []
+    for item in result.get("suggestions", []) if isinstance(result.get("suggestions"), list) else []:
+        text = " ".join(str(item.get(k, "")) for k in ["problem", "action", "reason"])
+        if any(word in text for word in forbidden):
+            item = dict(item)
+            item["action"] = safe_action
+            item["reason"] = "当前证据卡显示素材不足，不能新增未验证的人设、爽点或雷点。"
+        cleaned.append(item)
+    if not cleaned:
+        cleaned = [{
+            "dimension": "素材",
+            "problem": "当前笔记已经降级为素材不足提醒，不适合按正常推荐笔记优化。",
+            "action": safe_action,
+            "reason": "缺少可追溯官方简介、试读章节、目录或读者评论，不能伪装成深度拆书。",
+        }]
+    result["suggestions"] = cleaned[:4]
+    result["suggestion"] = "素材不足时应先补证据卡，或改成素材征集型笔记，不能脑补推荐点。"
+    result["grade"] = "retry"
+    result["total"] = min(int(result.get("total") or 0), 60)
+    return result
+
+
+def score_note(note_text, account_strategy=None, fact_check=None):
     """对笔记进行六维质量评分，返回 dict"""
     account_strategy = account_strategy or get_account_strategy()
     provider = os.getenv("MODEL_PROVIDER", "zhipu").strip().lower()
@@ -76,7 +128,12 @@ def score_note(note_text, account_strategy=None):
         "messages": [
             {
                 "role": "system",
-                "content": SCORE_PROMPT + "\n本次评分还需参考账号策略：\n" + render_strategy_prompt(account_strategy),
+                "content": (
+                    SCORE_PROMPT
+                    + "\n本次评分还需参考账号策略：\n"
+                    + render_strategy_prompt(account_strategy)
+                    + _fact_check_prompt(fact_check)
+                ),
             },
             {"role": "user", "content": f"请评分以下笔记内容：\n\n{note_text[:3000]}"},
         ],
@@ -120,7 +177,7 @@ def score_note(note_text, account_strategy=None):
                     if not isinstance(result["suggestions"], list):
                         result["suggestions"] = []
                     result.setdefault("strategy_trace", strategy_trace(account_strategy))
-                    return result
+                    return _sanitize_score_suggestions(result, note_text, fact_check=fact_check)
                 last_error = "评分模型未返回 JSON"
             except Exception as e:
                 last_error = str(e)

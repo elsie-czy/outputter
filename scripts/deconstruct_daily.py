@@ -23,6 +23,8 @@ from scripts.dedupe import find_by_title_author
 from scripts.image_generator import generate_images_from_prompt, is_image_generation_enabled
 from scripts.source_cleaner import clean_source_synopsis
 from scripts.account_strategy import get_account_strategy
+from scripts.xhs_note_humanizer import apply_xhs_humanize_note_skill
+from scripts.material_evidence import public_fact_texts
 
 
 def _extract_name_hint(text):
@@ -173,6 +175,12 @@ def _is_publish_unsafe_fact(text):
         "可为",
         "泛化",
         "题材特征",
+        "判断这本",
+        "是否值得",
+        "读者收益",
+        "感情线是否",
+        "爽点是否",
+        "避免踩雷",
     ]
     return any(term in s for term in unsafe_terms)
 
@@ -194,14 +202,50 @@ def _evidence_points_for_note(work, analysis):
     """Use only synopsis-backed evidence for public notes."""
     intro = str(work.get("简介", "") or "")
     grounded = []
+    fact_check = work.get("素材证据卡") or (work.get("素材厚度", {}) or {}).get("fact_check")
+    fact_texts = public_fact_texts(fact_check, limit=4)
+    if fact_texts:
+        return fact_texts[:4]
+    if fact_check and fact_check.get("generation_mode") == "insufficient":
+        return []
+    rich_evidence = []
+    for key in ["正文片段", "试读内容", "章节摘要", "目录", "书评摘录", "读者评论", "热评", "高赞评论"]:
+        value = work.get(key)
+        if isinstance(value, list):
+            for item in value[:6]:
+                text = _publish_phrase(item, max_len=58)
+                if text and not _is_publish_unsafe_fact(text):
+                    rich_evidence.append(text)
+        elif value:
+            rich_evidence.extend(_mobile_lines(str(value), max_len=58, max_lines=3))
     if all(key in intro for key in ["明鹰", "吃货", "城主"]):
         grounded.append("明鹰想当吃货，却被推成了城主，这个反差挺抓人")
     if any(key in intro for key in ["清理废墟", "规划城区", "修复设施", "建立卫队", "恢复生产"]):
         grounded.append("清废墟、修设施、建卫队，基建线不是空喊口号")
-    if any(key in intro for key in ["丧尸", "变异兽"]):
+    if "丧尸" in intro and "变异兽" in intro:
         grounded.append("丧尸和变异兽把末世压力先压出来了")
+    elif "丧尸" in intro:
+        grounded.append("丧尸爆发先把末世压力压出来了")
+    elif "变异兽" in intro:
+        grounded.append("变异兽把末世压力先压出来了")
+    if "无限复活" in intro or "复活" in intro:
+        grounded.append("无限复活不是爽文免死金牌，而是每次死完都要重新醒来")
+    if "24小时" in intro or "二十四小时" in intro:
+        grounded.append("规则很清楚：死后回到24小时前，循环有明确时间边界")
+    if "安全屋" in intro:
+        grounded.append("复活点落在安全屋，天然适合写囤物资、复盘路线和反复试错")
+    if "惨烈" in intro or "噩梦" in intro or "死亡" in intro:
+        grounded.append("雷点也很明确：反复死亡会带压迫感，不是轻松开挂")
+    if "圣母系统" in intro:
+        grounded.append("圣母系统这个设定很损：女主想活命，就得硬着头皮演圣母")
+    if "重生" in intro and any(key in intro for key in ["男主", "陆行迟"]):
+        grounded.append("男主带着上一世记忆回来，一开局就想把她丢进丧尸群")
+    if "穿进" in intro or "穿书" in intro:
+        grounded.append("穿书开局不是躺赢，而是先背上一个人人嫌的女配身份")
     if "希望" in intro and "幸存者" in intro:
         grounded.append("新城最后成了幸存者的希望，情绪落点比较稳")
+    if rich_evidence:
+        grounded.extend(rich_evidence)
     if grounded:
         return grounded[:4]
 
@@ -215,6 +259,26 @@ def _evidence_points_for_note(work, analysis):
     if not evidence:
         evidence.extend(_mobile_lines(work.get("简介", ""), max_len=42, max_lines=4))
     return _publish_fact_list(evidence, limit=4, max_len=58)
+
+
+def _value_checklist_for_note(work, analysis, evidence, topic_hook):
+    intro = str(work.get("简介", "") or "")
+    text = " ".join([intro, " ".join(evidence or []), topic_hook])
+    if any(k in text for k in ["无限复活", "复活", "循环", "24小时"]):
+        return [
+            "规则够不够硬：这本给了“死后回到24小时前”，不是随口说能重来",
+            "代价够不够痛：反复死亡如果只当外挂，就会很水；简介里至少写到噩梦感",
+            "目标够不够清楚：她不是为了刷爽点死来死去，而是在找破局办法、救在乎的人",
+        ]
+    if any(k in text for k in ["圣母系统", "穿书", "重生男主"]):
+        return [
+            "人设有没有反差：表面圣母和实际求生必须同时成立",
+            "男主压力够不够强：重生男主想杀她，冲突不能只停在嘴上",
+            "系统任务会不会重复：如果每章只刷数值，就容易疲",
+        ]
+    if evidence:
+        return [f"看点{i}：{item}" for i, item in enumerate(evidence[:3], 1)]
+    return []
 
 
 def _emoji_for_note(work, analysis):
@@ -292,19 +356,26 @@ def _grounded_story_take(work):
             f"✨ 《{name}》吃的是开局身份差和反转感。",
             "主角不是站在舒服的位置上开挂，而是先被扔进一个麻烦身份里，再一点点把局面扳回来。喜欢看逆风翻盘的人，可以先码住。",
         ]
+    if "无限复活" in intro or ("复活" in intro and "24小时" in intro):
+        return [
+            f"✨ 《{name}》的卖点不该只看“能复活”。",
+            "重点是复活有没有规则、有代价、有破局目标。简介里写到死后回到24小时前、在安全屋醒来、反复经历惨烈死亡，这几个信息比单纯开挂更有判断价值。",
+        ]
     return [
-        f"📚 《{name}》我会先看它的核心设定够不够抓人。",
-        "目前简介给到的信息不算特别长，所以这篇只按已有剧情线判断，不把没写出来的关系线硬补上。",
+        f"📚 《{name}》不是那种一眼能夸满的简介，但核心设定是清楚的。",
+        "它更适合先试读几章，看你吃不吃这个人设和冲突；没写出来的感情线、隐藏设定，这里就不替它脑补了。",
     ]
 
 
 def _grounded_save_value_line(work):
     intro = str(work.get("简介", "") or "")
     if any(key in intro for key in ["清理废墟", "规划城区", "修复设施", "建立卫队", "恢复生产"]):
-        return "判断它合不合口味，就看你吃不吃“末世基建一步步变强”这条线。"
+        return "你要是吃“末世基建一步步变强”这条线，可以先放进书单。"
     if "囤货" in intro:
-        return "判断它合不合口味，就看你吃不吃“提前准备，把安全感攒满”这类爽点。"
-    return "判断它合不合口味，可以先看人设、核心冲突和情绪落点。"
+        return "你要是吃“提前准备，把安全感攒满”这类爽点，可以先放进书单。"
+    if "无限复活" in intro or ("复活" in intro and "24小时" in intro):
+        return "这类文最怕把复活写成无成本外挂，所以前几章重点看：死亡代价、回档规则、每次试错有没有新信息。"
+    return "你要是吃人设反差和明确冲突，可以先试读；只想看纯轻松甜爽的，先别闭眼冲。"
 
 
 def _split_packaging_lines(text, max_lines=3, max_len=38):
@@ -940,6 +1011,19 @@ def generate_title_options(work, analysis, account_strategy=None):
     account_strategy = account_strategy or get_account_strategy()
     name = work.get("作品名称", "")
     category = work.get("分类", "")
+    fact_check = work.get("素材证据卡") or (work.get("素材厚度", {}) or {}).get("fact_check") or {}
+    if fact_check.get("generation_mode") == "insufficient":
+        topic = _short_topic_hook(work, analysis)
+        return _dedupe_titles([
+            f"{name}这本先别硬推 素材还不够",
+            f"{topic}求反馈｜{name}看过的来聊聊",
+            f"{name}能不能追 先蹲真实反馈",
+            f"看过{name}的姐妹 报个雷点",
+            f"{topic}素材征集 这本到底稳不稳",
+            f"{name}先不下结论 求看过的人补充",
+            f"{topic}书荒党求投喂 同款也行",
+            f"这本{name}我先蹲评论区反馈",
+        ], limit=10)
     p = analysis.get("小红书包装", {})
     content_brief = analysis.get("内容简报", {})
     brief_titles = content_brief.get("标题候选", []) if isinstance(content_brief, dict) else []
@@ -1165,14 +1249,612 @@ def get_title_options(work, analysis, account_strategy=None):
         return []
 
 
-def build_xhs_note(work, analysis, use_formula=True, account_strategy=None):
+def _pick_opening_type(note_type, opening_type=None, work=None, analysis=None, recent_context=None):
+    opening_type = str(opening_type or "").strip()
+    if opening_type and opening_type != "auto":
+        return opening_type
+    if note_type == "warning_review":
+        return "warning_reversal"
+    if note_type == "comment_experiment":
+        return "book_shortage_rescue"
+    seed = _note_variant_seed(work or {})
+    return ["audience_filter", "strong_recommend", "rant_entry"][seed % 3]
+
+
+def _frontstage_hooks(work, analysis, content_brief, evidence):
+    category = _publish_phrase(work.get("分类", ""), 18, "网文")
+    genre = category or "这个题材"
+    core_sell = _publish_phrase((analysis.get("卖点分析") or {}).get("核心卖点", "") if isinstance(analysis.get("卖点分析"), dict) else "", 34)
+    if _is_publish_unsafe_fact(core_sell):
+        core_sell = ""
+    first_evidence = core_sell or (evidence[0] if evidence else _publish_phrase(content_brief.get("读者收益", ""), 34, "设定够具体"))
+    second_evidence = evidence[1] if len(evidence) > 1 else _publish_phrase(analysis.get("卖点分析", {}).get("核心卖点", ""), 34, "节奏比较稳")
+    if _is_publish_unsafe_fact(second_evidence):
+        second_evidence = _publish_phrase(content_brief.get("读者收益", ""), 34, "阅读判断很清楚")
+    return {
+        "genre": genre,
+        "genre_hook": genre,
+        "specific_hook": _publish_phrase(first_evidence, 26, "设定能落地"),
+        "common_thunder": "只堆设定不推进",
+        "apparent_risk": "简介看起来有点套路",
+        "reversal_hook": _publish_phrase(first_evidence, 26, "核心看点很明确"),
+        "real_threshold": "铺垫和题材门槛",
+        "search_keyword": genre,
+        "preference_a": _publish_phrase(genre, 18, "设定明确的文"),
+        "risk_b": "只有标签没有具体冲突",
+        "specific_strength": _publish_phrase(second_evidence, 26, "卖点比较清楚"),
+        "anti_thunder_hook": _publish_phrase(first_evidence, 26, "不是只靠标签硬夸"),
+        "specific_behavior": "有清晰行动线",
+    }
+
+
+def _build_opening_lines(work, analysis, account_strategy, note_type, opening_type, content_brief, evidence):
+    opening_type = _pick_opening_type(note_type, opening_type, work, analysis)
+    templates = (account_strategy or {}).get("opening_templates") or {}
+    selected = templates.get(opening_type) if isinstance(templates, dict) else None
+    hooks = _frontstage_hooks(work, analysis, content_brief, evidence)
+    if selected:
+        out = []
+        for line in selected[:3]:
+            try:
+                text = str(line).format(**hooks)
+            except Exception:
+                text = str(line)
+            out.append(_publish_clean(text, 56))
+        return out, opening_type
+    return [
+        _publish_clean(_reader_verdict_line(work, analysis, evidence), 54),
+        _publish_clean(_frontstage_hooks(work, analysis, content_brief, evidence).get("specific_hook"), 54),
+        "先试前几章就够了，节奏稳不稳很快能看出来。",
+    ], opening_type
+
+
+def _build_cover_brief(work, analysis, account_strategy, note_type, cover_template, content_brief):
+    cover_templates = (account_strategy or {}).get("cover_templates") or {}
+    template = cover_templates.get(cover_template or note_type, {}) if isinstance(cover_templates, dict) else {}
+    max_main = int(template.get("main_title_max_len") or 8)
+    max_sub = int(template.get("subtitle_max_len") or 12)
+    hook = content_brief.get("封面钩子", {}) if isinstance(content_brief, dict) else {}
+    category = _publish_phrase(work.get("分类", ""), 8, "网文")
+    topic_hook = _short_topic_hook(work, analysis)
+    if note_type == "warning_review":
+        main = f"{topic_hook}避雷"
+        sub = "但这本能看"
+    elif note_type == "comment_experiment":
+        main = "求投喂"
+        sub = f"{topic_hook}同款"
+    else:
+        main = f"{topic_hook}能追"
+        sub = _publish_phrase(hook.get("主标题") or hook.get("副标题"), 18, "这本先码")
+    return {
+        "template": cover_template or note_type,
+        "main_title": _compact_mobile(main, max_main),
+        "subtitle": _compact_mobile(sub, max_sub),
+        "examples": template.get("examples", []),
+    }
+
+
+def _short_topic_hook(work, analysis):
+    text = " ".join([
+        str(work.get("作品名称", "")),
+        str(work.get("分类", "")),
+        str(work.get("简介", "")),
+        str((analysis.get("卖点分析") or {}).get("核心卖点", "") if isinstance(analysis.get("卖点分析"), dict) else ""),
+    ])
+    rules = [
+        ("无限复活", "无限复活"),
+        ("死亡循环", "死亡循环"),
+        ("时间循环", "时间循环"),
+        ("循环", "循环末世"),
+        ("基建", "末世基建"),
+        ("建城", "末世基建"),
+        ("囤货", "末世囤货"),
+        ("不圣母", "女主清醒"),
+        ("丧尸", "末世文"),
+        ("末世", "末世文"),
+    ]
+    for key, value in rules:
+        if key in text:
+            return value
+    category = _publish_phrase(work.get("分类", ""), 8, "网文")
+    return category or "网文"
+
+
+def _first_safe_line(items, fallback="", max_len=54):
+    for item in items or []:
+        text = _publish_phrase(item, max_len=max_len)
+        if text and not _is_publish_unsafe_fact(text):
+            return text
+    return _publish_phrase(fallback, max_len=max_len)
+
+
+def _reading_boundary_line(read_status):
+    if read_status == "full_read":
+        return "我这版按全文体验说，夸和雷都会直接写。"
+    if read_status == "read_to_chapter":
+        return "我只看到前 N 章，所以后面会不会崩先不乱保票。"
+    return "先说明一下：这篇只按简介里写明的内容判断，没脑补感情线。"
+
+
+def _build_body_sections(work, analysis, note_type, content_brief, evidence, read_status):
+    name = work.get("作品名称", "") or "这本"
+    category = _compact_mobile(work.get("分类", ""), 18) or "网文"
+    lines = []
+    meta = [f"书名：《{name}》", f"作者：{work.get('作者','')}"]
+    words = str(work.get("字数（万）") or work.get("字数") or "").strip()
+    finish = str(work.get("完结状态", "")).strip()
+    if words:
+        meta.append(f"字数：{words}")
+    if finish:
+        meta.append(f"状态：{finish}")
+    lines.extend(meta)
+    lines.append("")
+    if read_status == "synopsis_only":
+        lines.append("先说边界：这篇只按简介和可验证信息判断，不把没出现的感情线/人设硬补上。")
+        lines.append("")
+    if evidence:
+        lines.append("我会先看这几个点：")
+        for item in evidence[:3]:
+            lines.append(f"- {_publish_clean(item, 58)}")
+        lines.append("")
+    if note_type == "warning_review":
+        lines.append("避雷角度看，它不是完全无门槛。")
+        lines.append(_grounded_save_value_line(work))
+    elif note_type == "comment_experiment":
+        lines.append(f"我想继续找这种{category}，尤其是设定能落地、别只靠标签硬撑的。")
+        lines.append("评论区可以直接报书名，我会优先挑同款来拆。")
+    else:
+        lines.extend(_grounded_story_take(work)[:2])
+        lines.append(_grounded_save_value_line(work))
+    lines.append("")
+    return lines
+
+
+def _build_frontstage_sections(work, analysis, note_type, content_brief, evidence, read_status):
+    name = work.get("作品名称", "") or "这本"
+    category = _compact_mobile(work.get("分类", ""), 18) or "网文"
+    topic_hook = _short_topic_hook(work, analysis)
+    material_quality = work.get("素材厚度") if isinstance(work.get("素材厚度"), dict) else {}
+    material_level = material_quality.get("level", "")
+    fact_check = work.get("素材证据卡") or material_quality.get("fact_check") or {}
+    generation_mode = fact_check.get("generation_mode", "")
+    core_sell = _publish_phrase((analysis.get("卖点分析") or {}).get("核心卖点", "") if isinstance(analysis.get("卖点分析"), dict) else "", 58)
+    if _is_publish_unsafe_fact(core_sell):
+        core_sell = ""
+    strongest = core_sell or _first_safe_line(evidence, "", 58)
+    checklist = _value_checklist_for_note(work, analysis, evidence, topic_hook)
+    story_take = _grounded_story_take(work)
+    lines = [
+        f"书名：《{name}》",
+        f"作者：{work.get('作者','')}",
+        "",
+    ]
+    if note_type == "warning_review":
+        lines.extend([
+            f"⚠️ 这本不是无脑冲，但也没到一眼劝退。",
+            f"主要看你吃不吃「{topic_hook}」这口。",
+        ])
+    elif note_type == "comment_experiment":
+        lines.extend([
+            f"💬 这篇我更想拿它当「{topic_hook}」同款入口。",
+            "你手里有类似设定的话，直接报书名，我会优先拆。",
+        ])
+    else:
+        lines.extend([
+            (
+                f"📌 这篇先按“简介快筛”写，不冒充全文拆解；目前能确认的是「{topic_hook}」这个钩子有得写。"
+                if material_level in ("thin", "usable") or generation_mode != "grounded_note" else
+                f"📌 这本不是闭眼神作，但「{topic_hook}」这个钩子有得写。"
+            ),
+            story_take[1] if len(story_take) > 1 else "简介里能看到具体冲突，不是只靠题材硬撑。",
+        ])
+    lines.append("")
+    lines.append(f"✨ 最值得看的不是标签，是这个点：{strongest or topic_hook}")
+    if checklist:
+        lines.append("")
+        lines.append("📌 收藏时可以直接按这几条筛：")
+        for item in checklist[:3]:
+            lines.append(f"- {_publish_clean(item, 64)}")
+    lines.append("")
+    lines.append(f"✅ 适合：{_audience_line(work, analysis, topic_hook)}")
+    lines.append("")
+    lines.append(f"🫷 不太适合：{_risk_line(work, analysis)}")
+    lines.append("")
+    if note_type == "warning_review":
+        lines.append(f"所以它更像是：能吃「{topic_hook}」和一点压迫感的人可以试，只想看轻松爽文的先观望。")
+    else:
+        lines.append(_grounded_save_value_line(work))
+    if read_status == "synopsis_only":
+        if material_quality.get("gaps"):
+            lines.append("资料边界：" + "；".join(material_quality.get("gaps")[:2]) + "。")
+        lines.append("这篇只按简介里写明的信息说，后续反转不提前替它贷款。")
+    lines.append("")
+    return lines
+
+
+def _boundary_warning(work, analysis, read_status):
+    text = " ".join([str(work.get("简介", "")), str((analysis.get("卖点分析") or {}).get("核心卖点", ""))])
+    if any(k in text for k in ["死亡", "虐", "痛苦", "绝望"]):
+        return "死亡循环/压迫感会比较重，怕虐的先试读"
+    if any(k in text for k in ["基建", "建城", "恢复生产"]):
+        return "更吃慢慢建设的爽感，不一定是开局连环爆点"
+    if read_status == "synopsis_only":
+        return "目前只按简介判断，感情线和后续反转先不下结论"
+    return "节奏和后续反转仍建议用前几章确认"
+
+
+def _audience_line(work, analysis, topic_hook):
+    audience = ((analysis.get("小红书包装") or {}).get("受众画像关键词", []) if isinstance(analysis.get("小红书包装"), dict) else [])
+    if not isinstance(audience, list):
+        audience = [str(audience)] if audience else []
+    base = "、".join(str(a) for a in audience[:3] if str(a).strip())
+    if base:
+        return f"{base}，尤其是想找「{topic_hook}」明确看点的读者。"
+    return f"喜欢{topic_hook}、想先判断值不值得追的书荒读者。"
+
+
+def _risk_line(work, analysis):
+    text = " ".join([str(work.get("简介", "")), str((analysis.get("卖点分析") or {}).get("核心卖点", ""))])
+    if any(k in text for k in ["死亡", "虐", "痛苦", "绝望"]):
+        return "只想看轻松治愈、低压无虐的人，可能会觉得累。"
+    if any(k in text for k in ["基建", "建城"]):
+        return "只想看一路打怪升级的人，可能会嫌建设线慢。"
+    return "只想看强刺激爽点的人，建议先试读前几章。"
+
+
+def _build_comment_hook(work, analysis, note_type, account_strategy=None):
+    category = _compact_mobile(work.get("分类", ""), 16) or "同款"
+    topic_hook = _short_topic_hook(work, analysis)
+    intro = str(work.get("简介", "") or "")
+    if note_type == "comment_experiment":
+        return f"求投喂：{topic_hook}同款你最近看完还想安利的是哪本？"
+    if note_type == "warning_review":
+        return f"你看{topic_hook}最介意什么雷点？我下篇按这个标准拆。"
+    if note_type == "booklist":
+        return f"{category}书单你想看哪一类？报关键词我来补。"
+    if "无限复活" in intro or ("复活" in intro and "24小时" in intro):
+        return "无限复活文里，你更吃“越死越强”还是“越死越绝望”？有书名直接报。"
+    if "圣母系统" in intro or ("穿书" in intro and "重生" in intro):
+        return "末世穿书里，你更吃系统任务还是重生男主？有同款直接报书名。"
+    return f"报一本你看过的{topic_hook}同款，我下篇就按这个标准拆。"
+
+
+def _build_publish_tags(work, analysis, raw_tags):
+    tags = _safe_publish_tags(raw_tags)
+    topic = _short_topic_hook(work, analysis)
+    text = " ".join([
+        str(work.get("作品名称", "")),
+        str(work.get("分类", "")),
+        str(work.get("简介", "")),
+    ])
+    derived = []
+    if topic:
+        derived.append(topic)
+    if "穿书" in text:
+        derived.append("穿书文")
+    if any(k in text for k in ["女配", "炮灰"]):
+        derived.append("女配逆袭")
+    if "末世" in text:
+        derived.append("末世文")
+    for tag in derived + ["网文推荐", "书荒推荐"]:
+        if tag and tag not in tags:
+            tags.append(tag)
+    return tags[:5]
+
+
+def _humanized_title(work, analysis):
+    intro = str(work.get("简介", "") or "")
+    name = work.get("作品名称", "") or "这本"
+    fact_check = work.get("素材证据卡") or (work.get("素材厚度", {}) or {}).get("fact_check") or {}
+    if fact_check.get("generation_mode") == "insufficient":
+        return f"{name}这本先别硬推 素材还不够"
+    if "无限复活" in intro or ("复活" in intro and "死亡" in intro):
+        return "死了又复活 复活了又死 这本末世文把我看精神了"
+    if "圣母系统" in intro:
+        return "系统逼她当圣母 男主还想杀她 这本有点损"
+    if "穿书" in intro or "炮灰" in intro:
+        return f"《{name}》这个开局身份真的不算友好"
+    if any(k in intro for k in ["硬核丧尸", "囚车", "死刑犯", "行尸走肉"]):
+        return f"《{name}》这种硬核丧尸开局我会想试"
+    if any(k in intro for k in ["姜羊", "类人小怪物", "母子", "种植食物"]):
+        return f"《{name}》这种末世种田温情线我会想试"
+    if any(k in intro for k in ["锦鲤", "幸运值", "平地摔", "红通通苹果", "变异兔"]):
+        return f"《{name}》这种末世锦鲤设定有点离谱"
+    if any(k in intro for k in ["早死女配", "女配", "送金手指", "空间", "不是人"]):
+        return f"《{name}》这个女配觉醒开局有点爽"
+    return f"{name}这本我有点想聊聊"
+
+
+def _humanized_body_lines(work, analysis, evidence, read_status="synopsis_only", manual_generation_brief=""):
+    intro = str(work.get("简介", "") or "")
+    name = work.get("作品名称", "") or "这本"
+    author = work.get("作者", "")
+    fact_check = work.get("素材证据卡") or (work.get("素材厚度", {}) or {}).get("fact_check") or {}
+    can_write_personal = fact_check.get("read_scope") in ("public_trial_or_rich_material", "full_read")
+
+    if fact_check.get("generation_mode") == "insufficient":
+        return [
+            f"《{name}》这条我先不硬拆。👀",
+            f"作者：{author}",
+            "",
+            "目前系统没有拿到可追溯的官方简介、试读章节或读者评论。",
+            "这种情况下如果继续写“它哪里好看、哪里雷”，本质就是在猜。",
+            "",
+            "所以这篇更适合当素材补全提醒：",
+            "先补官方简介，再看有没有公开试读/目录/书评反馈。",
+            "至少有两三条能对上的信息后，再写推荐会稳很多。⚠️",
+            "",
+            "你们如果看过这本，可以直接告诉我：开局抓不抓人、雷点在哪。",
+            "我会按能查到的素材重新拆，不拿空话硬凑。📚",
+        ]
+
+    if "无限复活" in intro or ("复活" in intro and "死亡" in intro):
+        opening = "家人们 我又挖到一本末世文。🫠" if can_write_personal else "家人们 这本末世文我先按可查素材看。🫠"
+        return [
+            opening,
+            "",
+            "说实话，最近末世文我已经有点看麻了。",
+            "十本里有八本都在堆设定，丧尸、异能、安全屋，听起来很热闹，翻几章又像在看同一篇。",
+            "",
+            f"但《{name}》这个设定，我第一眼还是停住了。👀",
+            f"作者：{author}",
+            "",
+            "女主沈秋会无限复活。",
+            "每次死掉，她都会在安全屋的床上醒过来，时间倒回死亡前24小时。",
+            "",
+            "听起来像开挂，对吧。",
+            "我一开始也这么想。",
+            "",
+            "但这个设定真正抓人的地方，不是“她能重来”。",
+            "是她每一次重来之前，都真的死过一次。",
+            "简介里写得很直白：惨烈的死亡、不断重复、像噩梦一样。",
+            "",
+            "所以我看到这里，脑子里一直冒三个问题：",
+            "1. 她到底能复活几次？",
+            "2. 每次回到24小时前，她能带回多少信息？",
+            "3. 她最后是想活下去，还是想找到一种不用再死的办法？",
+            "",
+            "就这几个问题，已经比“女主有个无敌异能”好看多了。",
+            "",
+            "我比较吃这种设定的原因也在这儿：",
+            "它不是把复活当奖励，而是把复活写成惩罚。",
+            "别人末世求生是怕死，她是死了还得爬起来继续想办法。",
+            "这个压力感如果写稳，会很上头。🔥",
+            "",
+            "但我也先说实话。⚠️",
+            "如果你看文就是为了轻松解压，这本大概率不适合你。",
+            "它不是甜爽挂，也不是那种一路开大清怪的末世文。",
+            "它更像是：前面明知道是坑，但你还是想看她下一次怎么活。",
+            "",
+            "我会先把它放进“末世循环文待看”。",
+            "不是因为它一定封神，而是因为这个复活规则有记忆点，有代价，也有破局目标。",
+            "",
+            "你们看过类似的吗？",
+            "就是主角反复死亡、反复回档那种。",
+            "我个人更吃“越死越绝望但越死越清醒”的，评论区报书名，我想去蹲几本。📚",
+        ]
+
+    if "圣母系统" in intro:
+        return [
+            "这本开局我看着就替女主头疼。😵",
+            "",
+            f"《{name}》",
+            f"作者：{author}",
+            "",
+            "女主不是想当圣母，她是被系统逼着演圣母。",
+            "更损的是，男主重生回来还想杀她。👀",
+            "",
+            "这种设定好看的点，不是“女主善良”，而是她明明在求生，还得把戏演完整。",
+            "如果后面能写出那种表面温柔、心里疯狂盘算的反差，我会很吃。🔥",
+            "",
+            "但如果只是每章刷系统数值，那就容易疲。⚠️",
+            "",
+            "你们更吃这种被迫演戏的女主，还是一上来就掀桌子的女主？评论区给我投喂书名。📚",
+        ]
+
+    if any(k in intro for k in ["硬核丧尸", "囚车", "死刑犯", "行尸走肉"]):
+        boundary = "我先按简介写，不冒充已看完全书。" if read_status == "synopsis_only" else ""
+        brief_line = _publish_clean(manual_generation_brief, 72) if manual_generation_brief else ""
+        return [
+            "这本我会放进硬核末世待看。👀",
+            "",
+            f"《{name}》",
+            f"作者：{author}",
+            "",
+            "它不是那种一上来就开金手指囤货的末世文。",
+            "简介里的开局很具体：高速公路堵车，押送死刑犯的囚车被困，警官和司机先后遇难。",
+            "",
+            "这个设定最抓我的地方，是主角团的身份先天就不“干净”。",
+            "丧尸在外面，囚犯在车里，文明规则又已经开始失效。",
+            "这种开局如果写稳，会比单纯打怪更有压迫感。🔥",
+            "",
+            "我会盯这三件事：",
+            "1. 囚犯之间会不会互相背刺",
+            "2. 丧尸危机是不是只当背景板",
+            "3. 人性挣扎有没有写实，而不是只靠血腥刺激",
+            "",
+            "适合想看硬核丧尸、生存压迫、无CP群像的人。",
+            "如果你只想看轻松爽文、恋爱线很重的末世文，这本可能不是第一选择。⚠️",
+            "",
+            brief_line if brief_line else boundary,
+            "",
+            "你们更怕末世里的丧尸，还是更怕身边的活人？",
+            "我先投活人一票。📚",
+        ]
+
+    if any(k in intro for k in ["姜羊", "类人小怪物", "母子", "种植食物"]):
+        boundary = "我先按简介写，不冒充已看完全书。" if read_status == "synopsis_only" else ""
+        brief_line = _publish_clean(manual_generation_brief, 72) if manual_generation_brief else ""
+        return [
+            "这本不是常见的末世爽文路子。👀",
+            "",
+            f"《{name}》",
+            f"作者：{author}",
+            "",
+            "简介里最抓我的不是丧尸，也不是打怪升级。",
+            "而是末世第十年，姜苓一个人在残破世界里活着，突然生下了一个类人小怪物姜羊。",
+            "",
+            "这个钩子很奇怪，但也很有记忆点。",
+            "它把末世文常见的“活下去”，写成了另一种问题：",
+            "当世界已经坏掉了，人还能不能重新养出一点关系、日常和牵挂。🔥",
+            "",
+            "我会盯这三件事：",
+            "1. 母子线是细腻，还是只拿怪物孩子当噱头",
+            "2. 种田日常有没有生活细节，而不是只喊治愈",
+            "3. 末世背景够不够冷，能不能衬出那点温情",
+            "",
+            "适合想看慢热、末世种田、温情治愈的人。",
+            "如果你只想看一路杀丧尸、升级爆爽，这本可能不是第一选择。⚠️",
+            "",
+            brief_line if brief_line else boundary,
+            "",
+            "末世文里你更吃哪种？",
+            "废墟里种田过日子，还是开局一路打怪升级？📚",
+        ]
+
+    if any(k in intro for k in ["锦鲤", "幸运值", "平地摔", "红通通苹果", "变异兔"]):
+        boundary = "我先按简介写，不冒充已看完全书。" if read_status == "synopsis_only" else ""
+        brief_line = _publish_clean(manual_generation_brief, 72) if manual_generation_brief else ""
+        return [
+            "这本末世文的路子有点反着来。👀",
+            "",
+            f"《{name}》",
+            f"作者：{author}",
+            "",
+            "别人写末世，是丧尸追着人跑。",
+            "这本的钩子是：苏酥以为自己没觉醒异能，结果发现自己像把幸运值点满了。",
+            "",
+            "队友觉得丧尸难打，她看到的是丧尸集体平地摔。",
+            "别人愁物资，她面前能掉苹果，变异兔还能自己撞晕。",
+            "这种“末世很惨，但女主运气过分好”的反差，确实有笑点。🔥",
+            "",
+            "我会盯这三件事：",
+            "1. 锦鲤异能是一直有梗，还是几章后就重复",
+            "2. 轻松甜爽能不能压住末世背景的危险感",
+            "3. 女主是单纯躺赢，还是会主动做选择",
+            "",
+            "适合想看轻松末世、甜爽反差、女主好运流的人。",
+            "如果你想看硬核生存、资源博弈、刀口舔血，这本可能不是第一选择。⚠️",
+            "",
+            brief_line if brief_line else boundary,
+            "",
+            "末世文里你更吃哪种？",
+            "女主靠实力一路打，还是靠离谱好运躺着赢？📚",
+        ]
+
+    if any(k in intro for k in ["早死女配", "女配", "送金手指", "空间", "不是人"]):
+        boundary = "我先按简介写，不冒充已看完全书。" if read_status == "synopsis_only" else ""
+        brief_line = _publish_clean(manual_generation_brief, 72) if manual_generation_brief else ""
+        return [
+            "这本的开局我会想先试几章。👀",
+            "",
+            f"《{name}》",
+            f"作者：{author}",
+            "",
+            "苏涵被烟灰缸砸破头后觉醒，发现自己是末世小说里的早死女配。",
+            "更惨的是，她原本存在的意义，就是开场送金手指给主角。",
+            "",
+            "这个设定爽点很明确：",
+            "她这次没死，金手指还在自己手里，于是从“工具人女配”变成了自己求生的人。",
+            "后面还埋了一个身份钩子：她好像不是人。🔥",
+            "",
+            "我会盯这三件事：",
+            "1. 女主觉醒后够不够清醒，不要又回去给别人铺路",
+            "2. 空间和金手指强度会不会失控",
+            "3. 身份反转是不是有铺垫，而不是硬拐",
+            "",
+            "适合想看末世女配觉醒、空间求生、女主成长型的人。",
+            "如果你只想看大女主开局碾压，这本可能要先看它成长线稳不稳。⚠️",
+            "",
+            brief_line if brief_line else boundary,
+            "",
+            "末世女配文你们更吃哪种？",
+            "清醒搞事业，还是带空间慢慢攒安全感？📚",
+        ]
+
+    return [
+        f"《{name}》我先按可查素材看了一眼。👀",
+        f"作者：{author}",
+        "",
+        "目前能确定的信息不算多，所以我不想硬夸。",
+        "但它至少有一个能继续往下看的钩子：",
+        _first_safe_line(evidence, "核心冲突是清楚的", 64),
+        "",
+        "这种书我一般不会直接冲，会先看前几章是不是有具体情节在推进。⚠️",
+        "",
+        "你们看过的话，可以直接告诉我它后面稳不稳。📚",
+    ]
+
+
+def _build_humanized_note(
+    work,
+    analysis,
+    tags,
+    use_formula=True,
+    account_strategy=None,
+    note_type="normal_recommendation",
+    opening_type=None,
+    read_status="synopsis_only",
+    cover_template=None,
+    source_confidence="synopsis",
+    manual_generation_brief="",
+):
+    title = _humanized_title(work, analysis)
+    evidence = _evidence_points_for_note(work, analysis)
+    lines = [f"【标题】{title}", ""]
+    lines.extend(_humanized_body_lines(work, analysis, evidence, read_status=read_status, manual_generation_brief=manual_generation_brief))
+    if tags:
+        lines.append("")
+        lines.append(" ".join(f"#{str(t).strip().lstrip('#')}" for t in tags[:5] if str(t).strip()))
+    note = _clean_publish_note("\n".join(lines))
+    note = apply_xhs_humanize_note_skill(note, work=work, analysis=analysis, tags=tags)
+    analysis["frontstage_note"] = note
+    analysis["backstage_analysis"] = analysis.get("内容简报") or {}
+    analysis["generation_params"] = {
+        "note_type": note_type,
+        "opening_type": opening_type or "human_story",
+        "cover_template": cover_template or "normal_recommendation",
+        "read_status": read_status,
+        "source_confidence": source_confidence,
+        "manual_generation_brief": manual_generation_brief,
+        "cover_brief": _build_cover_brief(work, analysis, account_strategy or get_account_strategy(), note_type, cover_template or "normal_recommendation", _safe_content_brief_for_note(work, analysis)),
+    }
+    return note
+
+
+def build_xhs_note(
+    work,
+    analysis,
+    use_formula=True,
+    account_strategy=None,
+    note_type="normal_recommendation",
+    opening_type=None,
+    read_status="synopsis_only",
+    cover_template=None,
+    source_confidence="synopsis",
+    manual_generation_brief="",
+):
     account_strategy = account_strategy or get_account_strategy()
     p = analysis["小红书包装"]
     content_brief = _safe_content_brief_for_note(work, analysis)
     tags = p.get("热门标签推荐", [])
     if not isinstance(tags, list):
         tags = [str(tags)] if tags else []
-    tags = _safe_publish_tags(tags)
+    tags = _build_publish_tags(work, analysis, tags)
+    if note_type == "normal_recommendation":
+        return _build_humanized_note(
+            work,
+            analysis,
+            tags,
+            use_formula=use_formula,
+            account_strategy=account_strategy,
+            note_type=note_type,
+            opening_type=opening_type,
+            read_status=read_status,
+            cover_template=cover_template,
+            source_confidence=source_confidence,
+            manual_generation_brief=manual_generation_brief,
+        )
     intro_lines = _mobile_lines(work.get("简介", ""), max_len=96, max_lines=2)
     words = str(work.get("字数（万）") or work.get("字数") or "").strip()
     score = str(work.get("评分", "")).strip()
@@ -1189,113 +1871,42 @@ def build_xhs_note(work, analysis, use_formula=True, account_strategy=None):
         lines.append(f"【标题】{p.get('小红书标题模板', '')}")
     lines.append("")
 
-    lead_lines = [
-        _reader_verdict_line(work, analysis, evidence),
-        evidence[0] if evidence else _publish_phrase(content_brief.get("读者收益", ""), 44),
-        evidence[1] if len(evidence) > 1 else _publish_phrase(analysis.get("卖点分析", {}).get("核心卖点", ""), 44),
-    ]
-    for marker, text in zip(note_emoji[:3], lead_lines):
+    opening_lines, selected_opening = _build_opening_lines(
+        work, analysis, account_strategy, note_type, opening_type, content_brief, evidence
+    )
+    for marker, text in zip(note_emoji[:3], opening_lines):
         if text:
             lines.append(f"{marker} {_publish_clean(text, 52)}")
     lines.append("")
 
-    emotion_words = _grounded_emotion_points(work)
-    variant = _note_variant_seed(work)
-    category = _compact_mobile(work.get("分类", ""), 18) or "网文"
-    name = work.get("作品名称", "")
-    core_sell = _publish_phrase(analysis.get("卖点分析", {}).get("核心卖点", ""), 44)
-    if _is_publish_unsafe_fact(core_sell):
-        core_sell = ""
+    cover_brief = _build_cover_brief(work, analysis, account_strategy, note_type, cover_template or note_type, content_brief)
 
-    if variant == 0:
-        lines.append("我会把它放进“先收藏，书荒时翻出来”的那一类。")
-    elif variant == 1:
-        lines.append(f"这本适合想看{category}，但又怕踩雷的人先做判断。")
-    else:
-        lines.append("我不想把它夸成神作，但这个设定确实有记忆点。")
-    if core_sell:
-        lines.append(f"抓人的地方很直接：{core_sell}。")
+    lines.extend(_build_frontstage_sections(work, analysis, note_type, content_brief, evidence, read_status))
+
+    cta = _build_comment_hook(work, analysis, note_type, account_strategy)
+    lines.append(f"💬 {cta}")
+    lines.append("我会从评论区挑一本继续拆。")
     lines.append("")
 
-    lines.append(f"书名：《{name}》")
-    lines.append(f"作者：{work.get('作者','')}")
-    if words:
-        lines.append(f"字数：{words}")
-    if score:
-        lines.append(f"评分：{score}")
-    if finish:
-        lines.append(f"状态：{finish}")
-    lines.append(f"标签：{_compact_mobile(work.get('分类',''), 48)}")
-    lines.append("")
-
-    if intro_lines:
-        lines.append("📖 先把剧情底子说清楚：")
-        for t in intro_lines:
-            lines.append(f"- {t}")
-        lines.append("")
-
-    for paragraph in _grounded_story_take(work):
-        lines.append(paragraph)
-    lines.append("")
-
-    if emotion_words:
-        lines.append("🌶️ 这本的情绪口味更像：")
-        lines.append(" / ".join(emotion_words))
-        lines.append("")
-
-    sell_point = analysis.get("卖点分析", {})
-    core_sell_long = _publish_clean(sell_point.get("核心卖点", ""), 120)
-    if any(term in core_sell_long for term in ["姐妹们", "瞳孔地震", "人间清醒", "小红书", "爆款笔记"]) or _is_publish_unsafe_fact(core_sell_long):
-        core_sell_long = ""
-    lines.append("💘 我个人最吃的一点：")
-    if core_sell_long:
-        lines.append(core_sell_long)
-    else:
-        lines.append(_publish_clean(content_brief.get("读者收益", ""), 100, "它的爽点不是喊口号，而是能让你快速判断合不合口味。"))
-    lines.append(_grounded_save_value_line(work))
-    lines.append("")
-
-    lines.append("✅ 适合谁看：")
-    audience = p.get("受众画像关键词", [])
-    if not isinstance(audience, list):
-        audience = [str(audience)] if audience else []
-    audience_str = _compact_mobile("、".join(str(a) for a in audience[:3]), 60)
-    if audience_str:
-        lines.append(audience_str)
-    else:
-        lines.append(f"喜欢{category}、想找一本文风稳定的读者。")
-    expand = _compact_mobile(p.get("内容扩展方向", ""), 80)
-    if expand and not _is_publish_unsafe_fact(expand):
-        lines.append(f"如果你喜欢{_publish_phrase(expand, 72)}，这本也值得看。")
-    else:
-        lines.append("避雷：如果只想看极速爽点，可能会觉得铺垫稍多。")
-    lines.append("")
-
-    lines.append("📝 我的结论：")
-    if core_sell:
-        lines.append(f"想找{core_sell}，这本可以先放进书单。")
-    else:
-        lines.append("最近书荒，又想先避开空泛推荐，这本可以先放进书单。")
-    lines.append("")
-
-    lines.append("💬 你来选")
-    cta = _compact_mobile(p.get("互动话术模板", ""), 46)
-    if not cta or any(x in cta for x in ["欢迎评论", "聊聊", "评论区告诉我"]):
-        category = _compact_mobile(work.get("分类", ""), 16) or "同款"
-        if account_strategy.get("id") == "yuanzi_webnovel" and category:
-            cta = f"{category}里你最想被投喂哪本？报书名我去拆"
-        else:
-            cta = f"{category}你更想看哪种？"
-    lines.append(cta)
-    lines.append("我会从评论区挑书继续拆。")
-    lines.append("")
-
-    lines.append("📌 觉得有用就收藏一下，下次书荒不迷路！")
+    topic_hook = _short_topic_hook(work, analysis)
+    lines.append(f"📌 先收藏，下次想找「{topic_hook}」时不用从书海里重新翻。")
     lines.append("")
 
     lines.append("🏷️ 标签")
     lines.append(" ".join(tags))
-    return _clean_publish_note("\n".join(lines))
+    note = _clean_publish_note("\n".join(lines))
+    note = apply_xhs_humanize_note_skill(note, work=work, analysis=analysis, tags=tags)
+    analysis["frontstage_note"] = note
+    analysis["backstage_analysis"] = analysis.get("内容简报") or {}
+    analysis["generation_params"] = {
+        "note_type": note_type,
+        "opening_type": selected_opening,
+        "cover_template": cover_template or note_type,
+        "read_status": read_status,
+        "source_confidence": source_confidence,
+        "cover_brief": cover_brief,
+    }
+    return note
 
 
 def build_experiment_log(work, analysis):

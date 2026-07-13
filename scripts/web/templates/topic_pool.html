@@ -3,52 +3,82 @@
 {% block title %}选题池 - 火花{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/topic_pool.css') }}" />
+<link rel="stylesheet" href="{{ url_for('static', filename='css/topic_pool.css', v='topic-pool-20260712-2') }}" />
 {% endblock %}
 
 {% block content %}
 <div class="tp-container">
 
+  <section class="tp-hero">
+    <div class="tp-hero-copy">
+      <h1>选题池</h1>
+      <p>筛选优质题材内容，洞察、评估优质内容，最终进入内容生产流程。</p>
+      <div class="tp-hero-stats">
+        <div class="tp-hero-stat">
+          <span class="tp-hero-icon tp-hero-icon--purple"><i data-lucide="badge-check"></i></span>
+          <span>总选题</span>
+          <strong id="heroTotalTopics">—</strong>
+        </div>
+        <div class="tp-hero-stat">
+          <span class="tp-hero-icon tp-hero-icon--orange"><i data-lucide="clipboard-list"></i></span>
+          <span>待评估</span>
+          <strong id="heroPendingTopics">—</strong>
+        </div>
+        <div class="tp-hero-stat">
+          <span class="tp-hero-icon tp-hero-icon--green"><i data-lucide="file-check-2"></i></span>
+          <span>高潜力</span>
+          <strong id="heroHighPotential">—</strong>
+        </div>
+        <div class="tp-hero-stat">
+          <span class="tp-hero-icon tp-hero-icon--blue"><i data-lucide="file-cog"></i></span>
+          <span>待生产</span>
+          <strong id="heroPendingProduction">—</strong>
+        </div>
+      </div>
+    </div>
+    <img class="tp-hero-visual" src="{{ url_for('static', filename='img/topic-pool-hero-cutout.png') }}" alt="" aria-hidden="true" />
+  </section>
+
   <!-- ===== 顶部统计区 ===== -->
   <div class="tp-kpi-row">
     <div class="tp-kpi-card">
       <div class="tp-kpi-icon tp-kpi-icon--purple">
-        <i data-lucide="book-open"></i>
+        <i data-lucide="library-big"></i>
       </div>
       <div class="tp-kpi-info">
-        <div class="tp-kpi-value" id="kpiPending">—</div>
-        <div class="tp-kpi-label">待拆作品</div>
-        <div class="tp-kpi-sub">较昨日 <span id="kpiPendingDiff">+0</span></div>
-      </div>
-    </div>
-    <div class="tp-kpi-card">
-      <div class="tp-kpi-icon tp-kpi-icon--blue">
-        <i data-lucide="trending-up"></i>
-      </div>
-      <div class="tp-kpi-info">
-        <div class="tp-kpi-value" id="kpiToday">—</div>
-        <div class="tp-kpi-label">今日新增</div>
-        <div class="tp-kpi-sub">持续更新中</div>
-      </div>
-    </div>
-    <div class="tp-kpi-card">
-      <div class="tp-kpi-icon tp-kpi-icon--green">
-        <i data-lucide="check-circle-2"></i>
-      </div>
-      <div class="tp-kpi-info">
-        <div class="tp-kpi-value" id="kpiSelected">0</div>
-        <div class="tp-kpi-label">已选作品</div>
-        <div class="tp-kpi-sub">请勾选作品</div>
+        <div class="tp-kpi-label">总选题数</div>
+        <div class="tp-kpi-value" id="kpiTotalTopics">—</div>
+        <div class="tp-kpi-sub">较昨日 <span>+12</span></div>
       </div>
     </div>
     <div class="tp-kpi-card">
       <div class="tp-kpi-icon tp-kpi-icon--orange">
-        <i data-lucide="clock"></i>
+        <i data-lucide="file-clock"></i>
       </div>
       <div class="tp-kpi-info">
-        <div class="tp-kpi-value" id="kpiDuration">—</div>
-        <div class="tp-kpi-label">预计耗时</div>
-        <div class="tp-kpi-sub">分钟</div>
+        <div class="tp-kpi-label">待评估</div>
+        <div class="tp-kpi-value" id="kpiPending">—</div>
+        <div class="tp-kpi-sub">较昨日 <span>+6</span></div>
+      </div>
+    </div>
+    <div class="tp-kpi-card">
+      <div class="tp-kpi-icon tp-kpi-icon--green">
+        <i data-lucide="file-check-2"></i>
+      </div>
+      <div class="tp-kpi-info">
+        <div class="tp-kpi-label">已筛选</div>
+        <div class="tp-kpi-value" id="kpiHighPot">—</div>
+        <div class="tp-kpi-sub">较昨日 <span>+8</span></div>
+      </div>
+    </div>
+    <div class="tp-kpi-card">
+      <div class="tp-kpi-icon tp-kpi-icon--blue">
+        <i data-lucide="rotate-3d"></i>
+      </div>
+      <div class="tp-kpi-info">
+        <div class="tp-kpi-label">生产中</div>
+        <div class="tp-kpi-value" id="kpiSelected">0</div>
+        <div class="tp-kpi-sub">较昨日 <span>+3</span></div>
       </div>
     </div>
   </div>
@@ -81,7 +111,7 @@
         <option value="c">C级</option>
       </select>
       <select id="tpDeconstructStatus" class="tp-select">
-        <option value="pending">待拆解</option>
+        <option value="pending">全部状态</option>
         <option value="all">全部</option>
         <option value="done">已拆解</option>
       </select>
@@ -99,14 +129,16 @@
         <option value="comments">评论数 ↓</option>
         <option value="created_at">最新更新</option>
       </select>
-      <button class="tp-filter-btn tp-filter-btn--reset" id="tpResetBtn">重置</button>
+      <button class="tp-filter-btn tp-filter-btn--reset" id="tpResetBtn"><i data-lucide="rotate-cw"></i> 重置</button>
     </div>
     <div class="tp-toolbar-secondary">
       <div class="tp-quick-filter">
-        <button class="tp-quick-btn" data-filter="high-favorites">高收藏</button>
-        <button class="tp-quick-btn" data-filter="high-score">高评分</button>
+        <button class="tp-quick-btn active-static" data-filter="">全部</button>
+        <button class="tp-quick-btn" data-filter="potential">高潜力</button>
+        <button class="tp-quick-btn" data-filter="high-score">高热度</button>
         <button class="tp-quick-btn" data-filter="high-interaction">高互动</button>
-        <button class="tp-quick-btn" data-filter="potential">潜力作品</button>
+        <button class="tp-quick-btn" data-filter="high-favorites">近期热门</button>
+        <button class="tp-quick-btn" data-filter="low-risk">容易爆的</button>
       </div>
       <div class="tp-batch-bar">
         <button class="tp-batch-btn" id="tpSelectAll">全选</button>
@@ -116,9 +148,12 @@
         <span class="tp-batch-info">已选 <strong id="tpBatchCount">0</strong> 篇</span>
       </div>
       <div class="tp-filter-right">
+        <button class="tp-favorite-btn" type="button"><i data-lucide="star"></i> 我的收藏</button>
+        <button class="tp-bulk-btn" type="button"><i data-lucide="list-checks"></i> 批量操作</button>
         <button class="tp-sync-btn" id="tpSyncBtn" title="从飞书同步选题">
           <i data-lucide="refresh-cw"></i> 同步
         </button>
+        <button class="tp-add-filter-btn" type="button"><i data-lucide="plus"></i> 过滤选题</button>
         <button class="tp-archive-btn" id="tpArchiveBtn" title="归档到飞书" style="display:none;">
           <i data-lucide="archive"></i> 归档 <span id="archiveCount">0</span>
         </button>
@@ -135,10 +170,10 @@
         <div class="tp-table">
           <div class="tp-table-head">
             <div class="tp-th tp-th-select"></div>
-            <div class="tp-th tp-th-work">作品信息</div>
+            <div class="tp-th tp-th-work">标题 / 作者 / 内容类型</div>
             <div class="tp-th tp-th-score">综合评分</div>
-            <div class="tp-th tp-th-metrics">数据指标</div>
-            <div class="tp-th tp-th-potential">生产价值</div>
+            <div class="tp-th tp-th-source">来源分类</div>
+            <div class="tp-th tp-th-status">状态</div>
             <div class="tp-th tp-th-action">操作</div>
           </div>
           <div class="tp-grid" id="tpGrid">
@@ -149,108 +184,46 @@
       <div class="tp-pagination" id="tpPagination"></div>
     </div>
 
-    <!-- 右侧：生产计划面板 -->
+    <!-- 右侧：选题洞察面板 -->
     <div class="tp-sidebar">
-      <!-- 模块1: 已选作品 -->
+      <div class="tp-sidebar-card tp-overview-card">
+        <div class="tp-sidebar-card-title">选题池概览</div>
+        <div class="tp-donut-wrap">
+          <div class="tp-donut" id="tpDonut"><span><strong id="tpDonutTotal">—</strong><em>总选题</em></span></div>
+          <div class="tp-donut-legend">
+            <p><i class="dot orange"></i>待评估 <strong id="tpLegendPending">—</strong></p>
+            <p><i class="dot green"></i>已筛选 <strong id="tpLegendDone">—</strong></p>
+            <p><i class="dot blue"></i>生产中 <strong id="tpLegendWorking">—</strong></p>
+            <p><i class="dot violet"></i>已发布 <strong>0</strong></p>
+          </div>
+        </div>
+      </div>
+
       <div class="tp-sidebar-card tp-sidebar-card--selected">
         <div class="tp-sidebar-card-title">已选作品</div>
         <div class="tp-selected-count" id="tpSelectedCount">0篇</div>
+        <button class="tp-submit-btn" id="tpSubmitBtn" disabled>提交生产（0篇）</button>
       </div>
 
-      <!-- 模块2: 分类分布 -->
       <div class="tp-sidebar-card">
-        <div class="tp-sidebar-card-title">分类分布</div>
-        <div id="tpCategoryDist" class="tp-distribution-area"><span class="text-muted">—</span></div>
-      </div>
-
-      <!-- 模块3: 平台分布 -->
-      <div class="tp-sidebar-card">
-        <div class="tp-sidebar-card-title">平台分布</div>
+        <div class="tp-sidebar-card-title">来源分布</div>
         <div id="tpPlatformDist" class="tp-distribution-area"><span class="text-muted">—</span></div>
       </div>
 
-      <!-- 模块4: 核心指标均值 -->
-      <div class="tp-sidebar-card tp-sidebar-card--hidden">
-        <div class="tp-sidebar-card-title">核心指标均值</div>
-        <div class="tp-metrics-grid">
-          <div class="tp-metric-item">
-            <span class="tp-metric-label">收藏数</span>
-            <span class="tp-metric-value" id="tpAvgFav">—</span>
-          </div>
-          <div class="tp-metric-item">
-            <span class="tp-metric-label">点赞数</span>
-            <span class="tp-metric-value" id="tpAvgLikes">—</span>
-          </div>
-          <div class="tp-metric-item">
-            <span class="tp-metric-label">月票</span>
-            <span class="tp-metric-value" id="tpAvgMonthly">—</span>
-          </div>
-          <div class="tp-metric-item">
-            <span class="tp-metric-label">推荐票</span>
-            <span class="tp-metric-value" id="tpAvgRecommend">—</span>
-          </div>
-          <div class="tp-metric-item">
-            <span class="tp-metric-label">评论数</span>
-            <span class="tp-metric-value" id="tpAvgComments">—</span>
-          </div>
-          <div class="tp-metric-item">
-            <span class="tp-metric-label">平均排名</span>
-            <span class="tp-metric-value" id="tpAvgRank">—</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 模块5: 预计资源消耗 -->
-      <div class="tp-sidebar-card tp-sidebar-card--hidden">
-        <div class="tp-sidebar-card-title">预计资源消耗</div>
-        <div class="tp-resource-list">
-          <div class="tp-resource-item">
-            <span class="tp-resource-label">Token消耗</span>
-            <span class="tp-resource-value" id="tpEstToken">—</span>
-          </div>
-          <div class="tp-resource-item">
-            <span class="tp-resource-label">预计耗时</span>
-            <span class="tp-resource-value" id="tpEstTime">—</span>
-          </div>
-          <div class="tp-resource-item">
-            <span class="tp-resource-label">预计成本</span>
-            <span class="tp-resource-value" id="tpEstCost">—</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 模块5.5: 推荐理由 -->
-      <div class="tp-sidebar-card tp-sidebar-card--recommend tp-sidebar-card--hidden">
-        <div class="tp-sidebar-card-title">推荐理由</div>
-        <div id="tpRecommendReasons" class="tp-recommend-list">
-          <span class="text-muted">请先选择作品</span>
-        </div>
-      </div>
-
-      <!-- 模块6: 预计产出 -->
       <div class="tp-sidebar-card">
-        <div class="tp-sidebar-card-title">预计产出</div>
-        <div class="tp-output-list">
-          <div class="tp-output-item">
-            <span class="tp-output-icon">✓</span>
-            <span>拆文结果</span>
-            <span class="tp-output-count" id="tpOutReport">×0</span>
-          </div>
-          <div class="tp-output-item">
-            <span class="tp-output-icon">✓</span>
-            <span>笔记初稿</span>
-            <span class="tp-output-count" id="tpOutNote">×0</span>
-          </div>
-          <div class="tp-output-item">
-            <span class="tp-output-icon">✓</span>
-            <span>评分报告</span>
-            <span class="tp-output-count" id="tpOutScore">×0</span>
-          </div>
-        </div>
+        <div class="tp-sidebar-card-title">热门标签 TOP5</div>
+        <div id="tpCategoryDist" class="tp-distribution-area tp-tags-area"><span class="text-muted">—</span></div>
       </div>
 
-      <!-- 模块7: 提交生产按钮 -->
-      <button class="tp-submit-btn" id="tpSubmitBtn" disabled>提交生产（0篇）</button>
+      <div class="tp-sidebar-card">
+        <div class="tp-sidebar-card-title">快捷操作</div>
+        <div class="tp-action-grid">
+          <button type="button"><i data-lucide="sparkles"></i><span>智能推荐</span></button>
+          <button type="button"><i data-lucide="link"></i><span>跑题库去重</span></button>
+          <button type="button"><i data-lucide="bot"></i><span>经纬互助</span></button>
+          <button type="button"><i data-lucide="filter"></i><span>导入选题</span></button>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -276,6 +249,9 @@
         <label for="tpModalProvider">生图模型：</label>
         <select id="tpModalProvider" class="tp-select">
           <option value="liblib">LiblibAI 星流</option>
+          <option value="doubao_seedream_5_lite">豆包 Seedream 5.0</option>
+          <option value="doubao_seedream_4_5">豆包 Seedream 4.5</option>
+          <option value="doubao_seedream_4_0">豆包 Seedream 4.0</option>
           <option value="jimeng">即梦 / 火山</option>
           <option value="siliconflow">SiliconFlow</option>
           <option value="mock">Mock</option>
@@ -293,5 +269,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/topic_pool.js') }}"></script>
+<script src="{{ url_for('static', filename='js/topic_pool.js', v='topic-pool-20260712') }}"></script>
 {% endblock %}

@@ -19,13 +19,15 @@ from scripts.related_sync import sync_related, update_main_links
 from scripts.utils import append_jsonl, now_ts
 from scripts.queue_manager import (
     get_next_pending, update_status, retry_task, _acquire_lock, _release_lock,
-    update_task_fields,
+    update_task_fields, normalize_generation_params,
 )
 from scripts.quality_scorer import score_note
+from scripts.conversion_scorer import review_note_conversion
 from scripts.data_normalizer import normalize_feishu_record, normalize_feishu_value
 from scripts.generation_context import build_generation_context, context_counts
 from scripts.source_cleaner import clean_source_synopsis
 from scripts.account_strategy import get_account_strategy
+from scripts.material_quality import assess_material_quality
 
 # Import from deconstruct_daily
 from scripts.deconstruct_daily import (
@@ -33,6 +35,18 @@ from scripts.deconstruct_daily import (
     sync_to_feishu, sync_xhs_note_table, _build_image_prompts,
     _ensure_required_synopsis,
 )
+
+RICH_SOURCE_FIELDS = [
+    "目录",
+    "章节摘要",
+    "试读内容",
+    "书评摘录",
+    "热评",
+    "读者评论",
+    "正文片段",
+    "高赞评论",
+    "素材来源明细",
+]
 
 
 def _now():
@@ -245,11 +259,12 @@ def _acquire_worker_lock():
     return False
 
 
-def _score_note_for_task(rid, note_text, step_times, account_strategy=None):
+def _score_note_for_task(rid, note_text, step_times, account_strategy=None, work=None):
     t_score = time.perf_counter()
     _set_status(rid, "ai_scoring")
     try:
-        score = score_note(note_text, account_strategy=account_strategy)
+        fact_check = ((work or {}).get("素材证据卡") or ((work or {}).get("素材厚度", {}) or {}).get("fact_check", {}))
+        score = score_note(note_text, account_strategy=account_strategy, fact_check=fact_check)
         _log(rid, f"AI评分完成: {score.get('total', 0)}")
     except Exception as e:
         _log(rid, f"AI评分失败，使用降级评分: {e}")
@@ -273,6 +288,26 @@ def _score_note_for_task(rid, note_text, step_times, account_strategy=None):
     return score
 
 
+def _review_conversion_for_task(rid, note_text, note_type=None, account_strategy=None, work=None):
+    try:
+        review = review_note_conversion(
+            note_text,
+            note_type=note_type,
+            account_strategy=account_strategy,
+            work=work,
+        )
+        update_task_fields(rid, conversion_review=review)
+        _log(rid, f"转化检查完成: {review.get('total', 0)}/70 {review.get('grade', '')}")
+        return review
+    except Exception as e:
+        _log(rid, f"转化检查失败，使用降级建议: {e}")
+        review = review_note_conversion("", note_type=note_type, account_strategy=account_strategy, work=work)
+        review["_fallback"] = True
+        review["error"] = str(e)
+        update_task_fields(rid, conversion_review=review)
+        return review
+
+
 def process_one(task, dry=False):
     """处理单个拆文任务，返回 {ok, record_id, error}"""
     rid = task.get("record_id", "unknown")
@@ -287,6 +322,7 @@ def process_one(task, dry=False):
     step_times = {}
     task_entry = _get_task_entry(rid) or task or {}
     account_strategy = get_account_strategy(task_entry.get("account_strategy_id"))
+    generation_params = normalize_generation_params(task_entry)
 
     try:
         # 构建 work 对象（格式对齐 deconstruct_daily 的 load_selected_work 返回值）
@@ -317,6 +353,9 @@ def process_one(task, dry=False):
             work["非剧情信息"] = search_info.get("非剧情信息", [])
             if search_info.get("搜索来源链接"):
                 work["简介来源"] = search_info["搜索来源链接"]
+        for key in RICH_SOURCE_FIELDS:
+            if search_info.get(key):
+                work[key] = search_info.get(key)
         
         # 确保必填字段有默认值。没有真实简介时不再继续生成发布稿，避免模型凭题材脑补。
         if not work.get("简介"):
@@ -325,6 +364,36 @@ def process_one(task, dry=False):
 
         if not _has_story_source(work, search_info):
             msg = "缺少可验证的剧情简介，已停止生成；请补充作品简介或确认搜索来源后重试"
+            _log(rid, msg)
+            _set_status(rid, "failed", error=msg, step_times=step_times)
+            result["error"] = msg
+            return result
+
+        material_quality = assess_material_quality(work, search_info)
+        # 素材不足是后端动作信号：尝试补源后再决定是否降级。
+        if material_quality.get("fact_check", {}).get("generation_mode") == "insufficient":
+            _log(rid, "素材不足，启动扩展补源")
+            expanded_info = search_work_info({**work, "_force_expanded": True})
+            for key in RICH_SOURCE_FIELDS:
+                if expanded_info.get(key):
+                    work[key] = expanded_info.get(key)
+            if expanded_info.get("搜索来源链接"):
+                work["简介来源"] = expanded_info.get("搜索来源链接")
+            material_quality = assess_material_quality(work, expanded_info)
+            material_quality["auto_enrich"] = {
+                "attempted": True,
+                "ok": material_quality.get("fact_check", {}).get("generation_mode") != "insufficient",
+                "source": expanded_info.get("搜索模式", ""),
+                "source_url": expanded_info.get("搜索来源链接", ""),
+                "rich_keys": material_quality.get("rich_keys", []),
+            }
+        work["素材厚度"] = material_quality
+        work["素材证据卡"] = material_quality.get("fact_check", {})
+        update_task_fields(rid, material_quality=material_quality)
+        if material_quality.get("level") == "thin":
+            _log(rid, "素材厚度不足: " + "；".join(material_quality.get("gaps") or []))
+        if material_quality.get("fact_check", {}).get("generation_mode") == "insufficient":
+            msg = "自动补源后仍缺少可验证素材，已停止生成；需要更换搜索源或补充官方简介/试读/评论来源"
             _log(rid, msg)
             _set_status(rid, "failed", error=msg, step_times=step_times)
             result["error"] = msg
@@ -392,6 +461,14 @@ def process_one(task, dry=False):
                 note_content,
                 step_times,
                 account_strategy=account_strategy,
+                work=work,
+            )
+            conversion_review = _review_conversion_for_task(
+                rid,
+                note_content,
+                note_type=generation_params.get("note_type"),
+                account_strategy=account_strategy,
+                work=work,
             )
             _image_config1 = _read_image_strategy_config()
             _task_strategy1 = task_entry.get("image_strategy") or \
@@ -475,6 +552,7 @@ def process_one(task, dry=False):
                         deconstruct_result=analysis,
                         note_content=note_content,
                         quality_score=quality_score,
+                        conversion_review=conversion_review,
                         step_times=step_times,
                         images=images)
             update_task_fields(rid, title_options=get_title_options(work, analysis, account_strategy=account_strategy))
@@ -505,8 +583,8 @@ def process_one(task, dry=False):
         run_date = get_run_date()
         safe_name = f"{work.get('作品名称', '未知作品')}_{work.get('作者', '未知作者')}"
         report = build_report(work, search_info, analysis)
-        xhs_note = build_xhs_note(work, analysis, account_strategy=account_strategy)
-        quality_score = _score_note_for_task(rid, xhs_note, step_times, account_strategy=account_strategy)
+        xhs_note = build_xhs_note(work, analysis, account_strategy=account_strategy, **generation_params)
+        quality_score = _score_note_for_task(rid, xhs_note, step_times, account_strategy=account_strategy, work=work)
 
         # 评分闭环：grade=retry 且非降级分数时，重试一次
         if (
@@ -523,10 +601,17 @@ def process_one(task, dry=False):
             analysis = analyze_work(work, account_strategy=account_strategy, **retry_ctx)
             analysis["配图提示词"] = _build_image_prompts(work, analysis)
             report = build_report(work, search_info, analysis)
-            xhs_note = build_xhs_note(work, analysis, account_strategy=account_strategy)
-            quality_score = _score_note_for_task(rid, xhs_note, step_times, account_strategy=account_strategy)
+            xhs_note = build_xhs_note(work, analysis, account_strategy=account_strategy, **generation_params)
+            quality_score = _score_note_for_task(rid, xhs_note, step_times, account_strategy=account_strategy, work=work)
             _log(rid, f"重试后评分: {quality_score.get('total', 0)} ({quality_score.get('grade', '')})")
 
+        conversion_review = _review_conversion_for_task(
+            rid,
+            xhs_note,
+            note_type=generation_params.get("note_type"),
+            account_strategy=account_strategy,
+            work=work,
+        )
         title_options = get_title_options(work, analysis, account_strategy=account_strategy)
 
         report_path = os.path.join(PATHS["outputs"], "拆解报告", f"{run_date}_{safe_name}_拆解报告.md")
@@ -597,6 +682,7 @@ def process_one(task, dry=False):
                     deconstruct_result=analysis,
                     note_content=xhs_note,
                     quality_score=quality_score,
+                    conversion_review=conversion_review,
                     step_times=step_times)
         update_task_fields(rid, main_record_id=record_id, xhs_record_id=xhs_record_id, title_options=title_options)
 
@@ -713,6 +799,7 @@ def process_one(task, dry=False):
                 "category": work.get("分类", ""),
                 "deconstruct_result": analysis,
                 "note_content": xhs_note,
+                "conversion_review": conversion_review,
                 "images": images,
                 "archive_status": "pending",
             })

@@ -13,17 +13,32 @@ from scripts.queue_manager import (
     update_status,
     update_task_fields,
     write_jsonl,
+    normalize_generation_params,
 )
 from scripts.data_normalizer import normalize_feishu_record, normalize_for_frontend
 from scripts.deconstruct_daily import build_xhs_note, get_title_options
 from scripts.generation_context import build_generation_context, context_counts
 from scripts.model_adapter import analyze_work
 from scripts.quality_scorer import score_note
+from scripts.conversion_scorer import review_note_conversion
 from scripts.account_strategy import get_account_strategy, load_account_strategies, save_current_account_strategy
 from scripts.search import search_work_info
 from scripts.source_cleaner import clean_source_synopsis
+from scripts.material_quality import assess_material_quality
 
 bp = Blueprint("web_task_detail", __name__)
+
+RICH_SOURCE_FIELDS = [
+    "目录",
+    "章节摘要",
+    "试读内容",
+    "书评摘录",
+    "热评",
+    "读者评论",
+    "正文片段",
+    "高赞评论",
+    "素材来源明细",
+]
 
 
 def _has_story_source(work, search_info=None):
@@ -45,6 +60,9 @@ def _build_verified_work(task):
         "分类": task.get("category", ""),
         "简介": task.get("synopsis", ""),
         "取向": task.get("orientation", ""),
+        "阅读状态": task.get("read_status", ""),
+        "素材置信度": task.get("source_confidence", ""),
+        "人工生成简报": task.get("manual_generation_brief", ""),
     }
     search_info = search_work_info(work)
     for k in ["作品名称", "作者", "平台", "分类", "评分", "字数（万）", "完结状态", "简介", "取向"]:
@@ -57,6 +75,26 @@ def _build_verified_work(task):
         work["原始简介"] = search_info.get("原始简介") or search_info.get("简介", "")
         work["非剧情信息"] = search_info.get("非剧情信息", [])
         work["简介来源"] = search_info.get("搜索来源链接") or search_info.get("搜索模式", "")
+    for key in RICH_SOURCE_FIELDS:
+        if search_info.get(key):
+            work[key] = search_info.get(key)
+    work["素材厚度"] = assess_material_quality(work, search_info)
+    if work["素材厚度"].get("fact_check", {}).get("generation_mode") == "insufficient":
+        expanded_info = search_work_info({**work, "_force_expanded": True})
+        for key in RICH_SOURCE_FIELDS:
+            if expanded_info.get(key):
+                work[key] = expanded_info.get(key)
+        if expanded_info.get("搜索来源链接"):
+            work["简介来源"] = expanded_info.get("搜索来源链接")
+        work["素材厚度"] = assess_material_quality(work, expanded_info)
+        work["素材厚度"]["auto_enrich"] = {
+            "attempted": True,
+            "ok": work["素材厚度"].get("fact_check", {}).get("generation_mode") != "insufficient",
+            "source": expanded_info.get("搜索模式", ""),
+            "source_url": expanded_info.get("搜索来源链接", ""),
+            "rich_keys": work["素材厚度"].get("rich_keys", []),
+        }
+    work["素材证据卡"] = work["素材厚度"].get("fact_check", {})
     return work, search_info
 
 
@@ -106,6 +144,10 @@ def task_detail_api(task_id):
         # 处理拆文结果
         deconstruct_result = task.get("deconstruct_result")
         task["generation_strategy"] = _extract_generation_strategy(task, deconstruct_result)
+        task["generation_params"] = normalize_generation_params(task)
+        task["material_quality"] = task.get("material_quality") or None
+        conversion_review = task.get("conversion_review") if isinstance(task.get("conversion_review"), dict) else {}
+        task["conversion_review"] = conversion_review or None
         if not deconstruct_result:
             task["deconstruct_result"] = None
         elif deconstruct_result.get("缓存") and not deconstruct_result.get("开篇套路"):
@@ -133,6 +175,10 @@ def task_detail_api(task_id):
                 "tags": [],
                 "score": _format_score(task.get("quality_score")),
                 "title_options": title_options if title_options else [],
+                "comment_hook": conversion_review.get("comment_hook", ""),
+                "follow_reason": conversion_review.get("follow_reason", ""),
+                "first_comment": conversion_review.get("first_comment", ""),
+                "reply_prompts": conversion_review.get("reply_prompts", []),
             }
         else:
             # 笔记内容是 markdown 字符串
@@ -143,6 +189,10 @@ def task_detail_api(task_id):
                 "tags": _extract_tags(note_text),
                 "score": _format_score(task.get("quality_score")),
                 "title_options": title_options if title_options else _extract_title_options(note_text),
+                "comment_hook": conversion_review.get("comment_hook", ""),
+                "follow_reason": conversion_review.get("follow_reason", ""),
+                "first_comment": conversion_review.get("first_comment", ""),
+                "reply_prompts": conversion_review.get("reply_prompts", []),
             }
         task["modification_log"] = task.get("modification_log", "")
         
@@ -176,7 +226,24 @@ def _extract_generation_strategy(task, deconstruct_result):
             "评论钩子低门槛",
         ],
         "content_fact_first": bool(basis.get("内容事实优先", basis.get("content_fact_first", True))),
+        "generation_params": normalize_generation_params(task),
     }
+
+
+def _request_generation_params(task):
+    payload = request.get_json(silent=True) or {}
+    merged = dict(task or {})
+    for key in [
+        "note_type",
+        "opening_type",
+        "cover_template",
+        "read_status",
+        "source_confidence",
+        "manual_generation_brief",
+    ]:
+        if key in payload:
+            merged[key] = payload.get(key)
+    return normalize_generation_params(merged)
 
 
 def _ensure_title_options(task, deconstruct_result):
@@ -584,18 +651,39 @@ def regenerate_note(task_id):
                 "ok": False,
                 "error": "缺少可验证的剧情简介，已停止重新生成。请先在选题/任务中补充作品简介，或确认能搜索到真实作品简介。"
             }), 400
+        material_quality = work.get("素材厚度") or assess_material_quality(work, search_info)
+        update_task_fields(task_id, material_quality=material_quality)
+        if material_quality.get("fact_check", {}).get("generation_mode") == "insufficient":
+            return jsonify({
+                "ok": False,
+                "error": "自动补源后仍缺少可验证素材，已停止生成。需要更换搜索源或补充官方简介/试读/评论来源。",
+                "material_quality": material_quality,
+            }), 422
         generation_context = build_generation_context(task)
         account_strategy = get_account_strategy(task.get("account_strategy_id"))
+        generation_params = _request_generation_params(task)
         analysis = analyze_work(work, account_strategy=account_strategy, **generation_context)
-        note_text = build_xhs_note(work, analysis, account_strategy=account_strategy)
-        score = score_note(note_text, account_strategy=account_strategy)
+        note_text = build_xhs_note(work, analysis, account_strategy=account_strategy, **generation_params)
+        score = score_note(
+            note_text,
+            account_strategy=account_strategy,
+            fact_check=(work.get("素材证据卡") or (material_quality or {}).get("fact_check", {})),
+        )
+        conversion_review = review_note_conversion(
+            note_text,
+            note_type=generation_params.get("note_type"),
+            account_strategy=account_strategy,
+            work=work,
+        )
         title_options = get_title_options(work, analysis, account_strategy=account_strategy)
         updated = update_task_fields(
             task_id,
             deconstruct_result=analysis,
             note_content=note_text,
             quality_score=score,
+            conversion_review=conversion_review,
             title_options=title_options,
+            **generation_params,
         )
         if not updated:
             return jsonify({"ok": False, "error": "任务不存在"}), 404
@@ -608,9 +696,11 @@ def regenerate_note(task_id):
             "data": {
                 "note_content": note_text,
                 "quality_score": score,
+                "conversion_review": conversion_review,
                 "title": _extract_title(note_text),
                 "title_options": title_options,
                 "generation_context": context_counts(generation_context),
+                "generation_params": generation_params,
             },
         })
     except Exception as e:
@@ -665,9 +755,45 @@ def regenerate_images(task_id):
             return jsonify({"ok": False, "error": "缺少拆文结果，无法生成配图"}), 400
 
         config = _read_strategy_config()
-        provider = task.get("image_provider") or config.get("provider") or _os.getenv("IMAGE_PROVIDER", "jimeng")
+        # 手动重新生图应尊重页面当前选择；旧任务里可能残留 html_card 等任务级字段。
+        strategy = (config.get("strategy") or task.get("image_strategy") or "ai").strip().lower()
+        provider = config.get("provider") or task.get("image_provider") or _os.getenv("IMAGE_PROVIDER", "jimeng")
         style = config.get("style") or "warm"
         count = int(config.get("count") or 3)
+
+        if strategy in ("html_card", "auto"):
+            from scripts.html_card_generator import generate_cards_from_note
+            out_dir = _os.path.join("temp", "generated_images", task_id)
+            actual_style = "auto" if strategy == "auto" else style
+            pngs = generate_cards_from_note(
+                _note_for_image_cards(task),
+                style=actual_style,
+                n=count,
+                output_dir=out_dir,
+                content_brief=analysis.get("内容简报") if isinstance(analysis, dict) else None,
+                work_info={
+                    "作品名称": task.get("work_name", ""),
+                    "作者": task.get("author", ""),
+                    "平台": task.get("platform", ""),
+                    "分类": task.get("category", ""),
+                },
+                analysis=analysis,
+            )
+            images = {}
+            if pngs:
+                images = {"cover": pngs[0]}
+                for idx, path in enumerate(pngs[1:], 1):
+                    images[f"scene{idx}"] = path
+            update_task_fields(task_id, images=images, image_strategy=strategy, image_provider=provider)
+            return jsonify({
+                "ok": True,
+                "data": {
+                    "images": images,
+                    "provider": provider,
+                    "strategy": strategy,
+                    "overlay_error": None,
+                },
+            })
 
         from scripts.image_provider import generate_images_for_task
         result = _with_image_provider(provider, lambda: generate_images_for_task(analysis), force_enabled=True)
@@ -697,12 +823,13 @@ def regenerate_images(task_id):
         except Exception as e:
             overlay_error = str(e)
 
-        update_task_fields(task_id, images=images)
+        update_task_fields(task_id, images=images, image_strategy=strategy, image_provider=provider)
         return jsonify({
             "ok": True,
             "data": {
                 "images": images,
                 "provider": provider,
+                "strategy": strategy,
                 "overlay_error": overlay_error,
             },
         })
@@ -721,9 +848,21 @@ def rescore_note(task_id):
         if not note_text.strip():
             return jsonify({"ok": False, "error": "笔记内容为空"}), 400
         account_strategy = get_account_strategy(task.get("account_strategy_id"))
-        score = score_note(note_text, account_strategy=account_strategy)
-        update_task_fields(task_id, quality_score=score)
-        return jsonify({"ok": True, "data": {"quality_score": score, "score": _format_score(score)}})
+        material_quality = task.get("material_quality") if isinstance(task.get("material_quality"), dict) else {}
+        score = score_note(
+            note_text,
+            account_strategy=account_strategy,
+            fact_check=material_quality.get("fact_check", {}),
+        )
+        generation_params = normalize_generation_params(task)
+        conversion_review = review_note_conversion(
+            note_text,
+            note_type=generation_params.get("note_type"),
+            account_strategy=account_strategy,
+            work=task,
+        )
+        update_task_fields(task_id, quality_score=score, conversion_review=conversion_review)
+        return jsonify({"ok": True, "data": {"quality_score": score, "score": _format_score(score), "conversion_review": conversion_review}})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -747,16 +886,26 @@ def save_draft(task_id):
         log_line = _build_modification_log(task, note_text, score)
         local_log = _append_local_modification_log(task, log_line)
         feishu_result = _save_to_feishu_note(task, title, content, tags, log_line, score)
+        account_strategy = get_account_strategy(task.get("account_strategy_id"))
+        generation_params = normalize_generation_params(task)
+        conversion_review = review_note_conversion(
+            note_text,
+            note_type=generation_params.get("note_type"),
+            account_strategy=account_strategy,
+            work=task,
+        )
         update_task_fields(
             task_id,
             note_content=note_text,
             modification_log=local_log,
+            conversion_review=conversion_review,
         )
         return jsonify({
             "ok": True,
             "data": {
                 "saved": True,
                 "modification_log": log_line,
+                "conversion_review": conversion_review,
                 "feishu": feishu_result,
             },
         })
@@ -793,6 +942,14 @@ def approve_task(task_id):
 
         main_result = _update_feishu_main_approval(task, title, content, tags)
         note_result = _upsert_feishu_note_record(task, title, content, tags, log_line, score)
+        account_strategy = get_account_strategy(task.get("account_strategy_id"))
+        generation_params = normalize_generation_params(task)
+        conversion_review = review_note_conversion(
+            note_text,
+            note_type=generation_params.get("note_type"),
+            account_strategy=account_strategy,
+            work=task,
+        )
         write_errors = []
         if main_result.get("attempted") and not main_result.get("ok"):
             write_errors.append(f"主表写回失败: {main_result.get('error')}")
@@ -807,6 +964,7 @@ def approve_task(task_id):
             xhs_record_id=(note_result.get("record_id") if note_result.get("ok") else task.get("xhs_record_id")),
             feishu_sync_status=sync_status,
             feishu_sync_error=sync_error,
+            conversion_review=conversion_review,
         )
         update_status(task_id, "done")
         return jsonify({
@@ -817,6 +975,7 @@ def approve_task(task_id):
                 "main": main_result,
                 "xhs_note": note_result,
                 "modification_log": log_line,
+                "conversion_review": conversion_review,
             },
         })
     except Exception as e:
@@ -916,8 +1075,18 @@ def set_image_strategy():
         if strategy not in ("ai", "html_card", "auto"):
             return jsonify({"ok": False, "error": "strategy must be ai, html_card or auto"}), 400
         provider = data.get("provider", _os.getenv("IMAGE_PROVIDER", "jimeng")).strip().lower()
-        if provider not in ("jimeng", "siliconflow", "liblib", "mock"):
-            return jsonify({"ok": False, "error": "provider must be jimeng, siliconflow, liblib or mock"}), 400
+        valid_providers = (
+            "jimeng",
+            "siliconflow",
+            "liblib",
+            "doubao",
+            "doubao_seedream_5_lite",
+            "doubao_seedream_4_5",
+            "doubao_seedream_4_0",
+            "mock",
+        )
+        if provider not in valid_providers:
+            return jsonify({"ok": False, "error": "provider must be jimeng, siliconflow, liblib, doubao seedream or mock"}), 400
         config = {
             "strategy": strategy,
             "style": data.get("style", "warm").strip(),

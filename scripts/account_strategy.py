@@ -21,6 +21,71 @@ DEFAULT_STRATEGIES = {
             {"name": "搜索长尾型", "template": "{category}新手必看"},
             {"name": "互动型", "template": "{category}你更想看哪种"},
         ],
+        "note_types": {
+            "normal_recommendation": {
+                "label": "正常单本推荐",
+                "ratio": 0.7,
+                "goal": "收藏、搜索长尾、稳定涨粉",
+            },
+            "comment_experiment": {
+                "label": "求投喂/书荒互助",
+                "ratio": 0.2,
+                "goal": "拉评论、激活账号",
+            },
+            "warning_review": {
+                "label": "避雷/争议判断",
+                "ratio": 0.1,
+                "goal": "拉点击和讨论",
+            },
+            "booklist": {
+                "label": "书单合集",
+                "goal": "提高收藏和搜索长尾",
+            },
+        },
+        "opening_templates": {
+            "strong_recommend": [
+                "这本适合想看「{genre_hook}」的姐妹。",
+                "我最吃的是「{specific_hook}」，不是那种「{common_thunder}」。",
+                "如果你最近书荒，可以先试前 10 章。",
+            ],
+            "warning_reversal": [
+                "我一开始差点把这本划走，因为「{apparent_risk}」。",
+                "但看下去发现「{reversal_hook}」还挺稳。",
+                "介意「{real_threshold}」的先慎入，能吃这个点的可以试试。",
+            ],
+            "book_shortage_rescue": [
+                "书荒的时候，这种「{genre}」真的很好用。",
+                "不用动太多脑子，爽点就在「{specific_hook}」。",
+                "想找「{search_keyword}」的，可以先把这本放进待看。",
+            ],
+            "audience_filter": [
+                "想看「{preference_a}」但怕又是空壳设定的，可以先停一下。",
+                "这本抓人的点是「{specific_hook}」。",
+                "重点看规则、代价和破局目标，少一个都容易水。",
+            ],
+            "rant_entry": [
+                "我真的受不了那种「{common_thunder}」的末世文。",
+                "所以这本让我舒服的点很简单：「{anti_thunder_hook}」。",
+                "女主「{specific_behavior}」，看着就很省心。",
+            ],
+        },
+        "cover_templates": {
+            "normal_recommendation": {
+                "main_title_max_len": 8,
+                "subtitle_max_len": 12,
+                "examples": ["末世种田文\n这本能追", "女主清醒\n基建很安心"],
+            },
+            "warning_review": {
+                "main_title_max_len": 8,
+                "subtitle_max_len": 12,
+                "examples": ["末世文避雷\n但这本能看", "女主不圣母\n靠本事吃饭"],
+            },
+            "comment_experiment": {
+                "main_title_max_len": 8,
+                "subtitle_max_len": 14,
+                "examples": ["求投喂！\n女主不圣母的\n末世文"],
+            },
+        },
         "cover_rules": {
             "main_title_max_len": 16,
             "subtitle_max_len": 24,
@@ -59,6 +124,71 @@ DEFAULT_STRATEGIES = {
             {"name": "搜索长尾型", "template": "书荒必看{category}推荐"},
             {"name": "互动求投喂型", "template": "{category}党求投喂同款"},
         ],
+        "note_types": {
+            "normal_recommendation": {
+                "label": "正常单本推荐",
+                "ratio": 0.7,
+                "goal": "收藏、搜索长尾、稳定涨粉",
+            },
+            "comment_experiment": {
+                "label": "求投喂/书荒互助",
+                "ratio": 0.2,
+                "goal": "拉评论、激活账号",
+            },
+            "warning_review": {
+                "label": "避雷/争议判断",
+                "ratio": 0.1,
+                "goal": "拉点击和讨论",
+            },
+            "booklist": {
+                "label": "书单合集",
+                "goal": "提高收藏和搜索长尾",
+            },
+        },
+        "opening_templates": {
+            "strong_recommend": [
+                "这本适合想看「{genre_hook}」的姐妹。",
+                "我最吃的是「{specific_hook}」，不是那种「{common_thunder}」。",
+                "如果你最近书荒，可以先试前 10 章。",
+            ],
+            "warning_reversal": [
+                "我一开始差点把这本划走，因为「{apparent_risk}」。",
+                "但看下去发现「{reversal_hook}」还挺稳。",
+                "介意「{real_threshold}」的先慎入，能吃这个点的可以试试。",
+            ],
+            "book_shortage_rescue": [
+                "书荒的时候，这种「{genre}」真的很好用。",
+                "不用动太多脑子，爽点就在「{specific_hook}」。",
+                "想找「{search_keyword}」的，可以先把这本放进待看。",
+            ],
+            "audience_filter": [
+                "想看「{preference_a}」但怕又是空壳设定的，可以先停一下。",
+                "这本抓人的点是「{specific_hook}」。",
+                "重点看规则、代价和破局目标，少一个都容易水。",
+            ],
+            "rant_entry": [
+                "我真的受不了那种「{common_thunder}」的末世文。",
+                "所以这本让我舒服的点很简单：「{anti_thunder_hook}」。",
+                "女主「{specific_behavior}」，看着就很省心。",
+            ],
+        },
+        "cover_templates": {
+            "normal_recommendation": {
+                "main_title_max_len": 8,
+                "subtitle_max_len": 12,
+                "examples": ["末世种田文\n这本能追", "女主清醒\n基建很安心"],
+            },
+            "warning_review": {
+                "main_title_max_len": 8,
+                "subtitle_max_len": 12,
+                "examples": ["末世文避雷\n但这本能看", "女主不圣母\n靠本事吃饭"],
+            },
+            "comment_experiment": {
+                "main_title_max_len": 8,
+                "subtitle_max_len": 14,
+                "examples": ["求投喂！\n女主不圣母的\n末世文"],
+            },
+        },
         "cover_rules": {
             "main_title_max_len": 16,
             "subtitle_max_len": 24,
@@ -164,6 +294,26 @@ def render_strategy_prompt(strategy):
             formulas.append(f"{formula.get('name', '')}: {formula.get('template', '')}")
     if formulas:
         lines.append(f"标题公式：{'；'.join(formulas)}")
+    note_types = strategy.get("note_types") or {}
+    if isinstance(note_types, dict) and note_types:
+        rendered = []
+        for key, item in note_types.items():
+            if isinstance(item, dict):
+                rendered.append(f"{key}={item.get('label', '')}，目标：{item.get('goal', '')}")
+        if rendered:
+            lines.append(f"笔记类型：{'；'.join(rendered)}")
+    opening_templates = strategy.get("opening_templates") or {}
+    if isinstance(opening_templates, dict) and opening_templates:
+        lines.append("前三行模板类型：" + "；".join(opening_templates.keys()))
+    cover_templates = strategy.get("cover_templates") or {}
+    if isinstance(cover_templates, dict) and cover_templates:
+        rendered = []
+        for key, item in cover_templates.items():
+            if isinstance(item, dict):
+                examples = " / ".join(item.get("examples") or [])
+                rendered.append(f"{key}: 主≤{item.get('main_title_max_len', 8)}，副≤{item.get('subtitle_max_len', 12)}，例：{examples}")
+        if rendered:
+            lines.append(f"封面大字报模板：{'；'.join(rendered)}")
     return "\n".join(line for line in lines if line.strip())
 
 

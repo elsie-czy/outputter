@@ -4,7 +4,8 @@ import re
 _EVENT_OR_PROMO_RE = re.compile(
     r"(\d{4}年|\d+月\d+[日号]?|\d+点|第[一二三四五六七八九十\d]+册|"
     r"开售|出版|预售|签名|特签|限时|抽奖|活动|详情|关注|上线|有声|广播剧|"
-    r"微博|围脖|喜马拉雅|实体书|番外|作话|链接|群|私信)"
+    r"微博|围脖|喜马拉雅|实体书|番外|作话|链接|群|私信|"
+    r"预收|预收文|最新连载|完结旧文|求个收藏|求收藏|文案在下面|作者专栏)"
 )
 
 _STORY_SIGNAL_RE = re.compile(
@@ -85,6 +86,24 @@ def _split_fragments(text):
 def _normalize_fragment(text):
     s = str(text or "").strip()
     s = re.sub(r"^[~～\-—\s]+|[~～\-—\s]+$", "", s)
+    s = _strip_notice_prefix(s)
+    return s
+
+
+def _strip_notice_prefix(text):
+    s = str(text or "").strip()
+    # JJWXC descriptions often prepend notices for other works before the real
+    # synopsis. Keep the story part when it clearly begins after a separator.
+    if not re.search(r"(预收|最新连载|完结旧文|文案在下面|作者专栏)", s):
+        return s
+    parts = [p.strip(" ：:-—") for p in re.split(r"[—]{3,}|[-]{3,}|_{3,}", s) if p.strip(" ：:-—")]
+    for part in parts[1:]:
+        if _STORY_SIGNAL_RE.search(part):
+            return part
+    for marker in ["苏涵", "末世来了", "身娇体软", "苏酥"]:
+        idx = s.find(marker)
+        if idx > 0:
+            return s[idx:].strip(" ：:-—")
     return s
 
 

@@ -3,11 +3,41 @@
 {% block title %}生产中心 - 火花{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/production_center.css') }}" />
+<link rel="stylesheet" href="{{ url_for('static', filename='css/production_center.css', v='production-center-20260713') }}" />
 {% endblock %}
 
 {% block content %}
 <div class="pc-container">
+
+  <section class="pc-hero" aria-label="生产中心概览">
+    <div class="pc-hero-copy">
+      <h1>生产中心</h1>
+      <p>管理从已通过选题到笔记生产、审核的全流程任务，AI 智能驱动内容高效创作。</p>
+      <div class="pc-hero-metrics" aria-label="关键生产指标">
+        <div class="pc-hero-metric pc-hero-metric--done">
+          <span><i data-lucide="box"></i></span>
+          <strong id="heroDoneCount">0</strong>
+          <em>已审核任务</em>
+        </div>
+        <div class="pc-hero-metric pc-hero-metric--processing">
+          <span><i data-lucide="loader"></i></span>
+          <strong id="heroProcessingCount">0</strong>
+          <em>生产中</em>
+        </div>
+        <div class="pc-hero-metric pc-hero-metric--review">
+          <span><i data-lucide="clipboard-check"></i></span>
+          <strong id="heroReviewCount">0</strong>
+          <em>待审核</em>
+        </div>
+        <div class="pc-hero-metric pc-hero-metric--failed">
+          <span><i data-lucide="x-circle"></i></span>
+          <strong id="heroFailedCount">0</strong>
+          <em>今日失败</em>
+        </div>
+      </div>
+    </div>
+    <img class="pc-hero-visual" src="{{ url_for('static', filename='img/production-center-hero-cutout.png') }}" alt="" aria-hidden="true" />
+  </section>
 
   <!-- ===== 顶部任务统计栏 ===== -->
   <div class="pc-stats-row">
@@ -171,5 +201,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/production_center.js') }}"></script>
+<script src="{{ url_for('static', filename='js/production_center.js', v='production-center-20260713') }}"></script>
 {% endblock %}

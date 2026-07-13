@@ -4,14 +4,14 @@
 {% block title %}任务详情 - 火花{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/task_detail.css') }}" />
+<link rel="stylesheet" href="{{ url_for('static', filename='css/task_detail.css', v='task-detail-20260713e') }}" />
 {% endblock %}
 
 {% block content %}
 <div class="td-container" data-task-id="{{ task_id }}">
 
   <!-- ===== 顶部任务概览 ===== -->
-  <div class="td-header">
+  <section class="td-header">
     <div class="td-header-left td-header-identity">
       <div class="td-cover">
         <div class="td-cover-img">📖</div>
@@ -19,18 +19,23 @@
       <div class="td-header-info">
         <h1 class="td-info-title" id="taskTitle">加载中...</h1>
         <div class="td-info-tags" id="taskMeta">
-          <span class="td-info-tag" id="taskAuthor">—</span>
-          <span class="td-info-tag" id="taskPlatform">—</span>
           <span class="td-info-tag" id="taskCategory">—</span>
           <span class="td-info-tag" id="taskWordCount">—</span>
+          <span class="td-info-tag" id="taskPlatform">—</span>
+          <span class="td-info-tag">AI生成笔记</span>
+        </div>
+        <div class="td-book-meta">
+          <span>ID: <code id="taskId">{{ task_id }}</code></span>
+          <span><i data-lucide="user-round"></i> 作者：<strong id="taskAuthor">—</strong></span>
+          <span><i data-lucide="badge"></i> 来源平台：<strong id="taskPlatformHero">—</strong></span>
         </div>
       </div>
     </div>
     <div class="td-header-middle" aria-label="任务基础信息">
       <div class="td-task-meta-grid">
         <div class="td-meta-item">
-          <span class="td-meta-label">任务ID</span>
-          <code class="td-meta-value td-meta-code" id="taskId">{{ task_id }}</code>
+          <span class="td-meta-label">任务状态</span>
+          <strong class="td-meta-value" id="summaryStatus">加载中</strong>
         </div>
         <div class="td-meta-item">
           <span class="td-meta-label">创建时间</span>
@@ -45,15 +50,15 @@
           <strong class="td-meta-value" id="taskDuration">—</strong>
         </div>
         <div class="td-meta-item">
-          <span class="td-meta-label">内容效率</span>
-          <strong class="td-meta-value" id="summarySpeed">—</strong>
+          <span class="td-meta-label">任务来源</span>
+          <strong class="td-meta-value" id="taskSource">新文 · 小红书笔记</strong>
         </div>
         <div class="td-meta-item">
-          <span class="td-meta-label">生成模型</span>
+          <span class="td-meta-label">模型与配置</span>
           <strong class="td-meta-value" id="taskModel">—</strong>
         </div>
       </div>
-      <div class="td-refresh-meta">
+      <div class="td-refresh-meta" hidden>
         <label class="td-refresh-toggle" title="开启后每 5 秒刷新任务状态">
           <input type="checkbox" id="autoRefreshToggle" />
           <span>自动刷新</span>
@@ -63,21 +68,34 @@
         <span>重试 <strong id="summaryRetries">0</strong></span>
       </div>
     </div>
-    <div class="td-header-progress" aria-label="任务进度">
-      <div class="td-summary-status" id="summaryStatus">加载中</div>
-      <div class="td-summary-progress"><span id="summaryProgress">0</span>%</div>
-      <div class="td-progress-caption">预计剩余时间 <span id="summaryRemaining">—</span></div>
-      <div class="td-progress-track"><div class="td-progress-fill" id="summaryProgressBar"></div></div>
+    <div class="td-header-strategy" aria-label="生成策略">
+      <div class="td-ai-section-title">生成策略</div>
+      <div class="td-strategy-card" id="generationStrategyCard">
+        <div class="td-empty-state td-empty-state--compact">暂无生成策略信息</div>
+      </div>
+    </div>
+    <div class="td-header-score" aria-label="综合质量得分">
+      <div class="td-score-card-copy">
+        <span>综合质量得分 <i data-lucide="info"></i></span>
+        <strong><em id="heroTotalScore">83</em>%</strong>
+        <small id="heroScoreBadge">优秀</small>
+        <div class="td-progress-track"><div class="td-progress-fill" id="summaryProgressBar"></div></div>
+        <p>预计转化率(评估) <b>18-25%</b></p>
+      </div>
+      <img class="td-score-visual" src="{{ url_for('static', filename='img/task-detail-score-cutout.png') }}" alt="" aria-hidden="true" />
     </div>
     <div class="td-header-right" aria-label="任务操作">
-      <div class="td-summary-actions">
-        <button class="td-btn td-btn--secondary td-btn--small" id="btnRefresh"><i data-lucide="refresh-cw"></i><span>手动刷新</span></button>
+      <div class="td-action-card">
+        <h2>任务操作</h2>
+        <div class="td-summary-actions">
         <button class="td-btn td-btn--secondary td-btn--small" id="btnRegenerate"><i data-lucide="file-pen-line"></i><span>重新生成笔记</span></button>
         <button class="td-btn td-btn--secondary td-btn--small" id="btnRegenerateImages"><i data-lucide="image-plus"></i><span>重新生成配图</span></button>
         <button class="td-btn td-btn--secondary td-btn--small" id="btnRescore"><i data-lucide="badge-check"></i><span>重新评分</span></button>
+        <button class="td-btn td-btn--secondary td-btn--small" id="btnRefresh"><i data-lucide="refresh-cw"></i><span>刷新状态</span></button>
+        </div>
       </div>
     </div>
-  </div>
+  </section>
 
   <!-- ===== 流程进度轴（生产流水线） ===== -->
   <div class="td-steps-bar">
@@ -151,7 +169,7 @@
     <!-- ===== Tab导航 ===== -->
     <div class="td-tabs">
       <button class="td-tab active" data-tab="note">笔记内容</button>
-      <button class="td-tab" data-tab="deconstruct">拆文结果</button>
+      <button class="td-tab" data-tab="deconstruct">图文选题</button>
       <button class="td-tab" data-tab="score">AI评分</button>
       <button class="td-tab" data-tab="history">修改记录</button>
     </div>
@@ -167,9 +185,54 @@
           </div>
         </div>
         <div class="td-note-editor">
-          <!-- 操作栏 -->
-          <div class="td-note-actions">
-            <button class="td-btn td-btn--secondary td-btn--small" id="btnRegenerateNote">重新生成</button>
+          <div class="td-workflow-box" id="generationWorkflow">
+            <div class="td-workflow-head">
+              <strong>生成工作流</strong>
+              <span>控制前台稿口吻、前三行和封面大字报</span>
+            </div>
+            <div class="td-workflow-grid">
+              <label>
+                <span>笔记类型</span>
+                <select id="workflowNoteType">
+                  <option value="normal_recommendation">正常推荐</option>
+                  <option value="comment_experiment">求投喂</option>
+                  <option value="warning_review">避雷判断</option>
+                  <option value="booklist">书单合集</option>
+                </select>
+              </label>
+              <label>
+                <span>前三行类型</span>
+                <select id="workflowOpeningType">
+                  <option value="auto">自动</option>
+                  <option value="strong_recommend">强安利</option>
+                  <option value="warning_reversal">避雷反转</option>
+                  <option value="book_shortage_rescue">书荒急救</option>
+                  <option value="audience_filter">人群筛选</option>
+                  <option value="rant_entry">吐槽带入</option>
+                </select>
+              </label>
+              <label>
+                <span>资料边界</span>
+                <select id="workflowReadStatus">
+                  <option value="synopsis_only">只看简介</option>
+                  <option value="read_to_chapter">读到前 N 章</option>
+                  <option value="full_read">已读全文</option>
+                </select>
+              </label>
+              <label>
+                <span>封面模板</span>
+                <select id="workflowCoverTemplate">
+                  <option value="normal_recommendation">大字报推荐</option>
+                  <option value="warning_review">避雷反转</option>
+                  <option value="comment_experiment">求投喂实验</option>
+                  <option value="booklist">书单合集</option>
+                </select>
+              </label>
+            </div>
+            <label class="td-workflow-brief">
+              <span>手工生成备注</span>
+              <textarea id="workflowManualBrief" rows="2" placeholder="例如：这版更偏求评论，弱化作品速览，强调女主不圣母。"></textarea>
+            </label>
           </div>
           <div class="td-editor-title">
             <input type="text" id="noteTitle" class="td-title-input" placeholder="笔记标题..." />
@@ -194,27 +257,30 @@
             <div class="td-tags-suggest" id="tagsSuggest"></div>
             <button class="td-tag-add" id="addTagBtn">+ 添加标签</button>
           </div>
+          <div class="td-editor-support">
+            <div class="td-support-section">
+              <div class="td-ai-section-title">互动转化建议</div>
+              <div class="td-conversion-card" id="conversionReviewCard">
+                <div class="td-empty-state td-empty-state--compact">暂无互动转化建议，重新生成或评分后会显示</div>
+              </div>
+            </div>
+            <div class="td-support-row">
+              <div class="td-support-section">
+                <div class="td-ai-section-title">关键词建议</div>
+                <div class="td-keywords" id="keywordSuggestions">
+                  <span class="td-keyword td-keyword--add">情绪爆点</span>
+                  <span class="td-keyword td-keyword--add">反转剧情</span>
+                  <span class="td-keyword td-keyword--add">爽文结构</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <!-- 右侧：AI编辑建议 -->
         <div class="td-note-right">
-          <div class="td-ai-section-title">生成策略</div>
-          <div class="td-strategy-card" id="generationStrategyCard">
-            <div class="td-empty-state td-empty-state--compact">暂无生成策略信息</div>
-          </div>
           <div class="td-ai-section-title">AI 编辑建议</div>
           <div class="td-ai-advice-list" id="aiAdviceList">
             <div class="td-empty-state td-empty-state--compact">暂无 AI 建议，重新评分后会显示改进方向</div>
-          </div>
-          <div class="td-ai-section-title">字数统计</div>
-          <div class="td-editor-stats">
-            <div><span id="sideWordCount">0</span><small>正文字符</small></div>
-            <div><span id="sideTagCount">0</span><small>标签数</small></div>
-          </div>
-          <div class="td-ai-section-title">关键词建议</div>
-          <div class="td-keywords" id="keywordSuggestions">
-            <span class="td-keyword td-keyword--add">情绪爆点</span>
-            <span class="td-keyword td-keyword--add">反转剧情</span>
-            <span class="td-keyword td-keyword--add">爽文结构</span>
           </div>
         </div>
       </div>
@@ -324,5 +390,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/task_detail.js', v='20260709-0144') }}"></script>
+<script src="{{ url_for('static', filename='js/task_detail.js', v='task-detail-20260713e') }}"></script>
 {% endblock %}

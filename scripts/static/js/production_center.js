@@ -62,6 +62,10 @@
       setText("#statReview", reviewTotal);
       setText("#statPending", d.pending || 0);
       setText("#statFailed", failedTotal);
+      setText("#heroDoneCount", doneTotal);
+      setText("#heroProcessingCount", d.processing || 0);
+      setText("#heroReviewCount", reviewTotal);
+      setText("#heroFailedCount", failedTotal);
       setText("#tabAllCount", allTotal);
       setText("#tabProcessingCount", d.processing || 0);
       setText("#tabPendingCount", d.pending || 0);

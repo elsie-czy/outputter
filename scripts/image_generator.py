@@ -12,6 +12,13 @@ from urllib.parse import quote, urlparse, parse_qsl, urlsplit
 import requests
 
 
+DOUBAO_PROVIDER_MODELS = {
+    "doubao_seedream_5_lite": "doubao-seedream-5-0-260128",
+    "doubao_seedream_4_5": "doubao-seedream-4-5-251128",
+    "doubao_seedream_4_0": "doubao-seedream-4-0-250828",
+}
+
+
 def is_image_generation_enabled():
     return os.getenv("IMAGE_GEN_ENABLED", "false").strip().lower() in ["1", "true", "yes"]
 
@@ -400,7 +407,7 @@ def generate_images_from_prompt(prompt, n=2):
       - IMAGE_BASE_URL or JIMENG_BASE_URL
       - IMAGE_MODEL or JIMENG_MODEL  (default depends on provider)
       - IMAGE_SIZE or JIMENG_IMAGE_SIZE (default: 768x1024)
-      - IMAGE_PROVIDER: siliconflow | jimeng | liblib (default: jimeng)
+      - IMAGE_PROVIDER: siliconflow | jimeng | liblib | doubao_* (default: jimeng)
     Returns local file paths.
     """
     provider = os.getenv("IMAGE_PROVIDER", "jimeng").strip().lower()
@@ -413,6 +420,33 @@ def generate_images_from_prompt(prompt, n=2):
         base = os.getenv("LIBLIB_BASE_URL", "https://openapi.liblibai.cloud").strip().rstrip("/")
         size = os.getenv("IMAGE_SIZE", "").strip() or os.getenv("LIBLIB_IMAGE_SIZE", "768x1024").strip()
         return _generate_liblib_images(base, access_key, secret_key, prompt, n, size)
+
+    if provider == "doubao" or provider in DOUBAO_PROVIDER_MODELS:
+        api_key = (
+            os.getenv("DOUBAO_API_KEY", "").strip()
+            or os.getenv("ARK_API_KEY", "").strip()
+            or os.getenv("IMAGE_API_KEY", "").strip()
+        )
+        if not api_key:
+            raise RuntimeError("DOUBAO_API_KEY / ARK_API_KEY 未设置")
+        base_url = (
+            os.getenv("DOUBAO_BASE_URL", "").strip()
+            or os.getenv("ARK_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3").strip()
+        ).rstrip("/")
+        endpoint = os.getenv("DOUBAO_IMAGES_ENDPOINT", "/images/generations").strip()
+        url = f"{base_url}{endpoint}" if not endpoint.startswith("http") else endpoint
+        model = (
+            os.getenv("DOUBAO_IMAGE_MODEL", "").strip()
+            or os.getenv("ARK_IMAGE_MODEL", "").strip()
+            or DOUBAO_PROVIDER_MODELS.get(provider, DOUBAO_PROVIDER_MODELS["doubao_seedream_5_lite"])
+        )
+        size = (
+            os.getenv("DOUBAO_IMAGE_SIZE", "").strip()
+            or os.getenv("ARK_IMAGE_SIZE", "").strip()
+            or os.getenv("IMAGE_SIZE", "").strip()
+            or "1440x2560"
+        )
+        return _generate_openai_images(url, api_key, model, prompt, n, size, cache_key_prefix=f"doubao:{model}")
 
     api_key = os.getenv("IMAGE_API_KEY", "").strip() or os.getenv("JIMENG_API_KEY", "").strip()
     base_url = (os.getenv("IMAGE_BASE_URL", "").strip()

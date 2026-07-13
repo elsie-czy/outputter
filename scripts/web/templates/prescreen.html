@@ -3,7 +3,7 @@
 {% block title %}选题库初筛 - 火花{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/prescreen.css') }}" />
+<link rel="stylesheet" href="{{ url_for('static', filename='css/prescreen.css', v='prescreen-20260713') }}" />
 {% endblock %}
 
 {% block content %}
@@ -11,28 +11,32 @@
   <section class="ps-hero">
     <div>
       <h1>选题库初筛</h1>
-      <p>数据来自番茄 / 晋江抓取脚本，按 <strong>去重Key</strong> 幂等写入飞书初筛表，不会手动新增来源。</p>
-      <p>页面负责调度抓取、查看批次结果和人工审核入库。</p>
+      <p>数据来自番茄 / 晋江抓取脚本，按 <strong>去重 Key 幂等写入</strong> 飞书初筛表，</p>
+      <p>不会手动新增来源。页面负责调度抓取、查看批次结果和 <strong>人工审核入库</strong>。</p>
     </div>
-    <img class="ps-hero-visual" src="{{ url_for('static', filename='img/prescreen-hero.png') }}" alt="" aria-hidden="true" />
+    <img class="ps-hero-visual" src="{{ url_for('static', filename='img/prescreen-hero-cutout.png') }}" alt="" aria-hidden="true" />
+  </section>
+
+  <section class="ps-rules" aria-label="数据写入规则">
+    <div class="ps-rules-title">数据写入规则</div>
+    <ol>
+      <li><i data-lucide="shield-check"></i><span><strong>去重Key</strong> = 平台 | 作品名称 | 作者</span></li>
+      <li><i data-lucide="refresh-cw"></i><span>已有记录会更新，不会重复新增</span></li>
+      <li><i data-lucide="file-text"></i><span>只写入飞书表中存在的字段</span></li>
+      <li><i data-lucide="toggle-left"></i><span>新记录默认 “是否入库 = 否”</span></li>
+      <li><i data-lucide="lock-keyhole"></i><span>人工改过的 “是否入库” 不会被脚本覆盖</span></li>
+    </ol>
   </section>
 
   <div class="ps-shell">
-    <aside class="ps-rules">
-      <div class="ps-rules-title">数据写入规则</div>
-      <ol>
-        <li>去重Key = 平台 | 作品名称 | 作者</li>
-        <li>已有记录会更新，不会重复新增</li>
-        <li>只写入飞书表中存在的字段</li>
-        <li>新记录默认 是否入库 = 否</li>
-        <li>人工修改过的 是否入库 不会被脚本覆盖</li>
-      </ol>
-    </aside>
-
     <main class="ps-main">
       <section class="ps-card ps-fetch-card">
         <div class="ps-section-head">
           <h2><i data-lucide="scan-search"></i> 抓取控制台</h2>
+          <div class="ps-fetch-actions">
+            <button class="ps-secondary-btn" type="button">校验参数</button>
+            <button class="ps-primary-btn" type="submit" form="psFetchForm">开始抓取并写入初筛表</button>
+          </div>
         </div>
         <form class="ps-fetch-form" id="psFetchForm">
           <label class="ps-field ps-mode-field">
@@ -61,17 +65,22 @@
             <span>关键词</span>
             <input id="psQuery" type="text" placeholder="排行榜模式无需关键词" disabled />
           </label>
-          <button class="ps-primary-btn" type="submit">开始抓取并写入初筛表</button>
         </form>
-        <details class="ps-write-rule" open>
-          <summary>写入规则</summary>
-          <ul>
-            <li>去重Key = 平台 | 作品名称 | 作者，已有记录会更新，不会重复新增。</li>
-            <li>新记录默认 是否入库 = 否；人工改过的 是否入库 不会被脚本覆盖。</li>
-            <li>只写入飞书表中存在的字段。</li>
-          </ul>
-        </details>
-        <div class="ps-form-note"><i data-lucide="info"></i> 按 去重Key 更新已有记录，新记录默认 是否入库 = 否。</div>
+        <div class="ps-command-panel">
+          <details class="ps-write-rule" open>
+            <summary>写入规则</summary>
+            <ul>
+              <li>去重 Key = 平台 | 作品名称 | 作者</li>
+              <li>新记录默认 “是否入库 = 否”；人工改过的状态不会被覆盖。</li>
+              <li>只写入飞书表中存在的字段。</li>
+            </ul>
+          </details>
+          <div class="ps-form-note">
+            <strong>执行命令（预览）</strong>
+            <code id="psCommandPreview">python scripts/crawl_rank.py --source fanqie jinjiang --mode rank --limit 60 --batch-date --write-to-feishu</code>
+            <button type="button" aria-label="复制命令"><i data-lucide="copy"></i></button>
+          </div>
+        </div>
       </section>
 
       <section class="ps-card ps-overview-card">
@@ -167,7 +176,7 @@
         </div>
       </section>
 
-      <section class="ps-maintain">
+      <section class="ps-maintain" hidden>
         <div class="ps-maintain-head">
           <h2><i data-lucide="wrench"></i> 维护已有初筛记录</h2>
           <p>仅为已有初筛记录补充数值字段、入选维度、推荐理由和综合得分，不会新增抓取来源。</p>
@@ -211,5 +220,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/prescreen.js') }}"></script>
+<script src="{{ url_for('static', filename='js/prescreen.js', v='prescreen-20260712') }}"></script>
 {% endblock %}
